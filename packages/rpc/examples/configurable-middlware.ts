@@ -78,14 +78,16 @@ const configHandler = <Cfg extends Config>(config: Cfg) => <R, E, A>(handler: Ef
 const posts = RpcSchema.make({
   create: {
     input: CreatePost,
-    output: Post
+    output: Post,
+    // metadata can also be used on the client side, e.g to hide actions or also execute particular behaviour, provide layers etc.
+    config: {
+      requireRoles: ["admin"]
+    }
   },
   list: {
     output: Schema.chunk(Post),
-    // metadata can also be used on the client side, e.g to hide actions or also execute particular behaviour, provide layers etc.
     config: {
-      allowAnonymous: true,
-      requireRoles: ["admin"]
+      allowAnonymous: true
     }
   }
 })
