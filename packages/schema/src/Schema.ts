@@ -4949,13 +4949,17 @@ const makeClass = <R, I, A, Fields extends StructFields>(
       const toSchema = to(selfSchema)
       const pretty = Pretty.make(toSchema)
       const arb = arbitrary.make(toSchema)
-      const declaration: Schema<never, any, any> = declare((input): input is any => input instanceof this, {
-        identifier: this.name,
-        title: this.name,
-        description: `an instance of ${this.name}`,
-        pretty: () => (self: any) => `${self.constructor.name}(${pretty(self)})`,
-        arbitrary: () => (fc: any) => arb(fc).map((props: any) => new this(props))
-      })
+      const guard = Parser.is(toSchema)
+      const declaration: Schema<never, any, any> = declare(
+        (input): input is any => input instanceof this || guard(input),
+        {
+          identifier: this.name,
+          title: this.name,
+          description: `an instance of ${this.name}`,
+          pretty: () => (self: any) => `${self.constructor.name}(${pretty(self)})`,
+          arbitrary: () => (fc: any) => arb(fc).map((props: any) => new this(props))
+        }
+      )
       const transformation = transform(
         selfSchema,
         declaration,
