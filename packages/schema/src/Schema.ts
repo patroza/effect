@@ -1054,13 +1054,16 @@ export type StructFields = Record<
   | Schema<any, never, never>
   | PropertySignature<any, any, boolean, any, boolean>
   | PropertySignature<any, never, boolean, never, boolean>
+  | ConstructorPropertyDescriptor<any, any, any> // TODO: variation for PropertySignature too
 >
 
 /**
  * @since 1.0.0
  */
 export type FromStruct<Fields extends StructFields> =
-  & { readonly [K in Exclude<keyof Fields, FromOptionalKeys<Fields>>]: Schema.From<Fields[K]> }
+  & {
+    readonly [K in Exclude<keyof Fields, FromOptionalKeys<Fields>>]: Schema.From<Fields[K]>
+  }
   & { readonly [K in FromOptionalKeys<Fields>]?: Schema.From<Fields[K]> }
 
 /**
@@ -4538,6 +4541,12 @@ export const data = <
 type MissingSelfGeneric<Usage extends string, Params extends string = ""> =
   `Missing \`Self\` generic - use \`class Self extends ${Usage}<Self>()(${Params}{ ... })\``
 
+type _OptionalKeys<O> = {
+  [K in keyof O]-?: {} extends Pick<O, K> ? K
+    : never
+}[keyof O]
+type FilterOptionalKeys<A> = Omit<A, _OptionalKeys<A>>
+
 /**
  * @category classes
  * @since 1.0.0
@@ -4545,11 +4554,11 @@ type MissingSelfGeneric<Usage extends string, Params extends string = ""> =
 export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
   new(
     ...args: [R] extends [never] ? [
-        props: Equals<C, {}> extends true ? void | {} : C,
+        props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
         disableValidation?: boolean | undefined
       ] :
       [
-        props: Equals<C, {}> extends true ? void | {} : C,
+        props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
         disableValidation: true
       ]
   ): A & Omit<Inherited, keyof A>
@@ -4563,7 +4572,7 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
       R | Schema.Context<FieldsB[keyof FieldsB]>,
       Simplify<Omit<I, keyof FieldsB> & FromStruct<FieldsB>>,
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
-      Simplify<Omit<C, keyof FieldsB> & ToStruct<FieldsB>>,
+      Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Extended,
       Self
     >
@@ -4589,7 +4598,7 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
       R | Schema.Context<FieldsB[keyof FieldsB]> | R2 | R3,
       I,
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
-      Simplify<Omit<C, keyof FieldsB> & ToStruct<FieldsB>>,
+      Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Transformed,
       Self
     >
@@ -4615,7 +4624,7 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
       R | Schema.Context<FieldsB[keyof FieldsB]> | R2 | R3,
       I,
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
-      Simplify<Omit<C, keyof FieldsB> & ToStruct<FieldsB>>,
+      Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Transformed,
       Self
     >
@@ -4633,10 +4642,70 @@ export const Class = <Self>() =>
     Schema.Context<Fields[keyof Fields]>,
     Simplify<FromStruct<Fields>>,
     Simplify<ToStruct<Fields>>,
-    Simplify<ToStruct<Fields>>,
+    Simplify<ToStructConstructor<Fields>>,
     Self,
     Data.Case
-  > => makeClass(struct(fields), fields, Data.Class)
+  > =>
+{
+  const Class = makeClass(struct(fields), fields, Data.Class)
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = false) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "make" in v) {
+          p[k] = v.make()
+        }
+      })
+      super(p, disableValidation)
+    }
+  } as any
+}
+
+/**
+ * @since 1.0.0
+ */
+export interface ConstructorPropertyDescriptor<R, From, To> extends Schema.Variance<R, From, To>, Pipeable {
+  make: () => To
+}
+
+/**
+ * @category classes
+ * @since 1.0.0
+ */
+export const withDefaultConstructor = <S extends Schema<any, any, any>>(
+  s: S,
+  make: () => Schema.To<S>
+): S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>> => {
+  if ("struct" in s) {
+    const _s = s as unknown as Class<any, any, any, any, any, any, any>
+    const cls = class extends _s {
+      static make = make
+    }
+    Object.defineProperty(cls, "name", { value: _s.name })
+    return cls as any
+  }
+  return Object.assign(Object.create(s), s, { make })
+}
+
+/**
+ * @since 1.0.0
+ */
+export type ToOptionalConstructorKeys<Fields> = {
+  [K in keyof Fields]: Fields[K] extends ConstructorPropertyDescriptor<any, any, any> ? K
+    : never
+}[keyof Fields]
+
+/**
+ * @since 1.0.0
+ */
+export type ToStructConstructor<Fields extends StructFields> =
+  & {
+    readonly [
+      K in Exclude<keyof Fields, ToOptionalKeys<Fields> | ToOptionalConstructorKeys<Fields>>
+    ]: Schema.To<Fields[K]>
+  }
+  & { readonly [K in ToOptionalKeys<Fields>]?: Schema.To<Fields[K]> }
+  & { readonly [K in ToOptionalConstructorKeys<Fields>]?: Schema.To<Fields[K]> }
 
 /**
  * @category classes
@@ -4651,13 +4720,24 @@ export const TaggedClass = <Self>() =>
     Schema.Context<Fields[keyof Fields]>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
-    Simplify<ToStruct<Fields>>,
+    Simplify<ToStructConstructor<Fields>>,
     Self,
     Data.Case
   > =>
 {
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-  return makeClass(struct(fieldsWithTag), fieldsWithTag, Data.Class, { _tag: tag })
+  const Class = makeClass(struct(fieldsWithTag), fieldsWithTag, Data.Class, { _tag: tag })
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = false) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "make" in v) {
+          p[k] = v.make()
+        }
+      })
+      super(p, disableValidation)
+    }
+  } as any
 }
 
 /**
@@ -4673,18 +4753,29 @@ export const TaggedError = <Self>() =>
     Schema.Context<Fields[keyof Fields]>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
-    Simplify<ToStruct<Fields>>,
+    Simplify<ToStructConstructor<Fields>>,
     Self,
     Effect.Effect<never, Self, never> & globalThis.Error
   > =>
 {
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-  return makeClass(
+  const Class = makeClass(
     struct(fieldsWithTag),
     fieldsWithTag,
     Data.Error,
     { _tag: tag }
   )
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = false) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "make" in v) {
+          p[k] = v.make()
+        }
+      })
+      super(p, disableValidation)
+    }
+  } as any
 }
 
 /**
@@ -4726,7 +4817,7 @@ export const TaggedRequest = <Self>() =>
     Schema.Context<Fields[keyof Fields]>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
-    Simplify<ToStruct<Fields>>,
+    Simplify<ToStructConstructor<Fields>>,
     Self,
     TaggedRequest<
       Tag,
@@ -4750,12 +4841,23 @@ export const TaggedRequest = <Self>() =>
     }
   }
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-  return makeClass(
+  const Class = makeClass(
     struct(fieldsWithTag),
     fieldsWithTag,
     SerializableRequest,
     { _tag: tag }
   )
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = false) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "make" in v) {
+          p[k] = v.make()
+        }
+      })
+      super(p, disableValidation)
+    }
+  } as any
 }
 
 const makeClass = <R, I, A>(
