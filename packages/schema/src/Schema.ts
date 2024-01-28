@@ -1055,16 +1055,21 @@ export type StructFields = Record<
   | PropertySignature<any, any, boolean, any, boolean>
   | PropertySignature<any, never, boolean, never, boolean>
   | ConstructorPropertyDescriptor<any, any, any> // TODO: variation for PropertySignature too
+  | MapFromPropertyDescriptor<any, any, any, any>
 >
+
+type GetKey<K extends keyof T, T extends StructFields> = T[K] extends MapFromPropertyDescriptor<any, any, any, any> ?
+  T[K]["mapFrom"] :
+  K
 
 /**
  * @since 1.0.0
  */
 export type FromStruct<Fields extends StructFields> =
   & {
-    readonly [K in Exclude<keyof Fields, FromOptionalKeys<Fields>>]: Schema.From<Fields[K]>
+    readonly [K in Exclude<keyof Fields, FromOptionalKeys<Fields>> as GetKey<K, Fields>]: Schema.From<Fields[K]>
   }
-  & { readonly [K in FromOptionalKeys<Fields>]?: Schema.From<Fields[K]> }
+  & { readonly [K in FromOptionalKeys<Fields> as GetKey<K, Fields>]?: Schema.From<Fields[K]> }
 
 /**
  * @since 1.0.0
@@ -1085,9 +1090,23 @@ export const struct = <Fields extends StructFields>(
   const pssFrom: Array<AST.PropertySignature> = []
   const pssTo: Array<AST.PropertySignature> = []
   const psTransformations: Array<AST.PropertySignatureTransform> = []
+  const map: Record<PropertyKey, PropertyKey> = {}
+  const map2: Record<PropertyKey, PropertyKey> = {}
   for (let i = 0; i < ownKeys.length; i++) {
     const key = ownKeys[i]
     const field = fields[key] as any
+    if (field.mapFrom) {
+      map[field.mapFrom] = key
+      map2[key] = field.mapFrom
+    }
+  }
+  const ren = Object.keys(map).length
+    ? <S extends Schema<any, any>>(s: S) => make(AST.rename(s.ast, map)) as S
+    : identity
+
+  for (let i = 0; i < ownKeys.length; i++) {
+    const key = map2[ownKeys[i]] ?? ownKeys[i]
+    const field = fields[ownKeys[i]] as any
     if ("propertySignatureAST" in field) {
       const psAst: PropertySignatureAST = field.propertySignatureAST
       const from = psAst.from
@@ -1119,7 +1138,7 @@ export const struct = <Fields extends StructFields>(
     }
   }
   if (ReadonlyArray.isNonEmptyReadonlyArray(psTransformations)) {
-    return make(
+    return ren(make(
       AST.createTransform(
         AST.createTypeLiteral(pssFrom, []),
         AST.createTypeLiteral(pssTo, []),
@@ -1127,9 +1146,9 @@ export const struct = <Fields extends StructFields>(
           psTransformations
         )
       )
-    )
+    ))
   }
-  return make(AST.createTypeLiteral(pss, []))
+  return ren(make(AST.createTypeLiteral(pss, [])))
 }
 
 /**
@@ -4551,7 +4570,7 @@ type FilterOptionalKeys<A> = Omit<A, _OptionalKeys<A>>
  * @category classes
  * @since 1.0.0
  */
-export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
+export interface Class<R, I, A, C, Self, Fields, Inherited> extends Schema<R, I, Self> {
   new(
     ...args: [R] extends [never] ? [
         props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
@@ -4565,6 +4584,8 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
 
   readonly struct: Schema<R, I, A>
 
+  readonly fields: Fields
+
   readonly extend: <Extended>() => <FieldsB extends StructFields>(
     fields: FieldsB
   ) => [unknown] extends [Extended] ? MissingSelfGeneric<"Base.extend">
@@ -4574,6 +4595,7 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Extended,
+      Simplify<Omit<Fields, keyof FieldsB> & FieldsB>,
       Self
     >
 
@@ -4600,6 +4622,7 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Transformed,
+      Simplify<Omit<Fields, keyof FieldsB> & FieldsB>,
       Self
     >
 
@@ -4626,6 +4649,7 @@ export interface Class<R, I, A, C, Self, Inherited> extends Schema<R, I, Self> {
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Transformed,
+      Simplify<Omit<Fields, keyof FieldsB> & FieldsB>,
       Self
     >
 }
@@ -4644,6 +4668,7 @@ export const Class = <Self>() =>
     Simplify<ToStruct<Fields>>,
     Simplify<ToStructConstructor<Fields>>,
     Self,
+    Fields,
     Data.Case
   > =>
 {
@@ -4669,6 +4694,15 @@ export interface ConstructorPropertyDescriptor<R, From, To> extends Schema.Varia
 }
 
 /**
+ * @since 1.0.0
+ */
+export interface MapFromPropertyDescriptor<R, From, To, FromKey extends PropertyKey = never>
+  extends Schema.Variance<R, From, To>, Pipeable
+{
+  mapFrom: FromKey
+}
+
+/**
  * @category classes
  * @since 1.0.0
  */
@@ -4685,6 +4719,25 @@ export const withDefaultConstructor = <S extends Schema<any, any, any>>(
     return cls as any
   }
   return Object.assign(Object.create(s), s, { make })
+}
+
+/**
+ * @category classes
+ * @since 1.0.0
+ */
+export const mapFrom = <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+  s: S,
+  from: FromKey
+): S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey> => {
+  if ("struct" in s) {
+    const _s = s as unknown as Class<any, any, any, any, any, any, any>
+    const cls = class extends _s {
+      static mapFrom = from
+    }
+    Object.defineProperty(cls, "name", { value: _s.name })
+    return cls as any
+  }
+  return Object.assign(Object.create(s), s, { mapFrom: from })
 }
 
 /**
@@ -4722,6 +4775,7 @@ export const TaggedClass = <Self>() =>
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<ToStructConstructor<Fields>>,
     Self,
+    Fields,
     Data.Case
   > =>
 {
@@ -4755,6 +4809,7 @@ export const TaggedError = <Self>() =>
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<ToStructConstructor<Fields>>,
     Self,
+    Fields,
     Effect.Effect<never, Self, never> & globalThis.Error
   > =>
 {
@@ -4819,6 +4874,7 @@ export const TaggedRequest = <Self>() =>
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<ToStructConstructor<Fields>>,
     Self,
+    Fields,
     TaggedRequest<
       Tag,
       Schema.Context<Fields[keyof Fields]>,
@@ -4860,9 +4916,9 @@ export const TaggedRequest = <Self>() =>
   } as any
 }
 
-const makeClass = <R, I, A>(
+const makeClass = <R, I, A, Fields extends StructFields>(
   selfSchema: Schema<R, I, A>,
-  selfFields: StructFields,
+  selfFields: Fields,
   Base: any,
   additionalProps?: any
 ): any => {
@@ -4910,6 +4966,7 @@ const makeClass = <R, I, A>(
     }
 
     static struct = selfSchema
+    static fields = selfFields
 
     static extend() {
       return (fields: StructFields) => {
