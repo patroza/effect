@@ -96,4 +96,11 @@ describe("Schema > rename", () => {
     await Util.expectDecodeUnknownSuccess(renamed, { a: "a", b: "1" }, { c: "a", b: 1 })
     await Util.expectEncodeSuccess(renamed, { c: "a", b: 1 }, { a: "a", b: "1" })
   })
+
+  it("property transformation", async () => {
+    const renamed = S.struct({ a: S.mapFrom(S.string, "c"), b: S.NumberFromString })
+
+    await Util.expectDecodeUnknownSuccess(renamed, { c: "a", b: "1" }, { a: "a", b: 1 })
+    await Util.expectEncodeSuccess(renamed, { a: "a", b: 1 }, { c: "a", b: "1" })
+  })
 })
