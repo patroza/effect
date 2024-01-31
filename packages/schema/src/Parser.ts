@@ -675,7 +675,7 @@ const go = (ast: AST.AST, isDecoding: boolean): Parser => {
               output: Array.from(output)
             }
             return Effect.flatMap(
-              Effect.forEach(cqueue, (f) => f(state), { concurrency: "unbounded", discard: true }),
+              Effect.forEach(cqueue, (f) => f(state), { concurrency: "unbounded", batching: true, discard: true }),
               () => computeResult(state)
             )
           })
@@ -896,6 +896,7 @@ const go = (ast: AST.AST, isDecoding: boolean): Parser => {
             return Effect.flatMap(
               Effect.forEach(cqueue, (f) => f(state), {
                 concurrency: "unbounded",
+                batching: true,
                 discard: true
               }),
               () => computeResult(state)
