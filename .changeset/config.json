@@ -1,6 +1,5 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@1.6.4/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "Effect-TS/effect" }],
   "commit": false,
   "linked": [],
   "access": "restricted",
@@ -8,7 +7,6 @@
   "updateInternalDependencies": "patch",
   "ignore": [],
   "snapshot": {
-    "useCalculatedVersion": false,
-    "prereleaseTemplate": "{tag}-{commit}"
+    "useCalculatedVersion": false
   }
 }
