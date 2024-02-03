@@ -1,5 +1,11 @@
 # @effect/schema
 
+## 0.0.0-20240203192555
+
+### Patch Changes
+
+- bump
+
 ## 0.0.0-20240202090758
 
 ### Patch Changes

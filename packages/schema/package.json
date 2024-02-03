@@ -1,6 +1,6 @@
 {
   "name": "@effect-app/schema-fork",
-  "version": "0.0.0-20240202090758",
+  "version": "0.0.0-20240203192555",
   "type": "module",
   "license": "MIT",
   "description": "Modeling the schema of data structures as first-class values",
