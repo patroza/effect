@@ -4949,9 +4949,10 @@ const makeClass = <R, I, A, Fields extends StructFields>(
       const toSchema = to(selfSchema)
       const pretty = Pretty.make(toSchema)
       const arb = arbitrary.make(toSchema)
-      const guard = Parser.is(toSchema)
+      const dec = Parser.decodeUnknownEither(toSchema)
+      const enc = Parser.encodeUnknownSync(toSchema)
       const declaration: Schema<never, any, any> = declare(
-        (input): input is any => input instanceof this || guard(input),
+        (input): input is any => input instanceof this || dec(input)._tag === "Right",
         {
           identifier: this.name,
           title: this.name,
@@ -4964,7 +4965,7 @@ const makeClass = <R, I, A, Fields extends StructFields>(
         selfSchema,
         declaration,
         (input) => new this(input, true),
-        (input) => ({ ...input })
+        (input) => enc(input)
       )
       return transformation.ast
     }
