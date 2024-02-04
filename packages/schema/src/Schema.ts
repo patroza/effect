@@ -4706,26 +4706,45 @@ export interface MapFromPropertyDescriptor<R, From, To, FromKey extends Property
  * @category classes
  * @since 1.0.0
  */
-export const withDefaultConstructor = <S extends Schema<any, any, any>>(
-  s: S,
-  make: () => Schema.To<S>
-): S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>> => {
-  if ("struct" in s) {
-    const _s = s as unknown as Class<any, any, any, any, any, any, any>
-    const cls = class extends _s {
-      static make = make
+export const withDefaultConstructor: {
+  <S extends Schema<any, any, any>>(
+    make: () => Schema.To<S>
+  ): (s: S) => S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>>
+  <S extends Schema<any, any, any>>(
+    s: S,
+    make: () => Schema.To<S>
+  ): S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>>
+} = dual(
+  2,
+  <S extends Schema<any, any, any>>(
+    s: S,
+    make: () => Schema.To<S>
+  ): S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>> => {
+    if ("struct" in s) {
+      const _s = s as unknown as Class<any, any, any, any, any, any, any>
+      const cls = class extends _s {
+        static make = make
+      }
+      Object.defineProperty(cls, "name", { value: _s.name })
+      return cls as any
     }
-    Object.defineProperty(cls, "name", { value: _s.name })
-    return cls as any
+    return Object.assign(Object.create(s), s, { make })
   }
-  return Object.assign(Object.create(s), s, { make })
-}
+)
 
 /**
  * @category classes
  * @since 1.0.0
  */
-export const mapFrom = <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+export const mapFrom: {
+  <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+    from: FromKey
+  ): (s: S) => S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey>
+  <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+    s: S,
+    from: FromKey
+  ): S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey>
+} = dual(2, <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
   s: S,
   from: FromKey
 ): S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey> => {
@@ -4738,7 +4757,7 @@ export const mapFrom = <S extends Schema<any, any, any>, FromKey extends Propert
     return cls as any
   }
   return Object.assign(Object.create(s), s, { mapFrom: from })
-}
+})
 
 /**
  * @since 1.0.0
