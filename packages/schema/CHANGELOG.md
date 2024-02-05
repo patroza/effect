@@ -1,5 +1,17 @@
 # @effect/schema
 
+## 0.0.0-20240203192555
+
+### Patch Changes
+
+- bump
+
+## 0.0.0-20240202090758
+
+### Patch Changes
+
+- bump
+
 ## 0.61.5
 
 ### Patch Changes
@@ -17,17 +29,71 @@
 - Updated dependencies [[`22794e0`](https://github.com/Effect-TS/effect/commit/22794e0ba00e40281f30a22fa84412003c24877d), [`f73e6c0`](https://github.com/Effect-TS/effect/commit/f73e6c033fb0729a9cfa5eb4bc39f79d3126e247)]:
   - effect@2.2.3
 
+## 0.0.0-20240202083125
+
+### Patch Changes
+
+- bump
+
+## 0.0.0-20240201161313
+
+### Patch Changes
+
+- fix
+
+## 0.0.0-20240201161041
+
+### Patch Changes
+
+- leverage ToStructConstructor in class transformOrFail & friends
+
+## 0.0.0-20240131131609
+
+### Patch Changes
+
+- enable batching
+
+## 0.0.0-20240131113600
+
+### Patch Changes
+
+- fix
+
+## 0.0.0-20240129113320
+
+### Patch Changes
+
+- bump
+
+## 0.0.0-20240127162054
+
+### Patch Changes
+
+- bump
+
 ## 0.61.3
 
 ### Patch Changes
 
 - [#1992](https://github.com/Effect-TS/effect/pull/1992) [`9863e2f`](https://github.com/Effect-TS/effect/commit/9863e2fb3561dc019965aeccd6584a418fc8b401) Thanks [@gcanti](https://github.com/gcanti)! - enhance error messages
 
+## 0.0.0-20240126154023
+
+### Patch Changes
+
+- bump
+
 ## 0.61.2
 
 ### Patch Changes
 
 - [#1988](https://github.com/Effect-TS/effect/pull/1988) [`64f710a`](https://github.com/Effect-TS/effect/commit/64f710aa49dec6ffcd33ee23438d0774f5489733) Thanks [@gcanti](https://github.com/gcanti)! - Class constructor: avoid overwriting `props` with `additionalProps`, closes #1987
+
+## 0.0.0-20240125190035
+
+### Patch Changes
+
+- bump
 
 ## 0.61.1
 
@@ -46,6 +112,36 @@
 
 - Updated dependencies [[`d404561`](https://github.com/Effect-TS/effect/commit/d404561e47ec2fa5f68709a308ee5d2ee959141d), [`7b84a3c`](https://github.com/Effect-TS/effect/commit/7b84a3c7e4b9c8dc02294b0e3cc3ae3becea977b)]:
   - effect@2.2.2
+
+## 0.0.0-20240124202335
+
+### Patch Changes
+
+- 9baa7b5: welcome back guard
+
+## 0.0.0-20240124193849
+
+### Patch Changes
+
+- revert class workaround
+
+## 0.0.0-20240124174143
+
+### Patch Changes
+
+- dmn
+
+## 0.0.0-20240124173556
+
+### Patch Changes
+
+- bump
+
+## 0.0.0-20240124151611
+
+### Patch Changes
+
+- bump
 
 ## 0.61.0
 
@@ -90,6 +186,12 @@
 - Updated dependencies [[`202befc`](https://github.com/Effect-TS/effect/commit/202befc2ecbeb117c4fa85ef9b12a3d3a48273d2), [`ee4ff8a`](https://github.com/Effect-TS/effect/commit/ee4ff8a943141fcf2877af92c5877ee87a989fb9), [`ee4ff8a`](https://github.com/Effect-TS/effect/commit/ee4ff8a943141fcf2877af92c5877ee87a989fb9), [`ee4ff8a`](https://github.com/Effect-TS/effect/commit/ee4ff8a943141fcf2877af92c5877ee87a989fb9), [`ee4ff8a`](https://github.com/Effect-TS/effect/commit/ee4ff8a943141fcf2877af92c5877ee87a989fb9), [`10df798`](https://github.com/Effect-TS/effect/commit/10df798639e556f9d88265ef7fc3cf8a3bbe3874)]:
   - effect@2.2.0
 
+## 0.0.0-20240119082607
+
+### Patch Changes
+
+- bump
+
 ## 0.60.6
 
 ### Patch Changes
@@ -114,6 +216,12 @@
 - Updated dependencies [[`a222524`](https://github.com/Effect-TS/effect/commit/a2225247e9de2e013d287320790fde88c081dbbd)]:
   - effect@2.1.1
 
+## 0.0.0-20240116133250
+
+### Patch Changes
+
+- bump
+
 ## 0.60.3
 
 ### Patch Changes
@@ -125,6 +233,12 @@
 - [#1933](https://github.com/Effect-TS/effect/pull/1933) [`f493929`](https://github.com/Effect-TS/effect/commit/f493929ab88d2ea137ca5fbff70bdc6c9d804d80) Thanks [@gcanti](https://github.com/gcanti)! - re-add getPropertySignatures
 
 - [#1932](https://github.com/Effect-TS/effect/pull/1932) [`5911fa9`](https://github.com/Effect-TS/effect/commit/5911fa9c9440dd3bc1ee38542bcd15f8c75a4637) Thanks [@gcanti](https://github.com/gcanti)! - add `pluck`
+
+## 0.0.0-20240116114538
+
+### Patch Changes
+
+- 1026997: bump
 
 ## 0.60.2
 
@@ -167,6 +281,12 @@
 - Updated dependencies [[`536c1df`](https://github.com/Effect-TS/effect/commit/536c1dfb7833961dfb2fbd6bcd2dbdfa2f208d51), [`8eec87e`](https://github.com/Effect-TS/effect/commit/8eec87e311ce55281a98517e6df0ef103b43e8a8), [`540b294`](https://github.com/Effect-TS/effect/commit/540b2941dd0a81e9688311583ce7e2e140d6e7a5), [`536c1df`](https://github.com/Effect-TS/effect/commit/536c1dfb7833961dfb2fbd6bcd2dbdfa2f208d51), [`a3f96d6`](https://github.com/Effect-TS/effect/commit/a3f96d615b8b3e238dbfa01ef713c87e6f4532be), [`8eec87e`](https://github.com/Effect-TS/effect/commit/8eec87e311ce55281a98517e6df0ef103b43e8a8), [`536c1df`](https://github.com/Effect-TS/effect/commit/536c1dfb7833961dfb2fbd6bcd2dbdfa2f208d51), [`8eec87e`](https://github.com/Effect-TS/effect/commit/8eec87e311ce55281a98517e6df0ef103b43e8a8), [`8eec87e`](https://github.com/Effect-TS/effect/commit/8eec87e311ce55281a98517e6df0ef103b43e8a8), [`25adce7`](https://github.com/Effect-TS/effect/commit/25adce7ae76ce834096dca1ed70a60ad1a349217), [`536c1df`](https://github.com/Effect-TS/effect/commit/536c1dfb7833961dfb2fbd6bcd2dbdfa2f208d51)]:
   - effect@2.0.4
 
+## 0.0.0-20240110082553
+
+### Patch Changes
+
+- bump
+
 ## 0.59.1
 
 ### Patch Changes
@@ -177,6 +297,12 @@
 
 - Updated dependencies [[`87f7ef2`](https://github.com/Effect-TS/effect/commit/87f7ef28a3c27e2e4f2fcfa465f85bb2a45a3d6b), [`1d3a06b`](https://github.com/Effect-TS/effect/commit/1d3a06bb58ad1ac123ae8f9d42b4345f9c9c53c0)]:
   - effect@2.0.3
+
+## 0.0.0-20240109124241
+
+### Patch Changes
+
+- 05db80e: update with latest
 
 ## 0.59.0
 
@@ -229,6 +355,78 @@
 - [#1842](https://github.com/Effect-TS/effect/pull/1842) [`7b2f874`](https://github.com/Effect-TS/effect/commit/7b2f8743d96753c3e24ac4cc6715a4a7f4a2ca0c) Thanks [@fubhy](https://github.com/fubhy)! - Schema: add `Format` module
 
 - [#1842](https://github.com/Effect-TS/effect/pull/1842) [`7b2f874`](https://github.com/Effect-TS/effect/commit/7b2f8743d96753c3e24ac4cc6715a4a7f4a2ca0c) Thanks [@fubhy](https://github.com/fubhy)! - Schema: add outer `option` arg to parse/decode/encode/validation/asserts/is APIs
+
+## 0.0.0-20240108102209
+
+### Patch Changes
+
+- a3af6a5: update base
+
+## 0.0.0-20231228152439
+
+### Patch Changes
+
+- 21f7d33: fix class is
+
+## 0.0.0-20231228141304
+
+### Patch Changes
+
+- d47b1e7: temp disable class check
+
+## 0.0.0-20231228122817
+
+### Patch Changes
+
+- 16345b9: fix mapFrom on class
+
+## 0.0.0-20231227184201
+
+### Patch Changes
+
+- standardize proto
+
+## 0.0.0-20231227181939
+
+### Patch Changes
+
+- handle prototype
+
+## 0.0.0-20231227161132
+
+### Patch Changes
+
+- cc71b8e: m
+
+## 0.0.0-20231227160445
+
+### Patch Changes
+
+- ext
+
+## 0.0.0-20231227160212
+
+### Patch Changes
+
+- 435792e: upd
+
+## 0.0.0-20231227155853
+
+### Patch Changes
+
+- 6c62412: expose fields on Class
+
+## 0.0.0-20231227111019
+
+### Patch Changes
+
+- 0add1ac: carry prev schema
+
+## 0.0.0-20231227102807
+
+### Patch Changes
+
+- snapshot
 
 ## 0.57.2
 
