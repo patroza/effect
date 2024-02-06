@@ -10,7 +10,7 @@ import * as Option from "effect/Option"
 import * as ReadonlyArray from "effect/ReadonlyArray"
 
 const toNonEmptyArray = <A>(a: ReadonlyArray<A>) =>
-  a.length ? Option.some(a as ReadonlyArray.NonEmptyReadonlyArray<A>) : Option.none
+  a.length ? Option.some(a as ReadonlyArray.NonEmptyReadonlyArray<A>) : Option.none()
 
 const settings = {
   enumerable: false,
