@@ -1109,8 +1109,8 @@ export type StructFields = Record<
   PropertyKey,
   | Schema<any, any, any>
   | Schema<never, never, any>
-  | PropertySignature<any, any, boolean, any, boolean>
-  | PropertySignature<any, never, boolean, never, boolean>
+  | PropertySignature<any, boolean, any, boolean, any>
+  | PropertySignature<never, boolean, never, boolean, any>
   | ConstructorPropertyDescriptor<any, any, any> // TODO: variation for PropertySignature too
   | MapFromPropertyDescriptor<any, any, any, any>
 >
@@ -4734,7 +4734,6 @@ export const Class = <Self>() =>
     Simplify<ToStruct<Fields>>,
     Simplify<FromStruct<Fields>>,
     Schema.Context<Fields[keyof Fields]>,
-    Simplify<ToStruct<Fields>>,
     Simplify<ToStructConstructor<Fields>>,
     Self,
     Fields
@@ -4757,15 +4756,15 @@ export const Class = <Self>() =>
 /**
  * @since 1.0.0
  */
-export interface ConstructorPropertyDescriptor<R, From, To> extends Schema.Variance<R, From, To>, Pipeable {
+export interface ConstructorPropertyDescriptor<From, To, R> extends Schema.Variance<From, To, R>, Pipeable {
   make: () => To
 }
 
 /**
  * @since 1.0.0
  */
-export interface MapFromPropertyDescriptor<R, From, To, FromKey extends PropertyKey = never>
-  extends Schema.Variance<R, From, To>, Pipeable
+export interface MapFromPropertyDescriptor<From, To, R, FromKey extends PropertyKey = never>
+  extends Schema.Variance<From, To, R>, Pipeable
 {
   mapFrom: FromKey
 }
@@ -4777,17 +4776,17 @@ export interface MapFromPropertyDescriptor<R, From, To, FromKey extends Property
 export const withDefaultConstructor: {
   <S extends Schema<any, any, any>>(
     make: () => Schema.To<S>
-  ): (s: S) => S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>>
+  ): (s: S) => S & ConstructorPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>>
   <S extends Schema<any, any, any>>(
     s: S,
     make: () => Schema.To<S>
-  ): S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>>
+  ): S & ConstructorPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>>
 } = dual(
   2,
   <S extends Schema<any, any, any>>(
     s: S,
     make: () => Schema.To<S>
-  ): S & ConstructorPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>> => {
+  ): S & ConstructorPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>> => {
     if ("struct" in s) {
       const _s = s as unknown as Class<any, any, any, any, any, any, any>
       const cls = class extends _s {
@@ -4807,15 +4806,15 @@ export const withDefaultConstructor: {
 export const mapFrom: {
   <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
     from: FromKey
-  ): (s: S) => S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey>
+  ): (s: S) => S & MapFromPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>, FromKey>
   <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
     s: S,
     from: FromKey
-  ): S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey>
+  ): S & MapFromPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>, FromKey>
 } = dual(2, <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
   s: S,
   from: FromKey
-): S & MapFromPropertyDescriptor<Schema.Context<S>, Schema.From<S>, Schema.To<S>, FromKey> => {
+): S & MapFromPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>, FromKey> => {
   if ("struct" in s) {
     const _s = s as unknown as Class<any, any, any, any, any, any, any>
     const cls = class extends _s {
