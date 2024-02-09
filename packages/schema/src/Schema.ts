@@ -4776,17 +4776,17 @@ export interface MapFromPropertyDescriptor<From, To, R, FromKey extends Property
 export const withDefaultConstructor: {
   <S extends Schema<any, any, any>>(
     make: () => Schema.To<S>
-  ): (s: S) => S & ConstructorPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>>
+  ): (s: S) => S & ConstructorPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>>
   <S extends Schema<any, any, any>>(
     s: S,
     make: () => Schema.To<S>
-  ): S & ConstructorPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>>
+  ): S & ConstructorPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>>
 } = dual(
   2,
   <S extends Schema<any, any, any>>(
     s: S,
     make: () => Schema.To<S>
-  ): S & ConstructorPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>> => {
+  ): S & ConstructorPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>> => {
     if ("struct" in s) {
       const _s = s as unknown as Class<any, any, any, any, any, any, any>
       const cls = class extends _s {
@@ -4806,15 +4806,15 @@ export const withDefaultConstructor: {
 export const mapFrom: {
   <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
     from: FromKey
-  ): (s: S) => S & MapFromPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>, FromKey>
+  ): (s: S) => S & MapFromPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>, FromKey>
   <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
     s: S,
     from: FromKey
-  ): S & MapFromPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>, FromKey>
+  ): S & MapFromPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>, FromKey>
 } = dual(2, <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
   s: S,
   from: FromKey
-): S & MapFromPropertyDescriptor<Schema.From<S>, Schema.To<S>, Schema.Context<S>, FromKey> => {
+): S & MapFromPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>, FromKey> => {
   if ("struct" in s) {
     const _s = s as unknown as Class<any, any, any, any, any, any, any>
     const cls = class extends _s {
