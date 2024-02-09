@@ -4756,15 +4756,17 @@ export const Class = <Self>() =>
 /**
  * @since 1.0.0
  */
-export interface ConstructorPropertyDescriptor<From, To, R> extends Schema.Variance<From, To, R>, Pipeable {
+export interface ConstructorPropertyDescriptor<To, From = To, R = never>
+  extends Schema.Variance<To, From, R>, Pipeable
+{
   make: () => To
 }
 
 /**
  * @since 1.0.0
  */
-export interface MapFromPropertyDescriptor<From, To, R, FromKey extends PropertyKey = never>
-  extends Schema.Variance<From, To, R>, Pipeable
+export interface MapFromPropertyDescriptor<To, From = To, R = never, FromKey extends PropertyKey = never>
+  extends Schema.Variance<To, From, R>, Pipeable
 {
   mapFrom: FromKey
 }
