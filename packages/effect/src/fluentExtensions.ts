@@ -28,7 +28,14 @@ const installFluentExtensions = () => {
   // individual
   // effects
   ;[
-    ...[Effect.unit, Effect.fail(1), Effect.step(Effect.unit), Cause.empty, Config.succeed(1), Context.Tag()].map((
+    ...[
+      Effect.unit,
+      Effect.fail(1),
+      Effect.step(Effect.unit),
+      Cause.empty,
+      Config.succeed(1),
+      Context.Tag("random-tag-id-for-fluent-extensions-dont-use-me")
+    ].map((
       effect
     ) => Object.getPrototypeOf(effect)),
     StructuralClass.prototype,
