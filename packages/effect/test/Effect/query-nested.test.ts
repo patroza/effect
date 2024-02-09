@@ -11,11 +11,11 @@ import { describe, expect } from "vitest"
 interface Counter {
   readonly _: unique symbol
 }
-const Counter = Context.Tag<Counter, { count: number }>()
+const Counter = Context.GenericTag<Counter, { count: number }>("counter")
 interface Requests {
   readonly _: unique symbol
 }
-const Requests = Context.Tag<Requests, { count: number }>()
+const Requests = Context.GenericTag<Requests, { count: number }>("requests")
 
 interface Parent {
   readonly id: number
@@ -38,27 +38,27 @@ interface ChildExtra {
   readonly extra: string
 }
 
-export interface GetAllParents extends Request.Request<never, ReadonlyArray<Parent>> {
+export interface GetAllParents extends Request.Request<ReadonlyArray<Parent>> {
   readonly _tag: "GetAllParents"
 }
 
 export const GetAllParents = Request.tagged<GetAllParents>("GetAllParents")
 
-export interface GetParentChildren extends Request.Request<never, ReadonlyArray<Child>> {
+export interface GetParentChildren extends Request.Request<ReadonlyArray<Child>> {
   readonly _tag: "GetParentChildren"
   readonly id: number
 }
 
 export const GetParentChildren = Request.tagged<GetParentChildren>("GetParentChildren")
 
-export interface GetChildInfo extends Request.Request<never, ChildInfo> {
+export interface GetChildInfo extends Request.Request<ChildInfo> {
   readonly _tag: "GetChildInfo"
   readonly id: number
 }
 
 export const GetChildInfo = Request.tagged<GetChildInfo>("GetChildInfo")
 
-export interface GetChildExtra extends Request.Request<never, ChildExtra> {
+export interface GetChildExtra extends Request.Request<ChildExtra> {
   readonly _tag: "GetChildExtra"
   readonly id: number
 }
@@ -74,7 +74,7 @@ export const children: ReadonlyMap<number, ReadonlyArray<Child>> = new Map(
   ])
 )
 
-const counted = <R, E, A>(self: Effect.Effect<R, E, A>) => Effect.tap(self, () => Effect.map(Counter, (c) => c.count++))
+const counted = <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.tap(self, () => Effect.map(Counter, (c) => c.count++))
 
 const AllResolver = Resolver.makeBatched((
   requests: Array<GetParentChildren | GetAllParents | GetChildExtra | GetChildInfo>

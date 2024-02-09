@@ -1,5 +1,5 @@
-import * as Http from "@effect/platform-node/HttpClient"
-import { runMain } from "@effect/platform-node/Runtime"
+import { runMain } from "@effect/platform-node/NodeRuntime"
+import * as Http from "@effect/platform/HttpClient"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import * as Schema from "@effect/schema/Schema"
 import * as Context from "effect/Context"
@@ -19,9 +19,9 @@ type TodoWithoutId = Schema.Schema.To<typeof TodoWithoutId>
 interface TodoService {
   readonly create: (
     _: TodoWithoutId
-  ) => Effect.Effect<never, Http.error.HttpClientError | Http.body.BodyError | ParseResult.ParseError, Todo>
+  ) => Effect.Effect<Todo, Http.error.HttpClientError | Http.body.BodyError | ParseResult.ParseError>
 }
-const TodoService = Context.Tag<TodoService>()
+const TodoService = Context.GenericTag<TodoService>("@effect/platform-node/examples/TodoService")
 
 const makeTodoService = Effect.gen(function*(_) {
   const defaultClient = yield* _(Http.client.Client)

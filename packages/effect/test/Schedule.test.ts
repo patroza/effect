@@ -74,7 +74,7 @@ describe("Schedule", () => {
     }))
   it.effect("reset after some inactivity", () =>
     Effect.gen(function*($) {
-      const io = (ref: Ref.Ref<number>, latch: Deferred.Deferred<never, void>): Effect.Effect<never, string, void> => {
+      const io = (ref: Ref.Ref<number>, latch: Deferred.Deferred<void, never>): Effect.Effect<void, string> => {
         return Ref.updateAndGet(ref, (n) => n + 1).pipe(
           Effect.flatMap((retries) => {
             // The 5th retry will fail after 10 seconds to let the schedule reset
@@ -93,7 +93,7 @@ describe("Schedule", () => {
       }
       const schedule = Schedule.recurs(5).pipe(Schedule.resetAfter("5 seconds"))
       const retriesCounter = yield* $(Ref.make(-1))
-      const latch = yield* $(Deferred.make<never, void>())
+      const latch = yield* $(Deferred.make<void>())
       const fiber = yield* $(io(retriesCounter, latch), Effect.retry(schedule), Effect.fork)
       yield* $(Deferred.await(latch))
       yield* $(TestClock.adjust("10 seconds"))
@@ -197,7 +197,7 @@ describe("Schedule", () => {
   describe("repeat an action two times and call ensuring should", () => {
     it.effect("run the specified finalizer as soon as the schedule is complete", () =>
       Effect.gen(function*($) {
-        const deferred = yield* $(Deferred.make<never, void>())
+        const deferred = yield* $(Deferred.make<void>())
         const ref = yield* $(Ref.make(0))
         yield* $(
           Ref.update(ref, (n) => n + 2),
@@ -556,7 +556,7 @@ describe("Schedule", () => {
       }))
     it.effect("retry a failed action 2 times and call `ensuring` should run the specified finalizer as soon as the schedule is complete", () =>
       Effect.gen(function*($) {
-        const deferred = yield* $(Deferred.make<never, void>())
+        const deferred = yield* $(Deferred.make<void>())
         const value = yield* $(
           Effect.fail("oh no").pipe(
             Effect.retry(Schedule.recurs(2)),
@@ -788,16 +788,16 @@ const format = (value: number): string => {
 
 const ioSucceed = () => Effect.succeed("OrElse")
 const ioFail = () => Effect.fail("OrElseFailed")
-const failOn0 = (ref: Ref.Ref<number>): Effect.Effect<never, string, number> => {
+const failOn0 = (ref: Ref.Ref<number>): Effect.Effect<number, string> => {
   return Effect.gen(function*($) {
     const i = yield* $(Ref.updateAndGet(ref, (n) => n + 1))
     return yield* $(i <= 1 ? Effect.fail(`Error: ${i}`) : Effect.succeed(i))
   })
 }
-const alwaysFail = (ref: Ref.Ref<number>): Effect.Effect<never, string, number> => {
+const alwaysFail = (ref: Ref.Ref<number>): Effect.Effect<number, string> => {
   return Ref.updateAndGet(ref, (n) => n + 1).pipe(Effect.flatMap((n) => Effect.fail(`Error: ${n}`)))
 }
-const repeat = <Env, B>(schedule: Schedule.Schedule<Env, number, B>): Effect.Effect<Env, never, B> => {
+const repeat = <Env, B>(schedule: Schedule.Schedule<Env, number, B>): Effect.Effect<B, never, Env> => {
   return Ref.make(0).pipe(
     Effect.flatMap((ref) => ref.pipe(Ref.updateAndGet((n) => n + 1), Effect.repeat(schedule)))
   )
@@ -810,12 +810,12 @@ const roundToNearestHour = (date: Date): number => {
 const checkDelays = <Env>(
   schedule: Schedule.Schedule<Env, number, Duration.Duration>
 ): Effect.Effect<
-  Env,
-  never,
   readonly [
     Chunk.Chunk<Duration.Duration>,
     Chunk.Chunk<Duration.Duration>
-  ]
+  ],
+  never,
+  Env
 > => {
   return Effect.gen(function*($) {
     const now = yield* $(Effect.sync(() => Date.now()))
@@ -826,12 +826,12 @@ const checkDelays = <Env>(
   })
 }
 const checkRepetitions = <Env>(schedule: Schedule.Schedule<Env, number, number>): Effect.Effect<
-  Env,
-  never,
   readonly [
     Chunk.Chunk<number>,
     Chunk.Chunk<number>
-  ]
+  ],
+  never,
+  Env
 > => {
   return Effect.gen(function*($) {
     const now = yield* $(Effect.sync(() => Date.now()))
@@ -841,9 +841,9 @@ const checkRepetitions = <Env>(schedule: Schedule.Schedule<Env, number, number>)
     return [actual, expected] as const
   })
 }
-export const run = <R, E, A>(
-  effect: Effect.Effect<R, E, A>
-): Effect.Effect<R, E, A> => {
+export const run = <A, E, R>(
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R> => {
   return Effect.fork(effect).pipe(
     Effect.tap(() => TestClock.setTime(Number.POSITIVE_INFINITY)),
     Effect.flatMap(Fiber.join)
@@ -852,7 +852,7 @@ export const run = <R, E, A>(
 export const runCollect = <Env, In, Out>(
   schedule: Schedule.Schedule<Env, In, Out>,
   input: Iterable<In>
-): Effect.Effect<Env, never, Chunk.Chunk<Out>> => {
+): Effect.Effect<Chunk.Chunk<Out>, never, Env> => {
   return run(
     Schedule.driver(schedule).pipe(
       Effect.flatMap((driver) => runCollectLoop(driver, Chunk.fromIterable(input), Chunk.empty()))
@@ -863,7 +863,7 @@ const runCollectLoop = <Env, In, Out>(
   driver: Schedule.ScheduleDriver<Env, In, Out>,
   input: Chunk.Chunk<In>,
   acc: Chunk.Chunk<Out>
-): Effect.Effect<Env, never, Chunk.Chunk<Out>> => {
+): Effect.Effect<Chunk.Chunk<Out>, never, Env> => {
   if (!Chunk.isNonEmpty(input)) {
     return Effect.succeed(acc)
   }
@@ -891,8 +891,6 @@ const runManually = <Env, In, Out>(
     ]
   >
 ): Effect.Effect<
-  Env,
-  never,
   readonly [
     Chunk.Chunk<
       readonly [
@@ -901,7 +899,9 @@ const runManually = <Env, In, Out>(
       ]
     >,
     Option.Option<Out>
-  ]
+  ],
+  never,
+  Env
 > => {
   return runManuallyLoop(schedule, schedule.initial, Chunk.fromIterable(inputs), Chunk.empty())
 }
@@ -921,8 +921,6 @@ const runManuallyLoop = <Env, In, Out>(
     ]
   >
 ): Effect.Effect<
-  Env,
-  never,
   readonly [
     Chunk.Chunk<
       readonly [
@@ -931,7 +929,9 @@ const runManuallyLoop = <Env, In, Out>(
       ]
     >,
     Option.Option<Out>
-  ]
+  ],
+  never,
+  Env
 > => {
   if (!Chunk.isNonEmpty(inputs)) {
     return Effect.succeed([Chunk.reverse(acc), Option.none()] as const)

@@ -49,8 +49,8 @@ export const maxParts: FiberRef.FiberRef<Option.Option<number>> = globalValue(
 
 /** @internal */
 export const withMaxParts = dual<
-  (count: Option.Option<number>) => <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>,
-  <R, E, A>(effect: Effect.Effect<R, E, A>, count: Option.Option<number>) => Effect.Effect<R, E, A>
+  (count: Option.Option<number>) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(effect: Effect.Effect<A, E, R>, count: Option.Option<number>) => Effect.Effect<A, E, R>
 >(2, (effect, count) => Effect.locally(effect, maxParts, count))
 
 /** @internal */
@@ -61,8 +61,8 @@ export const maxFieldSize: FiberRef.FiberRef<FileSystem.Size> = globalValue(
 
 /** @internal */
 export const withMaxFieldSize = dual<
-  (size: FileSystem.SizeInput) => <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>,
-  <R, E, A>(effect: Effect.Effect<R, E, A>, size: FileSystem.SizeInput) => Effect.Effect<R, E, A>
+  (size: FileSystem.SizeInput) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(effect: Effect.Effect<A, E, R>, size: FileSystem.SizeInput) => Effect.Effect<A, E, R>
 >(2, (effect, size) => Effect.locally(effect, maxFieldSize, FileSystem.Size(size)))
 
 /** @internal */
@@ -73,8 +73,8 @@ export const maxFileSize: FiberRef.FiberRef<Option.Option<FileSystem.Size>> = gl
 
 /** @internal */
 export const withMaxFileSize = dual<
-  (size: Option.Option<FileSystem.SizeInput>) => <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>,
-  <R, E, A>(effect: Effect.Effect<R, E, A>, size: Option.Option<FileSystem.SizeInput>) => Effect.Effect<R, E, A>
+  (size: Option.Option<FileSystem.SizeInput>) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(effect: Effect.Effect<A, E, R>, size: Option.Option<FileSystem.SizeInput>) => Effect.Effect<A, E, R>
 >(2, (effect, size) => Effect.locally(effect, maxFileSize, Option.map(size, FileSystem.Size)))
 
 /** @internal */
@@ -85,11 +85,11 @@ export const fieldMimeTypes: FiberRef.FiberRef<Chunk.Chunk<string>> = globalValu
 
 /** @internal */
 export const withFieldMimeTypes = dual<
-  (mimeTypes: ReadonlyArray<string>) => <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>,
-  <R, E, A>(effect: Effect.Effect<R, E, A>, mimeTypes: ReadonlyArray<string>) => Effect.Effect<R, E, A>
+  (mimeTypes: ReadonlyArray<string>) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(effect: Effect.Effect<A, E, R>, mimeTypes: ReadonlyArray<string>) => Effect.Effect<A, E, R>
 >(2, (effect, mimeTypes) => Effect.locally(effect, fieldMimeTypes, Chunk.fromIterable(mimeTypes)))
 
-const fileSchema: Schema.Schema<never, Multipart.PersistedFile, Multipart.PersistedFile> = Schema.struct({
+const fileSchema: Schema.Schema<Multipart.PersistedFile> = Schema.struct({
   [TypeId]: Schema.uniqueSymbol(TypeId),
   _tag: Schema.literal("PersistedFile"),
   key: Schema.string,
@@ -99,29 +99,25 @@ const fileSchema: Schema.Schema<never, Multipart.PersistedFile, Multipart.Persis
 })
 
 /** @internal */
-export const filesSchema: Schema.Schema<
-  never,
-  ReadonlyArray<Multipart.PersistedFile>,
-  ReadonlyArray<Multipart.PersistedFile>
-> = Schema.array(fileSchema)
+export const filesSchema: Schema.Schema<ReadonlyArray<Multipart.PersistedFile>> = Schema.array(fileSchema)
 
 /** @internal */
 export const schemaPersisted = <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => {
   const parse = Schema.decodeUnknown(schema)
   return (persisted: Multipart.Persisted) => parse(persisted)
 }
 
 /** @internal */
-export const schemaJson = <R, I, A>(schema: Schema.Schema<R, I, A>): {
+export const schemaJson = <A, I, R>(schema: Schema.Schema<A, I, R>): {
   (
     field: string
-  ): (persisted: Multipart.Persisted) => Effect.Effect<R, ParseResult.ParseError, A>
+  ): (persisted: Multipart.Persisted) => Effect.Effect<A, ParseResult.ParseError, R>
   (
     persisted: Multipart.Persisted,
     field: string
-  ): Effect.Effect<R, ParseResult.ParseError, A>
+  ): Effect.Effect<A, ParseResult.ParseError, R>
 } => {
   const fromJson = Schema.parseJson(schema)
   return dual<
@@ -129,11 +125,11 @@ export const schemaJson = <R, I, A>(schema: Schema.Schema<R, I, A>): {
       field: string
     ) => (
       persisted: Multipart.Persisted
-    ) => Effect.Effect<R, ParseResult.ParseError, A>,
+    ) => Effect.Effect<A, ParseResult.ParseError, R>,
     (
       persisted: Multipart.Persisted,
       field: string
-    ) => Effect.Effect<R, ParseResult.ParseError, A>
+    ) => Effect.Effect<A, ParseResult.ParseError, R>
   >(2, (persisted, field) =>
     Effect.map(
       Schema.decodeUnknown(
@@ -148,7 +144,7 @@ export const schemaJson = <R, I, A>(schema: Schema.Schema<R, I, A>): {
 /** @internal */
 export const makeConfig = (
   headers: Record<string, string>
-): Effect.Effect<never, never, MP.BaseConfig> =>
+): Effect.Effect<MP.BaseConfig> =>
   Effect.map(
     Effect.all({
       maxParts: Effect.map(FiberRef.get(maxParts), Option.getOrUndefined),
@@ -177,12 +173,11 @@ export const makeChannel = <IE>(
   headers: Record<string, string>,
   bufferSize = 16
 ): Channel.Channel<
-  never,
-  IE,
-  Chunk.Chunk<Uint8Array>,
-  unknown,
-  Multipart.MultipartError | IE,
   Chunk.Chunk<Multipart.Part>,
+  Chunk.Chunk<Uint8Array>,
+  Multipart.MultipartError | IE,
+  IE,
+  unknown,
   unknown
 > =>
   Channel.acquireUseRelease(
@@ -198,12 +193,11 @@ const makeFromQueue = <IE>(
   config: MP.BaseConfig,
   queue: Queue.Queue<Chunk.Chunk<Uint8Array> | null>
 ): Channel.Channel<
-  never,
-  IE,
-  Chunk.Chunk<Uint8Array>,
-  unknown,
-  IE | Multipart.MultipartError,
   Chunk.Chunk<Multipart.Part>,
+  Chunk.Chunk<Uint8Array>,
+  IE | Multipart.MultipartError,
+  IE,
+  unknown,
   unknown
 > =>
   Channel.suspend(() => {
@@ -233,7 +227,7 @@ const makeFromQueue = <IE>(
       onFile(info) {
         let chunks: Array<Uint8Array> = []
         let finished = false
-        const take: Channel.Channel<never, unknown, unknown, unknown, never, Chunk.Chunk<Uint8Array>, void> = Channel
+        const take: Channel.Channel<Chunk.Chunk<Uint8Array>, unknown, never, unknown, void, unknown> = Channel
           .suspend(() => {
             if (chunks.length === 0) {
               return finished ? Channel.unit : Channel.zipRight(pump, take)
@@ -289,13 +283,12 @@ const makeFromQueue = <IE>(
     )
 
     const partsChannel: Channel.Channel<
-      never,
-      unknown,
-      unknown,
+      Chunk.Chunk<Multipart.Part>,
       unknown,
       IE | Multipart.MultipartError,
-      Chunk.Chunk<Multipart.Part>,
-      void
+      unknown,
+      void,
+      unknown
     > = Channel.suspend(() => {
       if (error._tag === "Some") {
         return Channel.failCause(error.value)
@@ -351,11 +344,11 @@ class FileImpl implements Multipart.File {
   readonly key: string
   readonly name: string
   readonly contentType: string
-  readonly content: Stream.Stream<never, Multipart.MultipartError, Uint8Array>
+  readonly content: Stream.Stream<Uint8Array, Multipart.MultipartError>
 
   constructor(
     info: MP.PartInfo,
-    channel: Channel.Channel<never, unknown, unknown, unknown, never, Chunk.Chunk<Uint8Array>, void>
+    channel: Channel.Channel<Chunk.Chunk<Uint8Array>, unknown, never, unknown, void, unknown>
   ) {
     this[TypeId] = TypeId
     this.key = info.name
@@ -377,9 +370,9 @@ const defaultWriteFile = (path: string, file: Multipart.File) =>
 
 /** @internal */
 export const toPersisted = (
-  stream: Stream.Stream<never, Multipart.MultipartError, Multipart.Part>,
+  stream: Stream.Stream<Multipart.Part, Multipart.MultipartError>,
   writeFile = defaultWriteFile
-): Effect.Effect<FileSystem.FileSystem | Path.Path | Scope.Scope, Multipart.MultipartError, Multipart.Persisted> =>
+): Effect.Effect<Multipart.Persisted, Multipart.MultipartError, FileSystem.FileSystem | Path.Path | Scope.Scope> =>
   pipe(
     Effect.Do,
     Effect.bind("fs", () => FileSystem.FileSystem),

@@ -3,7 +3,6 @@
  */
 import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
-import type * as Data from "effect/Data"
 import type * as Effect from "effect/Effect"
 import type * as Stream_ from "effect/Stream"
 import type * as PlatformError from "../Error.js"
@@ -40,8 +39,8 @@ export declare namespace Body {
   export interface Proto {
     readonly [TypeId]: TypeId
     readonly _tag: string
-    readonly contentType?: string
-    readonly contentLength?: number
+    readonly contentType?: string | undefined
+    readonly contentLength?: number | undefined
   }
 
   /**
@@ -73,7 +72,7 @@ export type ErrorTypeId = typeof ErrorTypeId
  * @since 1.0.0
  * @category errors
  */
-export interface BodyError extends Data.Case {
+export interface BodyError {
   readonly [ErrorTypeId]: ErrorTypeId
   readonly _tag: "BodyError"
   readonly reason: BodyErrorReason
@@ -158,15 +157,15 @@ export const unsafeJson: (body: unknown) => Uint8Array = internal.unsafeJson
  * @since 1.0.0
  * @category constructors
  */
-export const json: (body: unknown) => Effect.Effect<never, BodyError, Uint8Array> = internal.json
+export const json: (body: unknown) => Effect.Effect<Uint8Array, BodyError> = internal.json
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const jsonSchema: <R, I, A>(
-  schema: Schema.Schema<R, I, A>
-) => (body: A) => Effect.Effect<R, BodyError, Uint8Array> = internal.jsonSchema
+export const jsonSchema: <A, I, R>(
+  schema: Schema.Schema<A, I, R>
+) => (body: A) => Effect.Effect<Uint8Array, BodyError, R> = internal.jsonSchema
 
 /**
  * @since 1.0.0
@@ -195,9 +194,9 @@ export const formData: (body: globalThis.FormData) => FormData = internal.formDa
  */
 export interface Stream extends Body.Proto {
   readonly _tag: "Stream"
-  readonly stream: Stream_.Stream<never, unknown, globalThis.Uint8Array>
+  readonly stream: Stream_.Stream<globalThis.Uint8Array, unknown>
   readonly contentType: string
-  readonly contentLength?: number
+  readonly contentLength?: number | undefined
 }
 
 /**
@@ -205,7 +204,7 @@ export interface Stream extends Body.Proto {
  * @category constructors
  */
 export const stream: (
-  body: Stream_.Stream<never, unknown, globalThis.Uint8Array>,
+  body: Stream_.Stream<globalThis.Uint8Array, unknown>,
   contentType?: string,
   contentLength?: number,
   etag?: string
@@ -218,7 +217,7 @@ export const stream: (
 export const file: (
   path: string,
   options?: FileSystem.StreamOptions & { readonly contentType?: string }
-) => Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, Stream> = internal.file
+) => Effect.Effect<Stream, PlatformError.PlatformError, FileSystem.FileSystem> = internal.file
 
 /**
  * @since 1.0.0
@@ -228,7 +227,7 @@ export const fileInfo: (
   path: string,
   info: FileSystem.File.Info,
   options?: FileSystem.StreamOptions & { readonly contentType?: string }
-) => Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, Stream> = internal.fileInfo
+) => Effect.Effect<Stream, PlatformError.PlatformError, FileSystem.FileSystem> = internal.fileInfo
 
 /**
  * @since 1.0.0

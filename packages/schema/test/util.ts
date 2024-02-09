@@ -21,8 +21,8 @@ const doRoundtrip = true
 export const sleep = Effect.sleep(Duration.millis(10))
 
 const effectifyDecode = <R>(
-  decode: (input: any, options: ParseOptions, self: AST.Transform) => Effect.Effect<R, ParseResult.ParseIssue, any>
-): (input: any, options: ParseOptions, self: AST.Transform) => Effect.Effect<R, ParseResult.ParseIssue, any> =>
+  decode: (input: any, options: ParseOptions, self: AST.Transform) => Effect.Effect<any, ParseResult.ParseIssue, R>
+): (input: any, options: ParseOptions, self: AST.Transform) => Effect.Effect<any, ParseResult.ParseIssue, R> =>
 (input, options, ast) => ParseResult.flatMap(sleep, () => decode(input, options, ast))
 
 const effectifyAST = (ast: AST.AST): AST.AST => {
@@ -76,10 +76,10 @@ const effectifyAST = (ast: AST.AST): AST.AST => {
   )
 }
 
-export const effectify = <I, A>(schema: S.Schema<never, I, A>): S.Schema<never, I, A> =>
+export const effectify = <A, I>(schema: S.Schema<A, I, never>): S.Schema<A, I, never> =>
   S.make(effectifyAST(schema.ast))
 
-export const roundtrip = <I, A>(schema: S.Schema<never, I, A>) => {
+export const roundtrip = <A, I>(schema: S.Schema<A, I, never>) => {
   if (!doRoundtrip) {
     return
   }
@@ -130,39 +130,39 @@ export const allErrors: ParseOptions = {
   errors: "all"
 }
 
-export const expectDecodeUnknownSuccess = async <I, A>(
-  schema: S.Schema<never, I, A>,
+export const expectDecodeUnknownSuccess = async <A, I>(
+  schema: S.Schema<A, I, never>,
   input: unknown,
   expected: A = input as any,
   options?: ParseOptions
 ) => expectSuccess(S.decodeUnknown(schema)(input, options), expected)
 
-export const expectDecodeUnknownFailure = async <I, A>(
-  schema: S.Schema<never, I, A>,
+export const expectDecodeUnknownFailure = async <A, I>(
+  schema: S.Schema<A, I, never>,
   input: unknown,
   message: string,
   options?: ParseOptions
 ) => expectFailure(S.decodeUnknown(schema)(input, options), message)
 
-export const expectEncodeSuccess = async <I, A>(
-  schema: S.Schema<never, I, A>,
+export const expectEncodeSuccess = async <A, I>(
+  schema: S.Schema<A, I, never>,
   a: A,
   expected: unknown,
   options?: ParseOptions
 ) => expectSuccess(S.encode(schema)(a, options), expected)
 
-export const expectEncodeFailure = async <I, A>(
-  schema: S.Schema<never, I, A>,
+export const expectEncodeFailure = async <A, I>(
+  schema: S.Schema<A, I, never>,
   a: A,
   message: string,
   options?: ParseOptions
 ) => expectFailure(S.encode(schema)(a, options), message)
 
-export const printAST = <R, I, A>(schema: S.Schema<R, I, A>) => {
+export const printAST = <A, I, R>(schema: S.Schema<A, I, R>) => {
   console.log("%o", schema.ast)
 }
 
-export const identityTransform = <A>(schema: S.Schema<never, A>): S.Schema<never, A> => schema.pipe(S.compose(schema))
+export const identityTransform = <A>(schema: S.Schema<A>): S.Schema<A> => schema.pipe(S.compose(schema))
 
 export const X2 = S.transform(
   S.string,
@@ -180,7 +180,7 @@ export const X3 = S.transform(
 
 const doProperty = true
 
-export const expectValidArbitrary = <I, A>(schema: S.Schema<never, I, A>, params?: fc.Parameters<[A]>) => {
+export const expectValidArbitrary = <A, I>(schema: S.Schema<A, I, never>, params?: fc.Parameters<[A]>) => {
   if (!doProperty) {
     return
   }
@@ -213,7 +213,7 @@ export const expectPromiseFailure = async <A>(promise: Promise<A>, message: stri
   }
 }
 
-export const sample = <I, A>(schema: S.Schema<I, A>, n: number) => {
+export const sample = <A, I>(schema: S.Schema<A, I>, n: number) => {
   const arbitrary = A.make(schema)
   const arb = arbitrary(fc)
   console.log(JSON.stringify(fc.sample(arb, n), null, 2))
@@ -224,7 +224,7 @@ export const NumberFromChar = S.Char.pipe(S.compose(S.NumberFromString)).pipe(
 )
 
 export const expectFailure = async <A>(
-  effect: Either.Either<ParseResult.ParseError, A> | Effect.Effect<never, ParseResult.ParseError, A>,
+  effect: Either.Either<ParseResult.ParseError, A> | Effect.Effect<A, ParseResult.ParseError>,
   message: string
 ) => {
   if (Either.isEither(effect)) {
@@ -235,7 +235,7 @@ export const expectFailure = async <A>(
 }
 
 export const expectSuccess = async <E, A>(
-  effect: Either.Either<E, A> | Effect.Effect<never, E, A>,
+  effect: Either.Either<E, A> | Effect.Effect<A, E>,
   a: A
 ) => {
   if (Either.isEither(effect)) {
@@ -246,7 +246,7 @@ export const expectSuccess = async <E, A>(
 }
 
 export const expectEffectFailure = async <A>(
-  effect: Effect.Effect<never, ParseResult.ParseError, A>,
+  effect: Effect.Effect<A, ParseResult.ParseError>,
   message: string
 ) => {
   expect(await Effect.runPromise(Effect.either(Effect.mapError(effect, formatError)))).toStrictEqual(
@@ -254,7 +254,7 @@ export const expectEffectFailure = async <A>(
   )
 }
 
-export const expectEffectSuccess = async <E, A>(effect: Effect.Effect<never, E, A>, a: A) => {
+export const expectEffectSuccess = async <E, A>(effect: Effect.Effect<A, E>, a: A) => {
   expect(await Effect.runPromise(Effect.either(effect))).toStrictEqual(
     Either.right(a)
   )
@@ -287,7 +287,7 @@ export const AsyncDeclaration = S.declare(
 
 export const AsyncString = effectify(S.string).pipe(S.identifier("AsyncString"))
 
-const Name = Context.Tag<"Name", string>()
+const Name = Context.GenericTag<"Name", string>("Name")
 
 export const DependencyString = S.transformOrFail(
   S.string,

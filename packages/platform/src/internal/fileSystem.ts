@@ -1,6 +1,6 @@
 import * as Channel from "effect/Channel"
 import * as Chunk from "effect/Chunk"
-import { Tag } from "effect/Context"
+import { GenericTag } from "effect/Context"
 import * as Effect from "effect/Effect"
 import { identity, pipe } from "effect/Function"
 import * as Option from "effect/Option"
@@ -10,7 +10,7 @@ import * as Error from "../Error.js"
 import type { File, FileSystem, Size as Size_, SizeInput, StreamOptions } from "../FileSystem.js"
 
 /** @internal */
-export const tag = Tag<FileSystem>("@effect/platform/FileSystem")
+export const tag = GenericTag<FileSystem>("@effect/platform/FileSystem")
 
 /** @internal */
 export const Size = (bytes: SizeInput) => typeof bytes === "bigint" ? bytes as Size_ : BigInt(bytes) as Size_
@@ -97,7 +97,7 @@ const stream = (file: File, {
 
   function loop(
     totalBytesRead: bigint
-  ): Channel.Channel<never, unknown, unknown, unknown, Error.PlatformError, Chunk.Chunk<Uint8Array>, void> {
+  ): Channel.Channel<Chunk.Chunk<Uint8Array>, unknown, Error.PlatformError, unknown, void, unknown> {
     if (bytesToRead !== undefined && bytesToRead <= totalBytesRead) {
       return Channel.unit
     }

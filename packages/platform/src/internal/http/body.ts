@@ -40,8 +40,8 @@ class RawImpl implements Body.Raw {
   readonly _tag = "Raw"
   constructor(
     readonly body: unknown,
-    readonly contentType?: string,
-    readonly contentLength?: number
+    readonly contentType?: string | undefined,
+    readonly contentLength?: number | undefined
   ) {
     this[TypeId] = TypeId
   }
@@ -79,7 +79,7 @@ export const text = (body: string, contentType?: string): Body.Uint8Array =>
 export const unsafeJson = (body: unknown): Body.Uint8Array => text(JSON.stringify(body), "application/json")
 
 /** @internal */
-export const json = (body: unknown): Effect.Effect<never, Body.BodyError, Body.Uint8Array> =>
+export const json = (body: unknown): Effect.Effect<Body.Uint8Array, Body.BodyError> =>
   Effect.try({
     try: () => unsafeJson(body),
     catch: (error) => BodyError({ _tag: "JsonError", error })
@@ -90,9 +90,9 @@ export const urlParams = (urlParams: UrlParams.UrlParams): Body.Uint8Array =>
   text(UrlParams.toString(urlParams), "application/x-www-form-urlencoded")
 
 /** @internal */
-export const jsonSchema = <R, I, A>(schema: Schema.Schema<R, I, A>) => {
+export const jsonSchema = <A, I, R>(schema: Schema.Schema<A, I, R>) => {
   const encode = Schema.encode(schema)
-  return (body: A): Effect.Effect<R, Body.BodyError, Body.Uint8Array> =>
+  return (body: A): Effect.Effect<Body.Uint8Array, Body.BodyError, R> =>
     Effect.flatMap(
       Effect.mapError(encode(body), (error) => BodyError({ _tag: "SchemaError", error })),
       json
@@ -103,7 +103,7 @@ export const jsonSchema = <R, I, A>(schema: Schema.Schema<R, I, A>) => {
 export const file = (
   path: string,
   options?: FileSystem.StreamOptions & { readonly contentType?: string }
-): Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, Body.Stream> =>
+): Effect.Effect<Body.Stream, PlatformError.PlatformError, FileSystem.FileSystem> =>
   Effect.flatMap(
     FileSystem.FileSystem,
     (fs) =>
@@ -120,7 +120,7 @@ export const fileInfo = (
   path: string,
   info: FileSystem.File.Info,
   options?: FileSystem.StreamOptions & { readonly contentType?: string }
-): Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, Body.Stream> =>
+): Effect.Effect<Body.Stream, PlatformError.PlatformError, FileSystem.FileSystem> =>
   Effect.map(
     FileSystem.FileSystem,
     (fs) =>
@@ -152,9 +152,9 @@ class StreamImpl implements Body.Stream {
   readonly [TypeId]: Body.TypeId
   readonly _tag = "Stream"
   constructor(
-    readonly stream: Stream_.Stream<never, unknown, Uint8Array>,
+    readonly stream: Stream_.Stream<Uint8Array, unknown>,
     readonly contentType: string,
-    readonly contentLength?: number
+    readonly contentLength?: number | undefined
   ) {
     this[TypeId] = TypeId
   }
@@ -162,7 +162,7 @@ class StreamImpl implements Body.Stream {
 
 /** @internal */
 export const stream = (
-  body: Stream_.Stream<never, unknown, Uint8Array>,
-  contentType?: string,
-  contentLength?: number
+  body: Stream_.Stream<Uint8Array, unknown>,
+  contentType?: string | undefined,
+  contentLength?: number | undefined
 ): Body.Stream => new StreamImpl(body, contentType ?? "application/octet-stream", contentLength)

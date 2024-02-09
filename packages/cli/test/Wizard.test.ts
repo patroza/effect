@@ -3,8 +3,8 @@ import * as Command from "@effect/cli/Command"
 import * as Options from "@effect/cli/Options"
 import * as MockConsole from "@effect/cli/test/services/MockConsole"
 import * as MockTerminal from "@effect/cli/test/services/MockTerminal"
-import * as FileSystem from "@effect/platform-node/FileSystem"
-import * as Path from "@effect/platform-node/Path"
+import {} from "@effect/platform"
+import { NodeFileSystem, NodePath } from "@effect/platform-node"
 import { Effect, ReadonlyArray } from "effect"
 import * as Console from "effect/Console"
 import * as Fiber from "effect/Fiber"
@@ -15,14 +15,14 @@ const MainLive = Effect.gen(function*(_) {
   const console = yield* _(MockConsole.make)
   return Layer.mergeAll(
     Console.setConsole(console),
-    FileSystem.layer,
+    NodeFileSystem.layer,
     MockTerminal.layer,
-    Path.layer
+    NodePath.layer
   )
 }).pipe(Layer.unwrapEffect)
 
 const runEffect = <E, A>(
-  self: Effect.Effect<CliApp.CliApp.Environment, E, A>
+  self: Effect.Effect<A, E, CliApp.CliApp.Environment>
 ): Promise<A> => Effect.provide(self, MainLive).pipe(Effect.runPromise)
 
 describe("Wizard", () => {

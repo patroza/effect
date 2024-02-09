@@ -43,13 +43,13 @@ export interface ClientRequest extends Pipeable {
  * @category models
  */
 export interface Options {
-  readonly method?: Method
-  readonly url?: string
-  readonly urlParams?: UrlParams.Input
-  readonly headers?: Headers.Input
-  readonly body?: Body.Body
-  readonly accept?: string
-  readonly acceptJson?: boolean
+  readonly method?: Method | undefined
+  readonly url?: string | undefined
+  readonly urlParams?: UrlParams.Input | undefined
+  readonly headers?: Headers.Input | undefined
+  readonly body?: Body.Body | undefined
+  readonly accept?: string | undefined
+  readonly acceptJson?: boolean | undefined
 }
 
 /**
@@ -283,8 +283,8 @@ export const textBody: {
  * @category combinators
  */
 export const jsonBody: {
-  (body: unknown): (self: ClientRequest) => Effect.Effect<never, Body.BodyError, ClientRequest>
-  (self: ClientRequest, body: unknown): Effect.Effect<never, Body.BodyError, ClientRequest>
+  (body: unknown): (self: ClientRequest) => Effect.Effect<ClientRequest, Body.BodyError>
+  (self: ClientRequest, body: unknown): Effect.Effect<ClientRequest, Body.BodyError>
 } = internal.jsonBody
 
 /**
@@ -300,11 +300,11 @@ export const unsafeJsonBody: {
  * @since 1.0.0
  * @category combinators
  */
-export const schemaBody: <R, I, A>(
-  schema: Schema.Schema<R, I, A>
+export const schemaBody: <A, I, R>(
+  schema: Schema.Schema<A, I, R>
 ) => {
-  (body: A): (self: ClientRequest) => Effect.Effect<R, Body.BodyError, ClientRequest>
-  (self: ClientRequest, body: A): Effect.Effect<R, Body.BodyError, ClientRequest>
+  (body: A): (self: ClientRequest) => Effect.Effect<ClientRequest, Body.BodyError, R>
+  (self: ClientRequest, body: A): Effect.Effect<ClientRequest, Body.BodyError, R>
 } = internal.schemaBody
 
 /**
@@ -331,12 +331,12 @@ export const formDataBody: {
  */
 export const streamBody: {
   (
-    body: Stream.Stream<never, unknown, Uint8Array>,
+    body: Stream.Stream<Uint8Array, unknown>,
     options?: { readonly contentType?: string | undefined; readonly contentLength?: number | undefined } | undefined
   ): (self: ClientRequest) => ClientRequest
   (
     self: ClientRequest,
-    body: Stream.Stream<never, unknown, Uint8Array>,
+    body: Stream.Stream<Uint8Array, unknown>,
     options?: { readonly contentType?: string | undefined; readonly contentLength?: number | undefined } | undefined
   ): ClientRequest
 } = internal.streamBody
@@ -349,12 +349,12 @@ export const fileBody: {
   (
     path: string,
     options?: FileSystem.StreamOptions & { readonly contentType?: string }
-  ): (self: ClientRequest) => Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, ClientRequest>
+  ): (self: ClientRequest) => Effect.Effect<ClientRequest, PlatformError.PlatformError, FileSystem.FileSystem>
   (
     self: ClientRequest,
     path: string,
     options?: FileSystem.StreamOptions & { readonly contentType?: string }
-  ): Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, ClientRequest>
+  ): Effect.Effect<ClientRequest, PlatformError.PlatformError, FileSystem.FileSystem>
 } = internal.fileBody
 
 /**

@@ -13,11 +13,11 @@ import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Ref from "effect/Ref"
 import { assert, describe, expect } from "vitest"
 
-export const waitForValue = <A>(ref: Effect.Effect<never, never, A>, value: A): Effect.Effect<never, never, A> => {
+export const waitForValue = <A>(ref: Effect.Effect<A>, value: A): Effect.Effect<A> => {
   return ref.pipe(Effect.zipLeft(Effect.yieldNow()), Effect.repeat({ until: (a) => value === a }))
 }
 
-export const waitForSize = <A>(queue: Queue.Queue<A>, size: number): Effect.Effect<never, never, number> => {
+export const waitForSize = <A>(queue: Queue.Queue<A>, size: number): Effect.Effect<number> => {
   return waitForValue(Queue.size(queue), size)
 }
 
@@ -117,7 +117,7 @@ describe("Queue", () => {
   it.effect("awaitShutdown - once", () =>
     Effect.gen(function*($) {
       const queue = yield* $(Queue.bounded<number>(3))
-      const deferred = yield* $(Deferred.make<never, boolean>())
+      const deferred = yield* $(Deferred.make<boolean>())
       yield* $(Queue.awaitShutdown(queue), Effect.zipRight(Deferred.succeed(deferred, true)), Effect.fork)
       yield* $(Queue.shutdown(queue))
       const result = yield* $(Deferred.await(deferred))
@@ -126,8 +126,8 @@ describe("Queue", () => {
   it.effect("awaitShutdown - multiple", () =>
     Effect.gen(function*($) {
       const queue = yield* $(Queue.bounded<number>(3))
-      const deferred1 = yield* $(Deferred.make<never, boolean>())
-      const deferred2 = yield* $(Deferred.make<never, boolean>())
+      const deferred1 = yield* $(Deferred.make<boolean>())
+      const deferred2 = yield* $(Deferred.make<boolean>())
       yield* $(Queue.awaitShutdown(queue), Effect.zipRight(Deferred.succeed(deferred1, true)), Effect.fork)
       yield* $(Queue.awaitShutdown(queue), Effect.zipRight(Deferred.succeed(deferred2, true)), Effect.fork)
       yield* $(Queue.shutdown(queue))

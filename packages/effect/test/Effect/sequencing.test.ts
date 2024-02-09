@@ -233,7 +233,7 @@ describe("Effect", () => {
     }))
   it.effect("zip/parallel - paralellizes simple success values", () =>
     Effect.gen(function*($) {
-      const countdown = (n: number): Effect.Effect<never, never, number> => {
+      const countdown = (n: number): Effect.Effect<number> => {
         return n === 0
           ? Effect.succeed(0)
           : pipe(
@@ -247,9 +247,9 @@ describe("Effect", () => {
     }))
   it.effect("zip/parallel - does not kill fiber when forked on parent scope", () =>
     Effect.gen(function*($) {
-      const latch1 = yield* $(Deferred.make<never, void>())
-      const latch2 = yield* $(Deferred.make<never, void>())
-      const latch3 = yield* $(Deferred.make<never, void>())
+      const latch1 = yield* $(Deferred.make<void>())
+      const latch2 = yield* $(Deferred.make<void>())
+      const latch3 = yield* $(Deferred.make<void>())
       const ref = yield* $(Ref.make(false))
       const left = Effect.uninterruptibleMask((restore) =>
         pipe(

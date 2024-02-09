@@ -17,7 +17,7 @@ describe("Effect", () => {
     }))
   it.effect("fork - propagates interruption with zip of defect", () =>
     Effect.gen(function*($) {
-      const latch = yield* $(Deferred.make<never, void>())
+      const latch = yield* $(Deferred.make<void>())
       const fiber = yield* $(
         Deferred.succeed(latch, void 0),
         Effect.zipRight(Effect.die(new Error())),
@@ -31,7 +31,7 @@ describe("Effect", () => {
     }))
   it.effect("fork - interruption status is heritable", () =>
     Effect.gen(function*($) {
-      const latch = yield* $(Deferred.make<never, void>())
+      const latch = yield* $(Deferred.make<void>())
       const ref = yield* $(Ref.make(true))
       yield* $(
         Effect.checkInterruptible((isInterruptible) =>
@@ -47,7 +47,7 @@ describe("Effect", () => {
     }))
   it.effect("forkWithErrorHandler - calls provided function when task fails", () =>
     Effect.gen(function*($) {
-      const deferred = yield* $(Deferred.make<never, void>())
+      const deferred = yield* $(Deferred.make<void>())
       yield* $(
         Effect.fail<void>(void 0),
         Effect.forkWithErrorHandler((e) => pipe(Deferred.succeed(deferred, e), Effect.asUnit))
@@ -75,7 +75,7 @@ describe("Effect", () => {
   it.effect("forkAll - empty input", () =>
     Effect.gen(function*($) {
       const result = yield* $(
-        pipe([] as ReadonlyArray<Effect.Effect<never, never, number>>, Effect.forkAll(), Effect.flatMap(Fiber.join))
+        pipe([] as ReadonlyArray<Effect.Effect<number>>, Effect.forkAll(), Effect.flatMap(Fiber.join))
       )
       assert.strictEqual(result.length, 0)
     }))
@@ -90,7 +90,7 @@ describe("Effect", () => {
     Effect.gen(function*($) {
       const boom = new Error("boom")
       const die = Effect.die(boom)
-      const joinDefect = (fiber: Fiber.Fiber<never, unknown>) => {
+      const joinDefect = (fiber: Fiber.Fiber<unknown>) => {
         return pipe(fiber, Fiber.join, Effect.sandbox, Effect.flip)
       }
       const fiber1 = yield* $(Effect.forkAll([die]))

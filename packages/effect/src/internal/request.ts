@@ -49,7 +49,7 @@ export const tagged = <R extends Request.Request<any, any> & { _tag: string }>(
 export const Class: new<Error, Success, A extends Record<string, any>>(
   args: Types.Equals<Omit<A, keyof Request.Request<unknown, unknown>>, {}> extends true ? void
     : { readonly [P in keyof A as P extends keyof Request.Request<unknown, unknown> ? never : P]: A[P] }
-) => Request.Request<Error, Success> & Readonly<A> = (function() {
+) => Request.Request<Success, Error> & Readonly<A> = (function() {
   function Class(this: any, args: any) {
     if (args) {
       Object.assign(this, args)
@@ -65,7 +65,7 @@ export const TaggedClass = <Tag extends string>(
 ): new<Error, Success, A extends Record<string, any>>(
   args: Types.Equals<Omit<A, keyof Request.Request<unknown, unknown>>, {}> extends true ? void
     : { readonly [P in keyof A as P extends "_tag" | keyof Request.Request<unknown, unknown> ? never : P]: A[P] }
-) => Request.Request<Error, Success> & Readonly<A> & { readonly _tag: Tag } => {
+) => Request.Request<Success, Error> & Readonly<A> & { readonly _tag: Tag } => {
   return class TaggedClass extends Class<any, any, any> {
     readonly _tag = tag
   } as any
@@ -75,11 +75,11 @@ export const TaggedClass = <Tag extends string>(
 export const complete = dual<
   <A extends Request.Request<any, any>>(
     result: Request.Request.Result<A>
-  ) => (self: A) => Effect.Effect<never, never, void>,
+  ) => (self: A) => Effect.Effect<void>,
   <A extends Request.Request<any, any>>(
     self: A,
     result: Request.Request.Result<A>
-  ) => Effect.Effect<never, never, void>
+  ) => Effect.Effect<void>
 >(2, (self, result) =>
   core.fiberRefGetWith(
     completedRequestMap.currentRequestMap,
@@ -98,12 +98,12 @@ export const complete = dual<
 /** @internal */
 export const completeEffect = dual<
   <A extends Request.Request<any, any>, R>(
-    effect: Effect.Effect<R, Request.Request.Error<A>, Request.Request.Success<A>>
-  ) => (self: A) => Effect.Effect<R, never, void>,
+    effect: Effect.Effect<Request.Request.Success<A>, Request.Request.Error<A>, R>
+  ) => (self: A) => Effect.Effect<void, never, R>,
   <A extends Request.Request<any, any>, R>(
     self: A,
-    effect: Effect.Effect<R, Request.Request.Error<A>, Request.Request.Success<A>>
-  ) => Effect.Effect<R, never, void>
+    effect: Effect.Effect<Request.Request.Success<A>, Request.Request.Error<A>, R>
+  ) => Effect.Effect<void, never, R>
 >(2, (self, effect) =>
   core.matchEffect(effect, {
     onFailure: (error) => complete(self, core.exitFail(error) as any),
@@ -114,33 +114,33 @@ export const completeEffect = dual<
 export const fail = dual<
   <A extends Request.Request<any, any>>(
     error: Request.Request.Error<A>
-  ) => (self: A) => Effect.Effect<never, never, void>,
+  ) => (self: A) => Effect.Effect<void>,
   <A extends Request.Request<any, any>>(
     self: A,
     error: Request.Request.Error<A>
-  ) => Effect.Effect<never, never, void>
+  ) => Effect.Effect<void>
 >(2, (self, error) => complete(self, core.exitFail(error) as any))
 
 /** @internal */
 export const failCause = dual<
   <A extends Request.Request<any, any>>(
     cause: Cause.Cause<Request.Request.Error<A>>
-  ) => (self: A) => Effect.Effect<never, never, void>,
+  ) => (self: A) => Effect.Effect<void>,
   <A extends Request.Request<any, any>>(
     self: A,
     cause: Cause.Cause<Request.Request.Error<A>>
-  ) => Effect.Effect<never, never, void>
+  ) => Effect.Effect<void>
 >(2, (self, cause) => complete(self, core.exitFailCause(cause) as any))
 
 /** @internal */
 export const succeed = dual<
   <A extends Request.Request<any, any>>(
     value: Request.Request.Success<A>
-  ) => (self: A) => Effect.Effect<never, never, void>,
+  ) => (self: A) => Effect.Effect<void>,
   <A extends Request.Request<any, any>>(
     self: A,
     value: Request.Request.Success<A>
-  ) => Effect.Effect<never, never, void>
+  ) => Effect.Effect<void>
 >(2, (self, value) => complete(self, core.exitSucceed(value) as any))
 
 /** @internal */

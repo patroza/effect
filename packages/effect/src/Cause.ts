@@ -1,5 +1,5 @@
 /**
- * The `Effect<R, E, A>` type is polymorphic in values of type `E` and we can
+ * The `Effect<A, E, R>` type is polymorphic in values of type `E` and we can
  * work with any error type that we want. However, there is a lot of information
  * that is not inside an arbitrary `E` value. So as a result, an `Effect` needs
  * somewhere to store things like unexpected errors or defects, stack and
@@ -23,7 +23,6 @@
  */
 import type * as Channel from "./Channel.js"
 import type * as Chunk from "./Chunk.js"
-import type * as Data from "./Data.js"
 import type * as Effect from "./Effect.js"
 import type * as Either from "./Either.js"
 import type * as Equal from "./Equal.js"
@@ -115,6 +114,18 @@ export type InvalidPubSubCapacityExceptionTypeId = typeof InvalidPubSubCapacityE
  * @since 2.0.0
  * @category symbols
  */
+export const TimeoutExceptionTypeId: unique symbol = core.TimeoutExceptionTypeId
+
+/**
+ * @since 2.0.0
+ * @category symbols
+ */
+export type TimeoutExceptionTypeId = typeof TimeoutExceptionTypeId
+
+/**
+ * @since 2.0.0
+ * @category symbols
+ */
 export const UnknownExceptionTypeId: unique symbol = core.UnknownExceptionTypeId
 
 /**
@@ -178,19 +189,11 @@ export interface CauseReducer<in C, in E, in out Z> {
  * @since 2.0.0
  * @category models
  */
-export interface YieldableError extends Data.Case, Pipeable, Inspectable, Readonly<Error> {
+export interface YieldableError extends Pipeable, Inspectable, Readonly<Error> {
   readonly [Effect.EffectTypeId]: Effect.Effect.VarianceStruct<never, this, never>
   readonly [Stream.StreamTypeId]: Effect.Effect.VarianceStruct<never, this, never>
-  readonly [Sink.SinkTypeId]: Sink.Sink.VarianceStruct<never, this, unknown, never, never>
-  readonly [Channel.ChannelTypeId]: Channel.Channel.VarianceStruct<
-    never,
-    unknown,
-    unknown,
-    unknown,
-    this,
-    never,
-    never
-  >
+  readonly [Sink.SinkTypeId]: Sink.Sink.VarianceStruct<never, unknown, never, this, never>
+  readonly [Channel.ChannelTypeId]: Channel.Channel.VarianceStruct<never, unknown, this, unknown, never, unknown, never>
 }
 
 /**
@@ -257,6 +260,18 @@ export interface NoSuchElementException extends YieldableError {
 export interface InvalidPubSubCapacityException extends YieldableError {
   readonly _tag: "InvalidPubSubCapacityException"
   readonly [InvalidPubSubCapacityExceptionTypeId]: InvalidPubSubCapacityExceptionTypeId
+}
+
+/**
+ * Represents a checked exception which occurs when a computation doesn't
+ * finish on schedule.
+ *
+ * @since 2.0.0
+ * @category models
+ */
+export interface TimeoutException extends YieldableError {
+  readonly _tag: "TimeoutException"
+  readonly [TimeoutExceptionTypeId]: TimeoutExceptionTypeId
 }
 
 /**
@@ -861,6 +876,15 @@ export const RuntimeException: new(message?: string | undefined) => RuntimeExcep
  * @category refinements
  */
 export const isRuntimeException: (u: unknown) => u is RuntimeException = core.isRuntimeException
+
+/**
+ * Represents a checked exception which occurs when a computation doesn't
+ * finish on schedule.
+ *
+ * @since 2.0.0
+ * @category errors
+ */
+export const TimeoutException: new(message?: string | undefined) => TimeoutException = core.TimeoutException
 
 /**
  * Represents a checked exception which occurs when an unknown error is thrown, such as

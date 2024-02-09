@@ -33,7 +33,7 @@ const clone = Command.make("clone", {
     }
   })).pipe(Command.withDescription("Clone a repository into a new directory"))
 
-const AddService = Context.Tag<"AddService">()
+const AddService = Context.GenericTag<"AddService">("AddService")
 
 const add = Command.make("add", {
   pathspec: Args.text({ name: "pathspec" })
@@ -135,10 +135,10 @@ describe("Command", () => {
 // --
 
 interface Messages {
-  readonly log: (message: string) => Effect.Effect<never, never, void>
-  readonly messages: Effect.Effect<never, never, ReadonlyArray<string>>
+  readonly log: (message: string) => Effect.Effect<void>
+  readonly messages: Effect.Effect<ReadonlyArray<string>>
 }
-const Messages = Context.Tag<Messages>()
+const Messages = Context.GenericTag<Messages>("Messages")
 const MessagesLive = Layer.sync(Messages, () => {
   const messages: Array<string> = []
   return Messages.of({

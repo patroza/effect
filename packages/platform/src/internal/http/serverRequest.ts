@@ -19,19 +19,19 @@ import type * as Path from "../../Path.js"
 export const TypeId: ServerRequest.TypeId = Symbol.for("@effect/platform/Http/ServerRequest") as ServerRequest.TypeId
 
 /** @internal */
-export const serverRequestTag = Context.Tag<ServerRequest.ServerRequest>(TypeId)
+export const serverRequestTag = Context.GenericTag<ServerRequest.ServerRequest>("@effect/platform/Http/ServerRequest")
 
 /** @internal */
 export const multipartPersisted = Effect.flatMap(serverRequestTag, (request) => request.multipart)
 
 /** @internal */
-export const schemaHeaders = <R, I extends Readonly<Record<string, string>>, A>(schema: Schema.Schema<R, I, A>) => {
+export const schemaHeaders = <R, I extends Readonly<Record<string, string>>, A>(schema: Schema.Schema<A, I, R>) => {
   const parse = IncomingMessage.schemaHeaders(schema)
   return Effect.flatMap(serverRequestTag, parse)
 }
 
 /** @internal */
-export const schemaBodyJson = <R, I, A>(schema: Schema.Schema<R, I, A>) => {
+export const schemaBodyJson = <A, I, R>(schema: Schema.Schema<A, I, R>) => {
   const parse = IncomingMessage.schemaBodyJson(schema)
   return Effect.flatMap(serverRequestTag, parse)
 }
@@ -41,14 +41,14 @@ const isMultipart = (request: ServerRequest.ServerRequest) =>
 
 /** @internal */
 export const schemaBodyForm = <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => {
   const parseMultipart = Multipart.schemaPersisted(schema)
-  const parseUrlParams = IncomingMessage.schemaBodyUrlParams(schema as Schema.Schema<R, any, A>)
+  const parseUrlParams = IncomingMessage.schemaBodyUrlParams(schema as Schema.Schema<A, any, R>)
   return Effect.flatMap(serverRequestTag, (request): Effect.Effect<
-    R | ServerRequest.ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path,
+    A,
     Multipart.MultipartError | ParseResult.ParseError | Error.RequestError,
-    A
+    R | ServerRequest.ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path
   > => {
     if (isMultipart(request)) {
       return Effect.flatMap(request.multipart, parseMultipart)
@@ -59,7 +59,7 @@ export const schemaBodyForm = <R, I extends Multipart.Persisted, A>(
 
 /** @internal */
 export const schemaBodyUrlParams = <R, I extends Readonly<Record<string, string>>, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => {
   const parse = IncomingMessage.schemaBodyUrlParams(schema)
   return Effect.flatMap(serverRequestTag, parse)
@@ -67,14 +67,14 @@ export const schemaBodyUrlParams = <R, I extends Readonly<Record<string, string>
 
 /** @internal */
 export const schemaBodyMultipart = <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => {
   const parse = Multipart.schemaPersisted(schema)
   return Effect.flatMap(multipartPersisted, parse)
 }
 
 /** @internal */
-export const schemaBodyFormJson = <R, I, A>(schema: Schema.Schema<R, I, A>) => {
+export const schemaBodyFormJson = <A, I, R>(schema: Schema.Schema<A, I, R>) => {
   const parseMultipart = Multipart.schemaJson(schema)
   const parseUrlParams = UrlParams.schemaJson(schema)
   return (field: string) =>
@@ -83,9 +83,9 @@ export const schemaBodyFormJson = <R, I, A>(schema: Schema.Schema<R, I, A>) => {
       (
         request
       ): Effect.Effect<
-        R | FileSystem.FileSystem | Path.Path | Scope.Scope | ServerRequest.ServerRequest,
+        A,
         ParseResult.ParseError | Error.RequestError,
-        A
+        R | FileSystem.FileSystem | Path.Path | Scope.Scope | ServerRequest.ServerRequest
       > => {
         if (isMultipart(request)) {
           return Effect.flatMap(
@@ -147,7 +147,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     return this.headersOverride
   }
 
-  get stream(): Stream.Stream<never, Error.RequestError, Uint8Array> {
+  get stream(): Stream.Stream<Uint8Array, Error.RequestError> {
     return this.source.body
       ? Stream.fromReadableStream(() => this.source.body as any, (_) =>
         Error.RequestError({
@@ -162,8 +162,8 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
       }))
   }
 
-  private textEffect: Effect.Effect<never, Error.RequestError, string> | undefined
-  get text(): Effect.Effect<never, Error.RequestError, string> {
+  private textEffect: Effect.Effect<string, Error.RequestError> | undefined
+  get text(): Effect.Effect<string, Error.RequestError> {
     if (this.textEffect) {
       return this.textEffect
     }
@@ -181,7 +181,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     return this.textEffect
   }
 
-  get json(): Effect.Effect<never, Error.RequestError, unknown> {
+  get json(): Effect.Effect<unknown, Error.RequestError> {
     return Effect.tryMap(this.text, {
       try: (_) => JSON.parse(_) as unknown,
       catch: (error) =>
@@ -193,7 +193,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     })
   }
 
-  get urlParamsBody(): Effect.Effect<never, Error.RequestError, UrlParams.UrlParams> {
+  get urlParamsBody(): Effect.Effect<UrlParams.UrlParams, Error.RequestError> {
     return Effect.flatMap(this.text, (_) =>
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
@@ -208,15 +208,15 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
 
   private multipartEffect:
     | Effect.Effect<
-      Scope.Scope | FileSystem.FileSystem | Path.Path,
+      Multipart.Persisted,
       Multipart.MultipartError,
-      Multipart.Persisted
+      Scope.Scope | FileSystem.FileSystem | Path.Path
     >
     | undefined
   get multipart(): Effect.Effect<
-    Scope.Scope | FileSystem.FileSystem | Path.Path,
+    Multipart.Persisted,
     Multipart.MultipartError,
-    Multipart.Persisted
+    Scope.Scope | FileSystem.FileSystem | Path.Path
   > {
     if (this.multipartEffect) {
       return this.multipartEffect
@@ -227,15 +227,15 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     return this.multipartEffect
   }
 
-  get multipartStream(): Stream.Stream<never, Multipart.MultipartError, Multipart.Part> {
+  get multipartStream(): Stream.Stream<Multipart.Part, Multipart.MultipartError> {
     return Stream.pipeThroughChannel(
       Stream.mapError(this.stream, (error) => Multipart.MultipartError("InternalError", error)),
       Multipart.makeChannel(this.headers)
     )
   }
 
-  private arrayBufferEffect: Effect.Effect<never, Error.RequestError, ArrayBuffer> | undefined
-  get arrayBuffer(): Effect.Effect<never, Error.RequestError, ArrayBuffer> {
+  private arrayBufferEffect: Effect.Effect<ArrayBuffer, Error.RequestError> | undefined
+  get arrayBuffer(): Effect.Effect<ArrayBuffer, Error.RequestError> {
     if (this.arrayBuffer) {
       return this.arrayBuffer
     }

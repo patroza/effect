@@ -28,10 +28,10 @@ export type TypeId = typeof TypeId
  * @since 1.0.0
  * @category models
  */
-export interface ServerResponse extends Effect.Effect<never, never, ServerResponse> {
+export interface ServerResponse extends Effect.Effect<ServerResponse> {
   readonly [TypeId]: TypeId
   readonly status: number
-  readonly statusText?: string
+  readonly statusText?: string | undefined
   readonly headers: Headers.Headers
   readonly body: Body.Body
 }
@@ -95,15 +95,15 @@ export const text: (body: string, options?: Options.WithContentType) => ServerRe
 export const json: (
   body: unknown,
   options?: Options.WithContent
-) => Effect.Effect<never, Body.BodyError, ServerResponse> = internal.json
+) => Effect.Effect<ServerResponse, Body.BodyError> = internal.json
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const schemaJson: <R, I, A>(
-  schema: Schema.Schema<R, I, A>
-) => (body: A, options?: Options.WithContent | undefined) => Effect.Effect<R, Body.BodyError, ServerResponse> =
+export const schemaJson: <A, I, R>(
+  schema: Schema.Schema<A, I, R>
+) => (body: A, options?: Options.WithContent | undefined) => Effect.Effect<ServerResponse, Body.BodyError, R> =
   internal.schemaJson
 
 /**
@@ -134,8 +134,7 @@ export const formData: (body: FormData, options?: Options.WithContent) => Server
  * @since 1.0.0
  * @category constructors
  */
-export const stream: (body: Stream.Stream<never, unknown, Uint8Array>, options?: Options) => ServerResponse =
-  internal.stream
+export const stream: (body: Stream.Stream<Uint8Array, unknown>, options?: Options) => ServerResponse = internal.stream
 
 /**
  * @since 1.0.0
@@ -144,7 +143,7 @@ export const stream: (body: Stream.Stream<never, unknown, Uint8Array>, options?:
 export const file: (
   path: string,
   options?: Options & FileSystem.StreamOptions
-) => Effect.Effect<Platform.Platform, PlatformError.PlatformError, ServerResponse> = internal.file
+) => Effect.Effect<ServerResponse, PlatformError.PlatformError, Platform.Platform> = internal.file
 
 /**
  * @since 1.0.0
@@ -153,7 +152,7 @@ export const file: (
 export const fileWeb: (
   file: Body.Body.FileLike,
   options?: Options.WithContent & FileSystem.StreamOptions
-) => Effect.Effect<Platform.Platform, never, ServerResponse> = internal.fileWeb
+) => Effect.Effect<ServerResponse, never, Platform.Platform> = internal.fileWeb
 
 /**
  * @since 1.0.0

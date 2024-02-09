@@ -44,7 +44,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     return Option.none()
   }
 
-  get stream(): Stream.Stream<never, Error.ResponseError, Uint8Array> {
+  get stream(): Stream.Stream<Uint8Array, Error.ResponseError> {
     return this.source.body
       ? Stream.fromReadableStream(() => this.source.body!, (_) =>
         internalError.responseError({
@@ -61,7 +61,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
       }))
   }
 
-  get json(): Effect.Effect<never, Error.ResponseError, unknown> {
+  get json(): Effect.Effect<unknown, Error.ResponseError> {
     return Effect.tryMap(this.text, {
       try: (text) => text === "" ? null : JSON.parse(text) as unknown,
       catch: (_) =>
@@ -74,8 +74,8 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     })
   }
 
-  private textBody?: Effect.Effect<never, Error.ResponseError, string>
-  get text(): Effect.Effect<never, Error.ResponseError, string> {
+  private textBody?: Effect.Effect<string, Error.ResponseError>
+  get text(): Effect.Effect<string, Error.ResponseError> {
     return this.textBody ??= Effect.tryPromise({
       try: () => this.source.text(),
       catch: (_) =>
@@ -88,7 +88,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     }).pipe(Effect.cached, Effect.runSync)
   }
 
-  get urlParamsBody(): Effect.Effect<never, Error.ResponseError, UrlParams.UrlParams> {
+  get urlParamsBody(): Effect.Effect<UrlParams.UrlParams, Error.ResponseError> {
     return Effect.flatMap(this.text, (_) =>
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
@@ -102,8 +102,8 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
       }))
   }
 
-  private formDataBody?: Effect.Effect<never, Error.ResponseError, FormData>
-  get formData(): Effect.Effect<never, Error.ResponseError, FormData> {
+  private formDataBody?: Effect.Effect<FormData, Error.ResponseError>
+  get formData(): Effect.Effect<FormData, Error.ResponseError> {
     return this.formDataBody ??= Effect.tryPromise({
       try: () => this.source.formData(),
       catch: (_) =>
@@ -116,8 +116,8 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     }).pipe(Effect.cached, Effect.runSync)
   }
 
-  private arrayBufferBody?: Effect.Effect<never, Error.ResponseError, ArrayBuffer>
-  get arrayBuffer(): Effect.Effect<never, Error.ResponseError, ArrayBuffer> {
+  private arrayBufferBody?: Effect.Effect<ArrayBuffer, Error.ResponseError>
+  get arrayBuffer(): Effect.Effect<ArrayBuffer, Error.ResponseError> {
     return this.arrayBufferBody ??= Effect.tryPromise({
       try: () => this.source.arrayBuffer(),
       catch: (_) =>
@@ -135,14 +135,14 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
 export const schemaJson = <
   R,
   I extends {
-    readonly status?: number
-    readonly headers?: Readonly<Record<string, string>>
-    readonly body?: unknown
+    readonly status?: number | undefined
+    readonly headers?: Readonly<Record<string, string>> | undefined
+    readonly body?: unknown | undefined
   },
   A
->(schema: Schema.Schema<R, I, A>) => {
+>(schema: Schema.Schema<A, I, R>) => {
   const parse = Schema.decodeUnknown(schema)
-  return (self: ClientResponse.ClientResponse): Effect.Effect<R, Error.ResponseError | ParseResult.ParseError, A> =>
+  return (self: ClientResponse.ClientResponse): Effect.Effect<A, Error.ResponseError | ParseResult.ParseError, R> =>
     Effect.flatMap(
       self.json,
       (body) =>
@@ -158,13 +158,13 @@ export const schemaJson = <
 export const schemaNoBody = <
   R,
   I extends {
-    readonly status?: number
-    readonly headers?: Readonly<Record<string, string>>
+    readonly status?: number | undefined
+    readonly headers?: Readonly<Record<string, string>> | undefined
   },
   A
->(schema: Schema.Schema<R, I, A>) => {
+>(schema: Schema.Schema<A, I, R>) => {
   const parse = Schema.decodeUnknown(schema)
-  return (self: ClientResponse.ClientResponse): Effect.Effect<R, ParseResult.ParseError, A> =>
+  return (self: ClientResponse.ClientResponse): Effect.Effect<A, ParseResult.ParseError, R> =>
     parse({
       status: self.status,
       headers: self.headers

@@ -13,7 +13,7 @@ const platformWorkerImpl = Worker.PlatformWorker.of({
 
       yield* _(Effect.addFinalizer(() =>
         pipe(
-          Effect.async<never, never, void>((resume, signal) => {
+          Effect.async<void>((resume, signal) => {
             port.addEventListener("close", () => resume(Effect.unit), { once: true, signal })
             port.postMessage([1])
           }),
@@ -27,7 +27,7 @@ const platformWorkerImpl = Worker.PlatformWorker.of({
       const queue = yield* _(Queue.unbounded<Worker.BackingWorker.Message<O>>())
 
       const fiber = yield* _(
-        Effect.async<never, WorkerError, never>((resume) => {
+        Effect.async<never, WorkerError>((resume) => {
           function onMessage(event: MessageEvent) {
             queue.unsafeOffer((event as MessageEvent).data)
           }
@@ -63,15 +63,8 @@ export const layerWorker = Layer.succeed(Worker.PlatformWorker, platformWorkerIm
 export const layerManager = Layer.provide(Worker.layerManager, layerWorker)
 
 /** @internal */
-export const makePool = Worker.makePool<globalThis.Worker>()
-
-/** @internal */
-export const makePoolLayer = Worker.makePoolLayer<globalThis.Worker>(layerManager)
-
-/** @internal */
-export const makePoolSerialized = Worker.makePoolSerialized<globalThis.Worker>()
-
-/** @internal */
-export const makePoolSerializedLayer = Worker.makePoolSerializedLayer<globalThis.Worker>(
-  layerManager
-)
+export const layer = (spawn: (id: number) => globalThis.Worker) =>
+  Layer.merge(
+    layerManager,
+    Worker.layerSpawner(spawn)
+  )

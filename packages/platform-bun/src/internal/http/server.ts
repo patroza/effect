@@ -1,11 +1,13 @@
 /// <reference types="bun-types" />
-import * as Multipart from "@effect/platform-node/Http/Multipart"
+import * as Etag from "@effect/platform-node-shared/Http/Etag"
+import * as MultipartNode from "@effect/platform-node-shared/Http/Multipart"
 import type * as FileSystem from "@effect/platform/FileSystem"
 import * as App from "@effect/platform/Http/App"
 import * as Headers from "@effect/platform/Http/Headers"
 import * as IncomingMessage from "@effect/platform/Http/IncomingMessage"
 import type { Method } from "@effect/platform/Http/Method"
 import * as Middleware from "@effect/platform/Http/Middleware"
+import type * as Multipart from "@effect/platform/Http/Multipart"
 import * as Server from "@effect/platform/Http/Server"
 import * as Error from "@effect/platform/Http/ServerError"
 import * as ServerRequest from "@effect/platform/Http/ServerRequest"
@@ -23,12 +25,13 @@ import * as Runtime from "effect/Runtime"
 import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import { Readable } from "node:stream"
+import * as BunContext from "../../BunContext.js"
 import * as Platform from "../../Http/Platform.js"
 
 /** @internal */
 export const make = (
   options: Omit<ServeOptions, "fetch" | "error">
-): Effect.Effect<Scope.Scope, never, Server.Server> =>
+): Effect.Effect<Server.Server, never, Scope.Scope> =>
   Effect.gen(function*(_) {
     const handlerStack: Array<(request: Request, server: BunServer) => Response | Promise<Response>> = [
       function(_request, _server) {
@@ -58,7 +61,7 @@ export const make = (
         return pipe(
           Effect.runtime<never>(),
           Effect.flatMap((runtime) =>
-            Effect.async<never, never, never>((_) => {
+            Effect.async<never>((_) => {
               const runFork = Runtime.runFork(runtime)
               function handler(request: Request, _server: BunServer) {
                 return new Promise<Response>((resolve, reject) => {
@@ -155,21 +158,30 @@ const respond = Middleware.make((httpApp) =>
 )
 
 /** @internal */
+export const layerServer = (
+  options: Omit<ServeOptions, "fetch" | "error">
+) => Layer.scoped(Server.Server, make(options))
+
+/** @internal */
 export const layer = (
   options: Omit<ServeOptions, "fetch" | "error">
 ) =>
-  Layer.merge(
+  Layer.mergeAll(
     Layer.scoped(Server.Server, make(options)),
-    Platform.layer
+    Platform.layer,
+    Etag.layerWeak,
+    BunContext.layer
   )
 
 /** @internal */
 export const layerConfig = (
   options: Config.Config.Wrap<Omit<ServeOptions, "fetch" | "error">>
 ) =>
-  Layer.merge(
+  Layer.mergeAll(
     Layer.scoped(Server.Server, Effect.flatMap(Config.unwrap(options), make)),
-    Platform.layer
+    Platform.layer,
+    Etag.layerWeak,
+    BunContext.layer
   )
 
 class ServerRequestImpl implements ServerRequest.ServerRequest {
@@ -216,7 +228,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     return this.headersOverride
   }
 
-  get stream(): Stream.Stream<never, Error.RequestError, Uint8Array> {
+  get stream(): Stream.Stream<Uint8Array, Error.RequestError> {
     return this.source.body
       ? Stream.fromReadableStream(() => this.source.body as any, (_) =>
         Error.RequestError({
@@ -231,8 +243,8 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
       }))
   }
 
-  private textEffect: Effect.Effect<never, Error.RequestError, string> | undefined
-  get text(): Effect.Effect<never, Error.RequestError, string> {
+  private textEffect: Effect.Effect<string, Error.RequestError> | undefined
+  get text(): Effect.Effect<string, Error.RequestError> {
     if (this.textEffect) {
       return this.textEffect
     }
@@ -250,7 +262,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     return this.textEffect
   }
 
-  get json(): Effect.Effect<never, Error.RequestError, unknown> {
+  get json(): Effect.Effect<unknown, Error.RequestError> {
     return Effect.tryMap(this.text, {
       try: (_) => JSON.parse(_) as unknown,
       catch: (error) =>
@@ -262,7 +274,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     })
   }
 
-  get urlParamsBody(): Effect.Effect<never, Error.RequestError, UrlParams.UrlParams> {
+  get urlParamsBody(): Effect.Effect<UrlParams.UrlParams, Error.RequestError> {
     return Effect.flatMap(this.text, (_) =>
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
@@ -277,31 +289,31 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
 
   private multipartEffect:
     | Effect.Effect<
-      Scope.Scope | FileSystem.FileSystem | Path.Path,
+      Multipart.Persisted,
       Multipart.MultipartError,
-      Multipart.Persisted
+      Scope.Scope | FileSystem.FileSystem | Path.Path
     >
     | undefined
   get multipart(): Effect.Effect<
-    Scope.Scope | FileSystem.FileSystem | Path.Path,
+    Multipart.Persisted,
     Multipart.MultipartError,
-    Multipart.Persisted
+    Scope.Scope | FileSystem.FileSystem | Path.Path
   > {
     if (this.multipartEffect) {
       return this.multipartEffect
     }
     this.multipartEffect = Effect.runSync(Effect.cached(
-      Multipart.persisted(Readable.fromWeb(this.source.body! as any), this.headers)
+      MultipartNode.persisted(Readable.fromWeb(this.source.body! as any), this.headers)
     ))
     return this.multipartEffect
   }
 
-  get multipartStream(): Stream.Stream<never, Multipart.MultipartError, Multipart.Part> {
-    return Multipart.stream(Readable.fromWeb(this.source.body! as any), this.headers)
+  get multipartStream(): Stream.Stream<Multipart.Part, Multipart.MultipartError> {
+    return MultipartNode.stream(Readable.fromWeb(this.source.body! as any), this.headers)
   }
 
-  private arrayBufferEffect: Effect.Effect<never, Error.RequestError, ArrayBuffer> | undefined
-  get arrayBuffer(): Effect.Effect<never, Error.RequestError, ArrayBuffer> {
+  private arrayBufferEffect: Effect.Effect<ArrayBuffer, Error.RequestError> | undefined
+  get arrayBuffer(): Effect.Effect<ArrayBuffer, Error.RequestError> {
     if (this.arrayBuffer) {
       return this.arrayBuffer
     }

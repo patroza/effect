@@ -16,8 +16,8 @@ import * as Domain from "./Domain.js"
  */
 export interface ServerImpl {
   readonly run: <R, E, _>(
-    handle: (client: Client) => Effect.Effect<R, E, _>
-  ) => Effect.Effect<R, SocketServer.SocketServerError | E, never>
+    handle: (client: Client) => Effect.Effect<_, E, R>
+  ) => Effect.Effect<never, SocketServer.SocketServerError | E, R>
 }
 
 /**
@@ -26,7 +26,7 @@ export interface ServerImpl {
  */
 export interface Client {
   readonly queue: Queue.Dequeue<Domain.Request.WithoutPing>
-  readonly request: (_: Domain.Response.WithoutPong) => Effect.Effect<never, never, void>
+  readonly request: (_: Domain.Response.WithoutPong) => Effect.Effect<void>
 }
 
 /**
@@ -41,7 +41,7 @@ export interface Server {
  * @since 1.0.0
  * @category tags
  */
-export const Server = Context.Tag<Server, ServerImpl>("@effect/experimental/DevTools/Server")
+export const Server = Context.GenericTag<Server, ServerImpl>("@effect/experimental/DevTools/Server")
 
 /**
  * @since 1.0.0
@@ -50,7 +50,7 @@ export const Server = Context.Tag<Server, ServerImpl>("@effect/experimental/DevT
 export const make = Effect.gen(function*(_) {
   const server = yield* _(SocketServer.SocketServer)
 
-  const run = <R, E, _>(handle: (client: Client) => Effect.Effect<R, E, _>) =>
+  const run = <R, E, _>(handle: (client: Client) => Effect.Effect<_, E, R>) =>
     server.run((socket) =>
       Effect.gen(function*(_) {
         const responses = yield* _(Queue.unbounded<Domain.Response>())

@@ -48,11 +48,11 @@ export interface ServerRequest extends IncomingMessage.IncomingMessage<Error.Req
   readonly method: Method
 
   readonly multipart: Effect.Effect<
-    Scope.Scope | FileSystem.FileSystem | Path.Path,
+    Multipart.Persisted,
     Multipart.MultipartError,
-    Multipart.Persisted
+    Scope.Scope | FileSystem.FileSystem | Path.Path
   >
-  readonly multipartStream: Stream.Stream<never, Multipart.MultipartError, Multipart.Part>
+  readonly multipartStream: Stream.Stream<Multipart.Part, Multipart.MultipartError>
 
   readonly modify: (
     options: {
@@ -74,9 +74,9 @@ export const ServerRequest: Context.Tag<ServerRequest, ServerRequest> = internal
  * @category accessors
  */
 export const persistedMultipart: Effect.Effect<
-  Scope.Scope | FileSystem.FileSystem | Path.Path | ServerRequest,
+  unknown,
   Multipart.MultipartError,
-  unknown
+  Scope.Scope | FileSystem.FileSystem | Path.Path | ServerRequest
 > = internal.multipartPersisted
 
 /**
@@ -84,27 +84,27 @@ export const persistedMultipart: Effect.Effect<
  * @category schema
  */
 export const schemaHeaders: <R, I extends Readonly<Record<string, string>>, A>(
-  schema: Schema.Schema<R, I, A>
-) => Effect.Effect<ServerRequest | R, ParseResult.ParseError, A> = internal.schemaHeaders
+  schema: Schema.Schema<A, I, R>
+) => Effect.Effect<A, ParseResult.ParseError, ServerRequest | R> = internal.schemaHeaders
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const schemaBodyJson: <R, I, A>(
-  schema: Schema.Schema<R, I, A>
-) => Effect.Effect<ServerRequest | R, Error.RequestError | ParseResult.ParseError, A> = internal.schemaBodyJson
+export const schemaBodyJson: <A, I, R>(
+  schema: Schema.Schema<A, I, R>
+) => Effect.Effect<A, Error.RequestError | ParseResult.ParseError, ServerRequest | R> = internal.schemaBodyJson
 
 /**
  * @since 1.0.0
  * @category schema
  */
 export const schemaBodyForm: <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => Effect.Effect<
-  ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path | R,
+  A,
   Multipart.MultipartError | Error.RequestError | ParseResult.ParseError,
-  A
+  ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path | R
 > = internal.schemaBodyForm
 
 /**
@@ -112,33 +112,33 @@ export const schemaBodyForm: <R, I extends Multipart.Persisted, A>(
  * @category schema
  */
 export const schemaBodyUrlParams: <R, I extends Readonly<Record<string, string>>, A>(
-  schema: Schema.Schema<R, I, A>
-) => Effect.Effect<ServerRequest | R, Error.RequestError | ParseResult.ParseError, A> = internal.schemaBodyUrlParams
+  schema: Schema.Schema<A, I, R>
+) => Effect.Effect<A, Error.RequestError | ParseResult.ParseError, ServerRequest | R> = internal.schemaBodyUrlParams
 
 /**
  * @since 1.0.0
  * @category schema
  */
 export const schemaBodyMultipart: <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => Effect.Effect<
-  R | ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path,
+  A,
   Multipart.MultipartError | ParseResult.ParseError,
-  A
+  R | ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path
 > = internal.schemaBodyMultipart
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const schemaBodyFormJson: <R, I, A>(
-  schema: Schema.Schema<R, I, A>
+export const schemaBodyFormJson: <A, I, R>(
+  schema: Schema.Schema<A, I, R>
 ) => (
   field: string
 ) => Effect.Effect<
-  R | ServerRequest | FileSystem.FileSystem | Path.Path | Scope.Scope,
+  A,
   ParseResult.ParseError | Error.RequestError,
-  A
+  R | ServerRequest | FileSystem.FileSystem | Path.Path | Scope.Scope
 > = internal.schemaBodyFormJson
 
 /**

@@ -1,7 +1,6 @@
 /**
  * @since 1.0.0
  */
-import type * as Data from "effect/Data"
 import * as internal from "./internal/workerError.js"
 
 /**
@@ -20,12 +19,12 @@ export type WorkerErrorTypeId = typeof WorkerErrorTypeId
  * @since 1.0.0
  * @category errors
  */
-export interface WorkerError extends Data.Case {
+export interface WorkerError {
   readonly [WorkerErrorTypeId]: WorkerErrorTypeId
   readonly _tag: "WorkerError"
   readonly reason: "spawn" | "decode" | "send" | "unknown" | "encode"
   readonly error: unknown
-  readonly stack?: string
+  readonly stack?: string | undefined
 }
 
 /**
@@ -35,5 +34,5 @@ export interface WorkerError extends Data.Case {
 export const WorkerError: (
   reason: "spawn" | "decode" | "send" | "unknown" | "encode",
   error: unknown,
-  stack?: string
+  stack?: string | undefined
 ) => WorkerError = internal.WorkerError

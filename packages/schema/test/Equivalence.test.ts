@@ -13,8 +13,8 @@ import { describe, expect, it } from "vitest"
 /**
  * Tests that the generated Eq is a valid Eq
  */
-export const propertyTo = <I, A>(
-  schema: S.Schema<I, A>,
+export const propertyTo = <A, I>(
+  schema: S.Schema<A, I>,
   params?: fc.Parameters<[A, ...Array<A>]>
 ) => {
   const arb = A.make(schema)(fc)
@@ -159,7 +159,7 @@ describe("Equivalence", () => {
     })
 
     it("Either", () => {
-      const schema = S.eitherFromSelf(string, number)
+      const schema = S.eitherFromSelf({ left: string, right: number })
       const equivalence = E.make(schema)
 
       expect(equivalence(Either.right(1), Either.right(1))).toBe(true)
@@ -196,7 +196,7 @@ describe("Equivalence", () => {
     })
 
     it("ReadonlyMap", () => {
-      const schema = S.readonlyMapFromSelf(string, number)
+      const schema = S.readonlyMapFromSelf({ key: string, value: number })
       const equivalence = E.make(schema)
 
       expect(equivalence(new Map(), new Map())).toBe(true)
@@ -573,7 +573,7 @@ describe("Equivalence", () => {
         readonly a: string
         readonly as: ReadonlyArray<A>
       }
-      const schema: S.Schema<never, A> = S.struct({
+      const schema: S.Schema<A> = S.struct({
         a: string,
         as: S.array(S.suspend(() => schema))
       })
@@ -607,12 +607,12 @@ describe("Equivalence", () => {
         readonly right: Expression
       }
 
-      const Expression: S.Schema<never, Expression> = S.struct({
+      const Expression: S.Schema<Expression> = S.struct({
         type: S.literal("expression"),
         value: S.union(number, S.suspend(() => Operation))
       })
 
-      const Operation: S.Schema<never, Operation> = S.struct({
+      const Operation: S.Schema<Operation> = S.struct({
         type: S.literal("operation"),
         operator: S.union(S.literal("+"), S.literal("-")),
         left: Expression,
@@ -676,7 +676,7 @@ describe("Equivalence", () => {
   })
 
   describe("should handle annotations", () => {
-    const expectHook = <I, A>(source: S.Schema<never, I, A>) => {
+    const expectHook = <A, I>(source: S.Schema<A, I>) => {
       const schema = source.pipe(E.equivalence(() => () => true))
       const eq = E.make(schema)
       expect(eq("a" as any, "b" as any)).toEqual(true)
@@ -763,7 +763,7 @@ describe("Equivalence", () => {
         readonly a: string
         readonly as: ReadonlyArray<A>
       }
-      const schema: S.Schema<never, A> = S.struct({
+      const schema: S.Schema<A> = S.struct({
         a: S.string,
         as: S.array(S.suspend(() => schema))
       })

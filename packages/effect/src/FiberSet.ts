@@ -26,34 +26,34 @@ export type TypeId = typeof TypeId
  * @since 2.0.0
  * @categories models
  */
-export interface FiberSet<E = unknown, A = unknown>
-  extends Pipeable, Inspectable.Inspectable, Iterable<Fiber.RuntimeFiber<E, A>>
+export interface FiberSet<out A, out E = never>
+  extends Pipeable, Inspectable.Inspectable, Iterable<Fiber.RuntimeFiber<A, E>>
 {
   readonly [TypeId]: TypeId
-  readonly backing: Set<Fiber.RuntimeFiber<E, A>>
+  readonly backing: Set<Fiber.RuntimeFiber<A, E>>
 }
 
 /**
  * @since 2.0.0
  * @categories refinements
  */
-export const isFiberSet = (u: unknown): u is FiberSet<unknown> => Predicate.hasProperty(u, TypeId)
+export const isFiberSet = (u: unknown): u is FiberSet<unknown, unknown> => Predicate.hasProperty(u, TypeId)
 
 const Proto = {
   [TypeId]: TypeId,
-  [Symbol.iterator](this: FiberSet) {
+  [Symbol.iterator](this: FiberSet<unknown, unknown>) {
     return this.backing[Symbol.iterator]()
   },
-  toString(this: FiberSet) {
+  toString(this: FiberSet<unknown, unknown>) {
     return Inspectable.format(this.toJSON())
   },
-  toJSON(this: FiberSet) {
+  toJSON(this: FiberSet<unknown, unknown>) {
     return {
       _id: "FiberMap",
       backing: Inspectable.toJSON(Array.from(this.backing))
     }
   },
-  [Inspectable.NodeInspectSymbol](this: FiberSet) {
+  [Inspectable.NodeInspectSymbol](this: FiberSet<unknown, unknown>) {
     return this.toJSON()
   },
   pipe() {
@@ -61,7 +61,7 @@ const Proto = {
   }
 }
 
-const unsafeMake = <E = unknown, A = unknown>(): FiberSet<E, A> => {
+const unsafeMake = <A, E>(): FiberSet<A, E> => {
   const self = Object.create(Proto)
   self.backing = new Set()
   return self
@@ -92,8 +92,8 @@ const unsafeMake = <E = unknown, A = unknown>(): FiberSet<E, A> => {
  * @since 2.0.0
  * @categories constructors
  */
-export const make = <E = unknown, A = unknown>(): Effect.Effect<Scope.Scope, never, FiberSet<E, A>> =>
-  Effect.acquireRelease(Effect.sync(() => unsafeMake<E, A>()), clear)
+export const make = <A, E = never>(): Effect.Effect<FiberSet<A, E>, never, Scope.Scope> =>
+  Effect.acquireRelease(Effect.sync(() => unsafeMake<A, E>()), clear)
 
 /**
  * Create an Effect run function that is backed by a FiberSet.
@@ -101,16 +101,16 @@ export const make = <E = unknown, A = unknown>(): Effect.Effect<Scope.Scope, nev
  * @since 2.0.0
  * @categories constructors
  */
-export const makeRuntime = <R, E = unknown, A = unknown>(): Effect.Effect<
-  Scope.Scope | R,
-  never,
+export const makeRuntime = <A, E = never, R = never>(): Effect.Effect<
   <XE extends E, XA extends A>(
-    effect: Effect.Effect<R, XE, XA>,
+    effect: Effect.Effect<XA, XE, R>,
     options?: Runtime.RunForkOptions | undefined
-  ) => Fiber.RuntimeFiber<XE, XA>
+  ) => Fiber.RuntimeFiber<XA, XE>,
+  never,
+  Scope.Scope | R
 > =>
   Effect.flatMap(
-    make<E, A>(),
+    make<A, E>(),
     (self) => runtime(self)<R>()
   )
 
@@ -121,15 +121,15 @@ export const makeRuntime = <R, E = unknown, A = unknown>(): Effect.Effect<
  * @categories combinators
  */
 export const unsafeAdd: {
-  <E, A, XE extends E, XA extends A>(fiber: Fiber.RuntimeFiber<XE, XA>): (self: FiberSet<E, A>) => void
-  <E, A, XE extends E, XA extends A>(self: FiberSet<E, A>, fiber: Fiber.RuntimeFiber<XE, XA>): void
+  <A, E, XE extends E, XA extends A>(fiber: Fiber.RuntimeFiber<XA, XE>): (self: FiberSet<A, E>) => void
+  <A, E, XE extends E, XA extends A>(self: FiberSet<A, E>, fiber: Fiber.RuntimeFiber<XA, XE>): void
 } = dual<
-  <E, A, XE extends E, XA extends A>(
-    fiber: Fiber.RuntimeFiber<XE, XA>
-  ) => (self: FiberSet<E, A>) => void,
-  <E, A, XE extends E, XA extends A>(
-    self: FiberSet<E, A>,
-    fiber: Fiber.RuntimeFiber<XE, XA>
+  <A, E, XE extends E, XA extends A>(
+    fiber: Fiber.RuntimeFiber<XA, XE>
+  ) => (self: FiberSet<A, E>) => void,
+  <A, E, XE extends E, XA extends A>(
+    self: FiberSet<A, E>,
+    fiber: Fiber.RuntimeFiber<XA, XE>
   ) => void
 >(2, (self, fiber) => {
   if (self.backing.has(fiber)) {
@@ -148,28 +148,28 @@ export const unsafeAdd: {
  * @categories combinators
  */
 export const add: {
-  <E, A, XE extends E, XA extends A>(
-    fiber: Fiber.RuntimeFiber<XE, XA>
-  ): (self: FiberSet<E, A>) => Effect.Effect<never, never, void>
-  <E, A, XE extends E, XA extends A>(
-    self: FiberSet<E, A>,
-    fiber: Fiber.RuntimeFiber<XE, XA>
-  ): Effect.Effect<never, never, void>
+  <A, E, XE extends E, XA extends A>(
+    fiber: Fiber.RuntimeFiber<XA, XE>
+  ): (self: FiberSet<A, E>) => Effect.Effect<void>
+  <A, E, XE extends E, XA extends A>(
+    self: FiberSet<A, E>,
+    fiber: Fiber.RuntimeFiber<XA, XE>
+  ): Effect.Effect<void>
 } = dual<
-  <E, A, XE extends E, XA extends A>(
-    fiber: Fiber.RuntimeFiber<XE, XA>
-  ) => (self: FiberSet<E, A>) => Effect.Effect<never, never, void>,
-  <E, A, XE extends E, XA extends A>(
-    self: FiberSet<E, A>,
-    fiber: Fiber.RuntimeFiber<XE, XA>
-  ) => Effect.Effect<never, never, void>
+  <A, E, XE extends E, XA extends A>(
+    fiber: Fiber.RuntimeFiber<XA, XE>
+  ) => (self: FiberSet<A, E>) => Effect.Effect<void>,
+  <A, E, XE extends E, XA extends A>(
+    self: FiberSet<A, E>,
+    fiber: Fiber.RuntimeFiber<XA, XE>
+  ) => Effect.Effect<void>
 >(2, (self, fiber) => Effect.sync(() => unsafeAdd(self, fiber)))
 
 /**
  * @since 2.0.0
  * @categories combinators
  */
-export const clear = <E, A>(self: FiberSet<E, A>): Effect.Effect<never, never, void> =>
+export const clear = <A, E>(self: FiberSet<A, E>): Effect.Effect<void> =>
   Effect.zipRight(
     Effect.forEach(self.backing, (fiber) => Fiber.interrupt(fiber)),
     Effect.sync(() => {
@@ -185,15 +185,15 @@ export const clear = <E, A>(self: FiberSet<E, A>): Effect.Effect<never, never, v
  * @categories combinators
  */
 export const run: {
-  <E, A>(self: FiberSet<E, A>): <R, XE extends E, XA extends A>(
-    effect: Effect.Effect<R, XE, XA>
-  ) => Effect.Effect<R, never, Fiber.RuntimeFiber<XE, XA>>
-  <E, A, R, XE extends E, XA extends A>(
-    self: FiberSet<E, A>,
-    effect: Effect.Effect<R, XE, XA>
-  ): Effect.Effect<R, never, Fiber.RuntimeFiber<XE, XA>>
+  <A, E>(self: FiberSet<A, E>): <R, XE extends E, XA extends A>(
+    effect: Effect.Effect<XA, XE, R>
+  ) => Effect.Effect<Fiber.RuntimeFiber<XA, XE>, never, R>
+  <A, E, R, XE extends E, XA extends A>(
+    self: FiberSet<A, E>,
+    effect: Effect.Effect<XA, XE, R>
+  ): Effect.Effect<Fiber.RuntimeFiber<XA, XE>, never, R>
 } = function() {
-  const self = arguments[0] as FiberSet<any>
+  const self = arguments[0] as FiberSet<any, any>
   if (arguments.length === 1) {
     return (effect: Effect.Effect<any, any, any>) =>
       Effect.tap(
@@ -217,9 +217,9 @@ export const run: {
  * interface Users {
  *   readonly _: unique symbol
  * }
- * const Users = Context.Tag<Users, {
- *    getAll: Effect.Effect<never, never, Array<unknown>>
- * }>()
+ * const Users = Context.GenericTag<Users, {
+ *    getAll: Effect.Effect<Array<unknown>>
+ * }>("Users")
  *
  * Effect.gen(function*(_) {
  *   const set = yield* _(FiberSet.make())
@@ -234,22 +234,22 @@ export const run: {
  * @since 2.0.0
  * @categories combinators
  */
-export const runtime: <E, A>(
-  self: FiberSet<E, A>
-) => <R>() => Effect.Effect<
-  R,
-  never,
+export const runtime: <A, E = never>(
+  self: FiberSet<A, E>
+) => <R = never>() => Effect.Effect<
   <XE extends E, XA extends A>(
-    effect: Effect.Effect<R, XE, XA>,
+    effect: Effect.Effect<XA, XE, R>,
     options?: Runtime.RunForkOptions | undefined
-  ) => Fiber.RuntimeFiber<XE, XA>
-> = <E, A>(self: FiberSet<E, A>) => <R>() =>
+  ) => Fiber.RuntimeFiber<XA, XE>,
+  never,
+  R
+> = <A, E>(self: FiberSet<A, E>) => <R>() =>
   Effect.map(
     Effect.runtime<R>(),
     (runtime) => {
       const runFork = Runtime.runFork(runtime)
       return <XE extends E, XA extends A>(
-        effect: Effect.Effect<R, XE, XA>,
+        effect: Effect.Effect<XA, XE, R>,
         options?: Runtime.RunForkOptions | undefined
       ) => {
         const fiber = runFork(effect, options)
@@ -263,5 +263,4 @@ export const runtime: <E, A>(
  * @since 2.0.0
  * @categories combinators
  */
-export const size = <E, A>(self: FiberSet<E, A>): Effect.Effect<never, never, number> =>
-  Effect.sync(() => self.backing.size)
+export const size = <A, E>(self: FiberSet<A, E>): Effect.Effect<number> => Effect.sync(() => self.backing.size)

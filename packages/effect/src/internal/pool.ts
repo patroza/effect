@@ -39,9 +39,9 @@ interface PoolState {
   readonly free: number
 }
 
-interface Attempted<E, A> {
-  readonly result: Exit.Exit<E, A>
-  readonly finalizer: Effect.Effect<never, never, unknown>
+interface Attempted<A, E> {
+  readonly result: Exit.Exit<A, E>
+  readonly finalizer: Effect.Effect<unknown>
 }
 
 /**
@@ -52,20 +52,20 @@ interface Strategy<S, R, E, A> {
   /**
    * Describes how the initial state of the strategy should be allocated.
    */
-  initial(): Effect.Effect<R, never, S>
+  initial(): Effect.Effect<S, never, R>
   /**
    * Describes how the state of the strategy should be updated when an item is
    * added to the pool or returned to the pool.
    */
-  track(state: S, attempted: Exit.Exit<E, A>): Effect.Effect<never, never, void>
+  track(state: S, attempted: Exit.Exit<A, E>): Effect.Effect<void>
   /**
    * Describes how excess items that are not being used should shrink down.
    */
   run(
     state: S,
-    getExcess: Effect.Effect<never, never, number>,
-    shrink: Effect.Effect<never, never, void>
-  ): Effect.Effect<never, never, void>
+    getExcess: Effect.Effect<number>,
+    shrink: Effect.Effect<void>
+  ): Effect.Effect<void>
 }
 
 /**
@@ -74,13 +74,13 @@ interface Strategy<S, R, E, A> {
  * nothing to do.
  */
 class NoneStrategy implements Strategy<unknown, never, never, never> {
-  initial(): Effect.Effect<never, never, void> {
+  initial(): Effect.Effect<void> {
     return core.unit
   }
-  track(): Effect.Effect<never, never, void> {
+  track(): Effect.Effect<void> {
     return core.unit
   }
-  run(): Effect.Effect<never, never, void> {
+  run(): Effect.Effect<void> {
     return core.unit
   }
 }
@@ -91,7 +91,7 @@ class NoneStrategy implements Strategy<unknown, never, never, never> {
  */
 class TimeToLiveStrategy implements Strategy<readonly [Clock.Clock, Ref.Ref<number>], never, never, never> {
   constructor(readonly timeToLive: Duration.Duration) {}
-  initial(): Effect.Effect<never, never, readonly [Clock.Clock, Ref.Ref<number>]> {
+  initial(): Effect.Effect<readonly [Clock.Clock, Ref.Ref<number>]> {
     return core.flatMap(effect.clock, (clock) =>
       core.flatMap(clock.currentTimeMillis, (now) =>
         core.map(
@@ -99,7 +99,7 @@ class TimeToLiveStrategy implements Strategy<readonly [Clock.Clock, Ref.Ref<numb
           (ref) => [clock, ref] as const
         )))
   }
-  track(state: readonly [Clock.Clock, Ref.Ref<number>]): Effect.Effect<never, never, void> {
+  track(state: readonly [Clock.Clock, Ref.Ref<number>]): Effect.Effect<void> {
     return core.asUnit(core.flatMap(
       state[0].currentTimeMillis,
       (now) => ref.set(state[1], now)
@@ -107,9 +107,9 @@ class TimeToLiveStrategy implements Strategy<readonly [Clock.Clock, Ref.Ref<numb
   }
   run(
     state: readonly [Clock.Clock, Ref.Ref<number>],
-    getExcess: Effect.Effect<never, never, number>,
-    shrink: Effect.Effect<never, never, void>
-  ): Effect.Effect<never, never, void> {
+    getExcess: Effect.Effect<number>,
+    shrink: Effect.Effect<void>
+  ): Effect.Effect<void> {
     return core.flatMap(getExcess, (excess) =>
       excess <= 0
         ? core.zipRight(
@@ -133,17 +133,17 @@ class TimeToLiveStrategy implements Strategy<readonly [Clock.Clock, Ref.Ref<numb
   }
 }
 
-class PoolImpl<in out E, in out A> implements Pool.Pool<E, A> {
+class PoolImpl<in out A, in out E> implements Pool.Pool<A, E> {
   readonly [PoolTypeId] = poolVariance
   constructor(
-    readonly creator: Effect.Effect<Scope.Scope, E, A>,
+    readonly creator: Effect.Effect<A, E, Scope.Scope>,
     readonly min: number,
     readonly max: number,
     readonly isShuttingDown: Ref.Ref<boolean>,
     readonly state: Ref.Ref<PoolState>,
-    readonly items: Queue.Queue<Attempted<E, A>>,
+    readonly items: Queue.Queue<Attempted<A, E>>,
     readonly invalidated: Ref.Ref<HashSet.HashSet<A>>,
-    readonly track: (exit: Exit.Exit<E, A>) => Effect.Effect<never, never, unknown>
+    readonly track: (exit: Exit.Exit<A, E>) => Effect.Effect<unknown>
   ) {}
 
   [Hash.symbol](): number {
@@ -161,24 +161,24 @@ class PoolImpl<in out E, in out A> implements Pool.Pool<E, A> {
 
   [Equal.symbol](that: unknown): boolean {
     return isPool(that) &&
-      Equal.equals(this.creator, (that as PoolImpl<E, A>).creator) &&
-      this.min === (that as PoolImpl<E, A>).min &&
-      this.max === (that as PoolImpl<E, A>).max &&
-      Equal.equals(this.isShuttingDown, (that as PoolImpl<E, A>).isShuttingDown) &&
-      Equal.equals(this.state, (that as PoolImpl<E, A>).state) &&
-      Equal.equals(this.items, (that as PoolImpl<E, A>).items) &&
-      Equal.equals(this.invalidated, (that as PoolImpl<E, A>).invalidated) &&
-      Equal.equals(this.track, (that as PoolImpl<E, A>).track)
+      Equal.equals(this.creator, (that as PoolImpl<A, E>).creator) &&
+      this.min === (that as PoolImpl<A, E>).min &&
+      this.max === (that as PoolImpl<A, E>).max &&
+      Equal.equals(this.isShuttingDown, (that as PoolImpl<A, E>).isShuttingDown) &&
+      Equal.equals(this.state, (that as PoolImpl<A, E>).state) &&
+      Equal.equals(this.items, (that as PoolImpl<A, E>).items) &&
+      Equal.equals(this.invalidated, (that as PoolImpl<A, E>).invalidated) &&
+      Equal.equals(this.track, (that as PoolImpl<A, E>).track)
   }
 
   pipe() {
     return pipeArguments(this, arguments)
   }
 
-  get get(): Effect.Effect<Scope.Scope, E, A> {
+  get get(): Effect.Effect<A, E, Scope.Scope> {
     const acquire = (
-      restore: <RX, EX, AX>(effect: Effect.Effect<RX, EX, AX>) => Effect.Effect<RX, EX, AX>
-    ): Effect.Effect<never, never, Attempted<E, A>> =>
+      restore: <AX, EX, RX>(effect: Effect.Effect<AX, EX, RX>) => Effect.Effect<AX, EX, RX>
+    ): Effect.Effect<Attempted<A, E>> =>
       core.flatMap(ref.get(this.isShuttingDown), (down) =>
         down
           ? core.interrupt
@@ -214,7 +214,7 @@ class PoolImpl<in out E, in out A> implements Pool.Pool<E, A> {
             return [core.interrupt, state] as const
           })))
 
-    const release = (attempted: Attempted<E, A>): Effect.Effect<never, never, unknown> =>
+    const release = (attempted: Attempted<A, E>): Effect.Effect<unknown> =>
       core.exitMatch(attempted.result, {
         onFailure: () =>
           core.flatten(ref.modify(this.state, (state) => {
@@ -252,22 +252,22 @@ class PoolImpl<in out E, in out A> implements Pool.Pool<E, A> {
     )
   }
 
-  invalidate(item: A): Effect.Effect<never, never, void> {
+  invalidate(item: A): Effect.Effect<void> {
     return ref.update(this.invalidated, HashSet.add(item))
   }
 }
 
-const allocate = <E, A>(
-  self: PoolImpl<E, A>,
-  restore: <RX, EX, AX>(effect: Effect.Effect<RX, EX, AX>) => Effect.Effect<RX, EX, AX>
-): Effect.Effect<never, never, unknown> =>
+const allocate = <A, E>(
+  self: PoolImpl<A, E>,
+  restore: <AX, EX, RX>(effect: Effect.Effect<AX, EX, RX>) => Effect.Effect<AX, EX, RX>
+): Effect.Effect<unknown> =>
   core.flatMap(fiberRuntime.scopeMake(), (scope) =>
     core.flatMap(
       core.exit(restore(fiberRuntime.scopeExtend(self.creator, scope))),
       (exit) =>
         core.flatMap(
-          core.succeed<Attempted<E, A>>({
-            result: exit as Exit.Exit<E, A>,
+          core.succeed<Attempted<A, E>>({
+            result: exit as Exit.Exit<A, E>,
             finalizer: core.scopeClose(scope, core.exitSucceed(void 0))
           }),
           (attempted) =>
@@ -280,20 +280,20 @@ const allocate = <E, A>(
         )
     ))
 
-const allocateUinterruptible = <E, A>(
-  self: PoolImpl<E, A>
-): Effect.Effect<never, never, unknown> => core.uninterruptibleMask((restore) => allocate(self, restore))
+const allocateUinterruptible = <A, E>(
+  self: PoolImpl<A, E>
+): Effect.Effect<unknown> => core.uninterruptibleMask((restore) => allocate(self, restore))
 
 /**
  * Returns the number of items in the pool in excess of the minimum size.
  */
-const excess = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, number> =>
+const excess = <A, E>(self: PoolImpl<A, E>): Effect.Effect<number> =>
   core.map(ref.get(self.state), (state) => state.size - Math.min(self.min, state.free))
 
-const finalizeInvalid = <E, A>(
-  self: PoolImpl<E, A>,
-  attempted: Attempted<E, A>
-): Effect.Effect<never, never, unknown> =>
+const finalizeInvalid = <A, E>(
+  self: PoolImpl<A, E>,
+  attempted: Attempted<A, E>
+): Effect.Effect<unknown> =>
   pipe(
     forEach(attempted, (a) => ref.update(self.invalidated, HashSet.remove(a))),
     core.zipRight(attempted.finalizer),
@@ -311,7 +311,7 @@ const finalizeInvalid = <E, A>(
  * Gets items from the pool and shuts them down as long as there are items
  * free, signalling shutdown of the pool if the pool is empty.
  */
-const getAndShutdown = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, void> =>
+const getAndShutdown = <A, E>(self: PoolImpl<A, E>): Effect.Effect<void> =>
   core.flatten(ref.modify(self.state, (state) => {
     if (state.free > 0) {
       return [
@@ -337,7 +337,7 @@ const getAndShutdown = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never,
 /**
  * Begins pre-allocating pool entries based on minimum pool size.
  */
-const initialize = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, void> =>
+const initialize = <A, E>(self: PoolImpl<A, E>): Effect.Effect<void> =>
   fiberRuntime.replicateEffect(
     core.uninterruptibleMask((restore) =>
       core.flatten(ref.modify(self.state, (state) => {
@@ -357,7 +357,7 @@ const initialize = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, voi
 /**
  * Shrinks the pool down, but never to less than the minimum size.
  */
-const shrink = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, void> =>
+const shrink = <A, E>(self: PoolImpl<A, E>): Effect.Effect<void> =>
   core.uninterruptible(
     core.flatten(ref.modify(self.state, (state) => {
       if (state.size > self.min && state.free > 0) {
@@ -379,50 +379,50 @@ const shrink = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, void> =
     }))
   )
 
-const shutdown = <E, A>(self: PoolImpl<E, A>): Effect.Effect<never, never, void> =>
+const shutdown = <A, E>(self: PoolImpl<A, E>): Effect.Effect<void> =>
   core.flatten(ref.modify(self.isShuttingDown, (down) =>
     down
       ? [queue.awaitShutdown(self.items), true] as const
       : [core.zipRight(getAndShutdown(self), queue.awaitShutdown(self.items)), true]))
 
-const isFailure = <E, A>(self: Attempted<E, A>): boolean => core.exitIsFailure(self.result)
+const isFailure = <A, E>(self: Attempted<A, E>): boolean => core.exitIsFailure(self.result)
 
-const forEach = <E, A, R, E2>(
-  self: Attempted<E, A>,
-  f: (a: A) => Effect.Effect<R, E2, unknown>
-): Effect.Effect<R, E2, unknown> =>
+const forEach = <E, A, E2, R>(
+  self: Attempted<A, E>,
+  f: (a: A) => Effect.Effect<unknown, E2, R>
+): Effect.Effect<unknown, E2, R> =>
   core.exitMatch(self.result, {
     onFailure: () => core.unit,
     onSuccess: f
   })
 
-const toEffect = <E, A>(self: Attempted<E, A>): Effect.Effect<never, E, A> => self.result
+const toEffect = <A, E>(self: Attempted<A, E>): Effect.Effect<A, E> => self.result
 
 /**
  * A more powerful variant of `make` that allows specifying a `Strategy` that
  * describes how a pool whose excess items are not being used will be shrunk
  * down to the minimum size.
  */
-const makeWith = <R, E, A, S, R2>(
+const makeWith = <A, E, R, S, R2>(
   options: {
-    readonly acquire: Effect.Effect<R, E, A>
+    readonly acquire: Effect.Effect<A, E, R>
     readonly min: number
     readonly max: number
     readonly strategy: Strategy<S, R2, E, A>
   }
-): Effect.Effect<R | R2 | Scope.Scope, never, Pool.Pool<E, A>> =>
+): Effect.Effect<Pool.Pool<A, E>, never, R | R2 | Scope.Scope> =>
   core.uninterruptibleMask((restore) =>
     pipe(
       fiberRuntime.all([
         core.context<R>(),
         ref.make(false),
         ref.make<PoolState>({ size: 0, free: 0 }),
-        queue.bounded<Attempted<E, A>>(options.max),
+        queue.bounded<Attempted<A, E>>(options.max),
         ref.make(HashSet.empty<A>()),
         options.strategy.initial()
       ]),
       core.flatMap(([context, down, state, items, inv, initial]) => {
-        const pool = new PoolImpl<E, A>(
+        const pool = new PoolImpl<A, E>(
           core.mapInputContext(options.acquire, (old) => Context.merge(old)(context)),
           options.min,
           options.max,
@@ -447,7 +447,7 @@ const makeWith = <R, E, A, S, R2>(
                 )
             )
           ),
-          core.as<Pool.Pool<E, A>>(pool)
+          core.as<Pool.Pool<A, E>>(pool)
         )
       })
     )
@@ -457,12 +457,12 @@ const makeWith = <R, E, A, S, R2>(
 export const isPool = (u: unknown): u is Pool.Pool<unknown, unknown> => hasProperty(u, PoolTypeId)
 
 /** @internal */
-export const make = <R, E, A>(
+export const make = <A, E, R>(
   options: {
-    readonly acquire: Effect.Effect<R, E, A>
+    readonly acquire: Effect.Effect<A, E, R>
     readonly size: number
   }
-): Effect.Effect<R | Scope.Scope, never, Pool.Pool<E, A>> =>
+): Effect.Effect<Pool.Pool<A, E>, never, R | Scope.Scope> =>
   makeWith({
     acquire: options.acquire,
     min: options.size,
@@ -471,14 +471,14 @@ export const make = <R, E, A>(
   })
 
 /** @internal */
-export const makeWithTTL = <R, E, A>(
+export const makeWithTTL = <A, E, R>(
   options: {
-    readonly acquire: Effect.Effect<R, E, A>
+    readonly acquire: Effect.Effect<A, E, R>
     readonly min: number
     readonly max: number
     readonly timeToLive: Duration.DurationInput
   }
-): Effect.Effect<R | Scope.Scope, never, Pool.Pool<E, A>> =>
+): Effect.Effect<Pool.Pool<A, E>, never, R | Scope.Scope> =>
   makeWith({
     acquire: options.acquire,
     min: options.min,
@@ -487,10 +487,10 @@ export const makeWithTTL = <R, E, A>(
   })
 
 /** @internal */
-export const get = <E, A>(self: Pool.Pool<E, A>): Effect.Effect<Scope.Scope, E, A> => self.get
+export const get = <A, E>(self: Pool.Pool<A, E>): Effect.Effect<A, E, Scope.Scope> => self.get
 
 /** @internal */
 export const invalidate = dual<
-  <A>(value: A) => <E>(self: Pool.Pool<E, A>) => Effect.Effect<Scope.Scope, never, void>,
-  <E, A>(self: Pool.Pool<E, A>, value: A) => Effect.Effect<Scope.Scope, never, void>
+  <A>(value: A) => <E>(self: Pool.Pool<A, E>) => Effect.Effect<void, never, Scope.Scope>,
+  <A, E>(self: Pool.Pool<A, E>, value: A) => Effect.Effect<void, never, Scope.Scope>
 >(2, (self, value) => self.invalidate(value))

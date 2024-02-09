@@ -27,21 +27,19 @@ export type TestLiveTypeId = typeof TestLiveTypeId
  */
 export interface TestLive {
   readonly [TestLiveTypeId]: TestLiveTypeId
-  provide<R, E, A>(effect: Effect.Effect<R, E, A>): Effect.Effect<R, E, A>
+  provide<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
 }
 
 /**
  * @since 2.0.0
  */
-export const TestLive: Context.Tag<TestLive, TestLive> = Context.Tag<TestLive>(
-  Symbol.for("effect/TestLive")
-)
+export const TestLive: Context.Tag<TestLive, TestLive> = Context.GenericTag<TestLive>("effect/TestLive")
 
 /** @internal */
 class LiveImpl implements TestLive {
   readonly [TestLiveTypeId]: TestLiveTypeId = TestLiveTypeId
   constructor(readonly services: Context.Context<DefaultServices.DefaultServices>) {}
-  provide<R, E, A>(effect: Effect.Effect<R, E, A>): Effect.Effect<R, E, A> {
+  provide<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> {
     return core.fiberRefLocallyWith(
       defaultServices.currentServices,
       Context.merge(this.services)

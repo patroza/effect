@@ -12,7 +12,7 @@ import type * as ServerResponse from "../../Http/ServerResponse.js"
 export const TypeId: Platform.TypeId = Symbol.for("@effect/platform/Http/Platform") as Platform.TypeId
 
 /** @internal */
-export const tag = Context.Tag<Platform.Platform>(TypeId)
+export const tag = Context.GenericTag<Platform.Platform>("@effect/platform/Http/Platform")
 
 /** @internal */
 export const make = (impl: {
@@ -32,7 +32,7 @@ export const make = (impl: {
     headers: Headers.Headers,
     options?: FileSystem.StreamOptions
   ) => ServerResponse.ServerResponse
-}): Effect.Effect<FileSystem.FileSystem | Etag.Generator, never, Platform.Platform> =>
+}): Effect.Effect<Platform.Platform, never, FileSystem.FileSystem | Etag.Generator> =>
   Effect.gen(function*(_) {
     const fs = yield* _(FileSystem.FileSystem)
     const etagGen = yield* _(Etag.Generator)

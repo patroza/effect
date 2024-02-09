@@ -14,7 +14,7 @@ export const TypeId: KeyValueStore.TypeId = Symbol.for(
 ) as KeyValueStore.TypeId
 
 /** @internal */
-export const keyValueStoreTag = Context.Tag<KeyValueStore.KeyValueStore>(TypeId)
+export const keyValueStoreTag = Context.GenericTag<KeyValueStore.KeyValueStore>("@effect/platform/KeyValueStore")
 
 /** @internal */
 export const make: (
@@ -68,9 +68,9 @@ export const SchemaStoreTypeId: KeyValueStore.SchemaStoreTypeId = Symbol.for(
 ) as KeyValueStore.SchemaStoreTypeId
 
 /** @internal */
-const makeSchemaStore = <R, I, A>(
+const makeSchemaStore = <A, I, R>(
   store: KeyValueStore.KeyValueStore,
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ): KeyValueStore.SchemaStore<R, A> => {
   const jsonSchema = Schema.parseJson(schema)
   const parse = Schema.decodeUnknown(jsonSchema)
@@ -166,11 +166,11 @@ export const layerFileSystem = (directory: string) =>
   )
 
 /** @internal */
-export const layerSchema = <R, I, A>(
-  schema: Schema.Schema<R, I, A>,
-  tagIdentifier?: unknown
+export const layerSchema = <A, I, R>(
+  schema: Schema.Schema<A, I, R>,
+  tagIdentifier: string
 ) => {
-  const tag = Context.Tag<KeyValueStore.SchemaStore<R, A>>(tagIdentifier)
+  const tag = Context.GenericTag<KeyValueStore.SchemaStore<R, A>>(tagIdentifier)
   const layer = Layer.effect(tag, Effect.map(keyValueStoreTag, (store) => store.forSchema(schema)))
   return { tag, layer } as const
 }

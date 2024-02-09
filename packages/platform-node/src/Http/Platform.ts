@@ -1,7 +1,5 @@
 /**
  * @since 1.0.0
- *
- * Also includes exports from [`@effect/platform/Http/Platform`](https://effect-ts.github.io/effect/platform/Http/Platform.ts.html).
  */
 import type * as FileSystem from "@effect/platform/FileSystem"
 import type * as Etag from "@effect/platform/Http/Etag"
@@ -12,17 +10,12 @@ import * as internal from "../internal/http/platform.js"
 
 /**
  * @since 1.0.0
- */
-export * from "@effect/platform/Http/Platform"
-
-/**
- * @since 1.0.0
  * @category constructors
  */
-export const make: Effect.Effect<FileSystem.FileSystem | Etag.Generator, never, Platform.Platform> = internal.make
+export const make: Effect.Effect<Platform.Platform, never, FileSystem.FileSystem | Etag.Generator> = internal.make
 
 /**
  * @since 1.0.0
  * @category layers
  */
-export const layer: Layer.Layer<never, never, Platform.Platform> = internal.layer
+export const layer: Layer.Layer<Platform.Platform> = internal.layer

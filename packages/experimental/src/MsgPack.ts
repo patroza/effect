@@ -25,13 +25,12 @@ export class MsgPackError extends Data.TaggedError("MsgPackError")<{
  * @category constructors
  */
 export const pack = <IE = never>(): Channel.Channel<
-  never,
-  IE,
-  Chunk.Chunk<unknown>,
-  unknown,
-  IE | MsgPackError,
   Chunk.Chunk<Uint8Array>,
-  void
+  Chunk.Chunk<unknown>,
+  IE | MsgPackError,
+  IE,
+  void,
+  unknown
 > =>
   Channel.flatMap(
     Channel.sync(() => new Packr()),
@@ -39,25 +38,18 @@ export const pack = <IE = never>(): Channel.Channel<
       const pack = (value: Chunk.Chunk<unknown>) =>
         Channel.flatMap(
           Effect.try({
-            try: () => Chunk.map(value, (_) => packr.pack(_) as Uint8Array),
+            try: () => Chunk.of(packr.pack(Chunk.toArray(value))),
             catch: (error) => new MsgPackError({ reason: "Pack", error })
           }),
           Channel.write
         )
 
-      const loop: Channel.Channel<
-        never,
-        IE,
-        Chunk.Chunk<unknown>,
-        unknown,
-        IE | MsgPackError,
-        Chunk.Chunk<Uint8Array>,
-        void
-      > = Channel.readWithCause({
-        onInput: (input: Chunk.Chunk<unknown>) => Channel.zipRight(pack(input), loop),
-        onFailure: (cause) => Channel.failCause(cause),
-        onDone: () => Channel.unit
-      })
+      const loop: Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<unknown>, IE | MsgPackError, IE, void, unknown> =
+        Channel.readWithCause({
+          onInput: (input: Chunk.Chunk<unknown>) => Channel.zipRight(pack(input), loop),
+          onFailure: (cause) => Channel.failCause(cause),
+          onDone: () => Channel.unit
+        })
       return loop
     }
   )
@@ -66,20 +58,20 @@ export const pack = <IE = never>(): Channel.Channel<
  * @since 1.0.0
  * @category constructors
  */
-export const packSchema = <R, I, A>(
-  schema: Schema.Schema<R, I, A>
+export const packSchema = <A, I, R>(
+  schema: Schema.Schema<A, I, R>
 ) =>
 <IE = never>(): Channel.Channel<
-  R,
-  IE,
-  Chunk.Chunk<A>,
-  unknown,
-  IE | MsgPackError | ParseError,
   Chunk.Chunk<Uint8Array>,
-  void
+  Chunk.Chunk<A>,
+  IE | MsgPackError | ParseError,
+  IE,
+  void,
+  unknown,
+  R
 > => {
   const encode = Schema.encode(Schema.chunkFromSelf(schema))
-  const loop: Channel.Channel<R, IE, Chunk.Chunk<A>, unknown, IE | ParseError, Chunk.Chunk<I>, unknown> = Channel
+  const loop: Channel.Channel<Chunk.Chunk<I>, Chunk.Chunk<A>, IE | ParseError, IE, unknown, unknown, R> = Channel
     .readWithCause({
       onInput: (input: Chunk.Chunk<A>) =>
         Channel.zipRight(
@@ -97,13 +89,12 @@ export const packSchema = <R, I, A>(
  * @category constructors
  */
 export const unpack = <IE = never>(): Channel.Channel<
-  never,
-  IE,
-  Chunk.Chunk<Uint8Array>,
-  unknown,
-  IE | MsgPackError,
   Chunk.Chunk<unknown>,
-  void
+  Chunk.Chunk<Uint8Array>,
+  IE | MsgPackError,
+  IE,
+  void,
+  unknown
 > =>
   Channel.flatMap(
     Channel.sync(() => new Unpackr()),
@@ -122,7 +113,7 @@ export const unpack = <IE = never>(): Channel.Channel<
                   incomplete = undefined
                 }
                 try {
-                  return Chunk.unsafeFromArray(packr.unpackMultiple(buf))
+                  return Chunk.unsafeFromArray(packr.unpackMultiple(buf).flat())
                 } catch (error_) {
                   const error: any = error_
                   if (error.incomplete) {
@@ -137,19 +128,12 @@ export const unpack = <IE = never>(): Channel.Channel<
           Channel.write
         )
 
-      const loop: Channel.Channel<
-        never,
-        IE,
-        Chunk.Chunk<Uint8Array>,
-        unknown,
-        IE | MsgPackError,
-        Chunk.Chunk<unknown>,
-        void
-      > = Channel.readWithCause({
-        onInput: (input: Chunk.Chunk<Uint8Array>) => Channel.zipRight(unpack(input), loop),
-        onFailure: (cause) => Channel.failCause(cause),
-        onDone: () => Channel.unit
-      })
+      const loop: Channel.Channel<Chunk.Chunk<unknown>, Chunk.Chunk<Uint8Array>, IE | MsgPackError, IE, void, unknown> =
+        Channel.readWithCause({
+          onInput: (input: Chunk.Chunk<Uint8Array>) => Channel.zipRight(unpack(input), loop),
+          onFailure: (cause) => Channel.failCause(cause),
+          onDone: () => Channel.unit
+        })
 
       return loop
     }
@@ -159,17 +143,17 @@ export const unpack = <IE = never>(): Channel.Channel<
  * @since 1.0.0
  * @category constructors
  */
-export const unpackSchema = <R, I, A>(
-  schema: Schema.Schema<R, I, A>
+export const unpackSchema = <A, I, R>(
+  schema: Schema.Schema<A, I, R>
 ) =>
 <IE = never>(): Channel.Channel<
-  R,
-  IE,
-  Chunk.Chunk<Uint8Array>,
-  unknown,
-  MsgPackError | ParseError | IE,
   Chunk.Chunk<A>,
-  void
+  Chunk.Chunk<Uint8Array>,
+  MsgPackError | ParseError | IE,
+  IE,
+  void,
+  unknown,
+  R
 > => {
   const parse = Schema.decodeUnknown(Schema.chunkFromSelf(schema))
   return Channel.mapOutEffect(unpack<IE>(), parse)
@@ -180,24 +164,8 @@ export const unpackSchema = <R, I, A>(
  * @category combinators
  */
 export const duplex = <R, IE, OE>(
-  self: Channel.Channel<
-    R,
-    IE | MsgPackError,
-    Chunk.Chunk<Uint8Array>,
-    unknown,
-    OE,
-    Chunk.Chunk<Uint8Array>,
-    void
-  >
-): Channel.Channel<
-  R,
-  IE,
-  Chunk.Chunk<unknown>,
-  unknown,
-  MsgPackError | OE,
-  Chunk.Chunk<unknown>,
-  void
-> =>
+  self: Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, OE, IE | MsgPackError, void, unknown, R>
+): Channel.Channel<Chunk.Chunk<unknown>, Chunk.Chunk<unknown>, MsgPackError | OE, IE, void, unknown, R> =>
   Channel.pipeTo(
     Channel.pipeTo(pack(), self),
     unpack()
@@ -208,117 +176,123 @@ export const duplex = <R, IE, OE>(
  * @category combinators
  */
 export const duplexSchema: {
-  <IR, II, IA, OR, OI, OA>(
-    options: { readonly inputSchema: Schema.Schema<IR, II, IA>; readonly outputSchema: Schema.Schema<OR, OI, OA> }
+  <IA, II, IR, OA, OI, OR>(
+    options: {
+      readonly inputSchema: Schema.Schema<IA, II, IR>
+      readonly outputSchema: Schema.Schema<OA, OI, OR>
+    }
   ): <R, InErr, OutErr>(
     self: Channel.Channel<
-      R,
-      MsgPackError | ParseError | InErr,
       Chunk.Chunk<Uint8Array>,
-      unknown,
+      Chunk.Chunk<Uint8Array>,
       OutErr,
-      Chunk.Chunk<Uint8Array>,
-      void
+      MsgPackError | ParseError | InErr,
+      void,
+      unknown,
+      R
     >
   ) => Channel.Channel<
-    IR | OR | R,
-    InErr,
-    Chunk.Chunk<IA>,
-    unknown,
-    MsgPackError | ParseError | OutErr,
     Chunk.Chunk<OA>,
-    void
+    Chunk.Chunk<IA>,
+    MsgPackError | ParseError | OutErr,
+    InErr,
+    void,
+    unknown,
+    IR | OR | R
   >
-  <R, InErr, OutErr, IR, II, IA, OR, OI, OA>(
+  <R, InErr, OutErr, IA, II, IR, OA, OI, OR>(
     self: Channel.Channel<
-      R,
-      MsgPackError | ParseError | InErr,
       Chunk.Chunk<Uint8Array>,
-      unknown,
+      Chunk.Chunk<Uint8Array>,
       OutErr,
-      Chunk.Chunk<Uint8Array>,
-      void
+      MsgPackError | ParseError | InErr,
+      void,
+      unknown,
+      R
     >,
-    options: { readonly inputSchema: Schema.Schema<IR, II, IA>; readonly outputSchema: Schema.Schema<OR, OI, OA> }
+    options: {
+      readonly inputSchema: Schema.Schema<IA, II, IR>
+      readonly outputSchema: Schema.Schema<OA, OI, OR>
+    }
   ): Channel.Channel<
-    R | IR | OR,
-    InErr,
-    Chunk.Chunk<IA>,
-    unknown,
-    MsgPackError | ParseError | OutErr,
     Chunk.Chunk<OA>,
-    void
+    Chunk.Chunk<IA>,
+    MsgPackError | ParseError | OutErr,
+    InErr,
+    void,
+    unknown,
+    R | IR | OR
   >
 } = dual<
-  <IR, II, IA, OR, OI, OA>(
+  <IA, II, IR, OA, OI, OR>(
     options: {
-      readonly inputSchema: Schema.Schema<IR, II, IA>
-      readonly outputSchema: Schema.Schema<OR, OI, OA>
+      readonly inputSchema: Schema.Schema<IA, II, IR>
+      readonly outputSchema: Schema.Schema<OA, OI, OR>
     }
   ) => <R, InErr, OutErr>(
     self: Channel.Channel<
-      R,
-      MsgPackError | ParseError | InErr,
       Chunk.Chunk<Uint8Array>,
-      unknown,
+      Chunk.Chunk<Uint8Array>,
       OutErr,
-      Chunk.Chunk<Uint8Array>,
-      void
+      MsgPackError | ParseError | InErr,
+      void,
+      unknown,
+      R
     >
   ) => Channel.Channel<
-    R | IR | OR,
-    InErr,
-    Chunk.Chunk<IA>,
-    unknown,
-    MsgPackError | ParseError | OutErr,
     Chunk.Chunk<OA>,
-    void
+    Chunk.Chunk<IA>,
+    MsgPackError | ParseError | OutErr,
+    InErr,
+    void,
+    unknown,
+    R | IR | OR
   >,
-  <R, InErr, OutErr, IR, II, IA, OR, OI, OA>(
+  <R, InErr, OutErr, IA, II, IR, OA, OI, OR>(
     self: Channel.Channel<
-      R,
-      MsgPackError | ParseError | InErr,
       Chunk.Chunk<Uint8Array>,
-      unknown,
+      Chunk.Chunk<Uint8Array>,
       OutErr,
-      Chunk.Chunk<Uint8Array>,
-      void
+      MsgPackError | ParseError | InErr,
+      void,
+      unknown,
+      R
     >,
     options: {
-      readonly inputSchema: Schema.Schema<IR, II, IA>
-      readonly outputSchema: Schema.Schema<OR, OI, OA>
+      readonly inputSchema: Schema.Schema<IA, II, IR>
+      readonly outputSchema: Schema.Schema<OA, OI, OR>
     }
   ) => Channel.Channel<
-    R | IR | OR,
-    InErr,
-    Chunk.Chunk<IA>,
-    unknown,
-    MsgPackError | ParseError | OutErr,
     Chunk.Chunk<OA>,
-    void
-  >
->(2, <R, InErr, OutErr, IR, II, IA, OR, OI, OA>(
-  self: Channel.Channel<
-    R,
-    MsgPackError | ParseError | InErr,
-    Chunk.Chunk<Uint8Array>,
+    Chunk.Chunk<IA>,
+    MsgPackError | ParseError | OutErr,
+    InErr,
+    void,
     unknown,
-    OutErr,
+    R | IR | OR
+  >
+>(2, <R, InErr, OutErr, IA, II, IR, OA, OI, OR>(
+  self: Channel.Channel<
     Chunk.Chunk<Uint8Array>,
-    void
+    Chunk.Chunk<Uint8Array>,
+    OutErr,
+    MsgPackError | ParseError | InErr,
+    void,
+    unknown,
+    R
   >,
   options: {
-    readonly inputSchema: Schema.Schema<IR, II, IA>
-    readonly outputSchema: Schema.Schema<OR, OI, OA>
+    readonly inputSchema: Schema.Schema<IA, II, IR>
+    readonly outputSchema: Schema.Schema<OA, OI, OR>
   }
 ): Channel.Channel<
-  R | IR | OR,
-  InErr,
-  Chunk.Chunk<IA>,
-  unknown,
-  MsgPackError | ParseError | OutErr,
   Chunk.Chunk<OA>,
-  void
+  Chunk.Chunk<IA>,
+  MsgPackError | ParseError | OutErr,
+  InErr,
+  void,
+  unknown,
+  R | IR | OR
 > => {
   const pack = packSchema(options.inputSchema)
   const unpack = unpackSchema(options.outputSchema)

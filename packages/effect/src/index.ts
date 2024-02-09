@@ -90,7 +90,7 @@ export * as Brand from "./Brand.js"
 export * as Cache from "./Cache.js"
 
 /**
- * The `Effect<R, E, A>` type is polymorphic in values of type `E` and we can
+ * The `Effect<A, E, R>` type is polymorphic in values of type `E` and we can
  * work with any error type that we want. However, there is a lot of information
  * that is not inside an arbitrary `E` value. So as a result, an `Effect` needs
  * somewhere to store things like unexpected errors or defects, stack and
@@ -336,7 +336,7 @@ export * as Inspectable from "./Inspectable.js"
 export * as KeyedPool from "./KeyedPool.js"
 
 /**
- * A `Layer<RIn, E, ROut>` describes how to build one or more services in your
+ * A `Layer<ROut, E, RIn>` describes how to build one or more services in your
  * application. Services can be injected into effects via
  * `Effect.provideService`. Effects can require services via `Effect.service`.
  *
@@ -543,6 +543,17 @@ export * as Queue from "./Queue.js"
  * @since 2.0.0
  */
 export * as Random from "./Random.js"
+
+/**
+ * Limits the number of calls to a resource to a maximum amount in some interval using the token bucket algorithm.
+ *
+ * Note that only the moment of starting the effect is rate limited: the number of concurrent executions is not bounded.
+ *
+ * Calls are queued up in an unbounded queue until capacity becomes available.
+ *
+ * @since 2.0.0
+ */
+export * as RateLimiter from "./RateLimiter.js"
 
 /**
  * This module provides utility functions for working with arrays in TypeScript.

@@ -10,7 +10,7 @@ export const make = (params?: Partial<CliConfig.CliConfig>): CliConfig.CliConfig
 })
 
 /** @internal */
-export const Tag = Context.Tag<CliConfig.CliConfig>()
+export const Tag = Context.GenericTag<CliConfig.CliConfig>("@effect/cli/CliConfig")
 
 /** @internal */
 export const defaultConfig: CliConfig.CliConfig = {
@@ -23,7 +23,7 @@ export const defaultConfig: CliConfig.CliConfig = {
 }
 
 /** @internal */
-export const defaultLayer: Layer.Layer<never, never, CliConfig.CliConfig> = Layer.succeed(
+export const defaultLayer: Layer.Layer<CliConfig.CliConfig> = Layer.succeed(
   Tag,
   defaultConfig
 )
@@ -31,7 +31,7 @@ export const defaultLayer: Layer.Layer<never, never, CliConfig.CliConfig> = Laye
 /** @internal */
 export const layer = (
   config?: Partial<CliConfig.CliConfig>
-): Layer.Layer<never, never, CliConfig.CliConfig> => Layer.succeed(Tag, make(config))
+): Layer.Layer<CliConfig.CliConfig> => Layer.succeed(Tag, make(config))
 
 /** @internal */
 export const normalizeCase = dual<

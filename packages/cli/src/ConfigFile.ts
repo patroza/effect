@@ -55,7 +55,7 @@ export const makeProvider: (
       readonly searchPaths?: ReadonlyArray<string>
     }
     | undefined
-) => Effect<Path | FileSystem, ConfigFileError, ConfigProvider> = Internal.makeProvider
+) => Effect<ConfigProvider, ConfigFileError, Path | FileSystem> = Internal.makeProvider
 
 /**
  * @since 2.0.0
@@ -69,4 +69,4 @@ export const layer: (
       readonly searchPaths?: ReadonlyArray<string>
     }
     | undefined
-) => Layer<Path | FileSystem, ConfigFileError, never> = Internal.layer
+) => Layer<never, ConfigFileError, Path | FileSystem> = Internal.layer

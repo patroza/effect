@@ -28,10 +28,10 @@ import * as _supervisor from "./supervisor.js"
 
 /** @internal */
 export const unsafeFork = <R>(runtime: Runtime.Runtime<R>) =>
-<E, A>(
-  self: Effect.Effect<R, E, A>,
+<A, E>(
+  self: Effect.Effect<A, E, R>,
   options?: Runtime.RunForkOptions
-): Fiber.RuntimeFiber<E, A> => {
+): Fiber.RuntimeFiber<A, E> => {
   const fiberId = FiberId.unsafeMake()
   const fiberRefUpdates: ReadonlyArray.NonEmptyArray<
     readonly [FiberRef.FiberRef<any>, ReadonlyArray.NonEmptyReadonlyArray<readonly [FiberId.Runtime, any]>]
@@ -50,13 +50,13 @@ export const unsafeFork = <R>(runtime: Runtime.Runtime<R>) =>
     fiberRefs = options.updateRefs(fiberRefs, fiberId)
   }
 
-  const fiberRuntime: FiberRuntime.FiberRuntime<E, A> = new FiberRuntime.FiberRuntime<E, A>(
+  const fiberRuntime: FiberRuntime.FiberRuntime<A, E> = new FiberRuntime.FiberRuntime<A, E>(
     fiberId,
     fiberRefs,
     runtime.runtimeFlags
   )
 
-  let effect: Effect.Effect<R, E, A> = self
+  let effect: Effect.Effect<A, E, R> = self
 
   if (options?.scope) {
     effect = core.flatMap(
@@ -97,10 +97,10 @@ export const unsafeFork = <R>(runtime: Runtime.Runtime<R>) =>
 
 /** @internal */
 export const unsafeRunCallback = <R>(runtime: Runtime.Runtime<R>) =>
-<E, A>(
-  effect: Effect.Effect<R, E, A>,
-  options: Runtime.RunCallbackOptions<E, A> = {}
-): (fiberId?: FiberId.FiberId, options?: Runtime.RunCallbackOptions<E, A> | undefined) => void => {
+<A, E>(
+  effect: Effect.Effect<A, E, R>,
+  options: Runtime.RunCallbackOptions<A, E> = {}
+): (fiberId?: FiberId.FiberId, options?: Runtime.RunCallbackOptions<A, E> | undefined) => void => {
   const fiberRuntime = unsafeFork(runtime)(effect, options)
 
   if (options.onExit) {
@@ -122,7 +122,7 @@ export const unsafeRunCallback = <R>(runtime: Runtime.Runtime<R>) =>
 }
 
 /** @internal */
-export const unsafeRunSync = <R>(runtime: Runtime.Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>): A => {
+export const unsafeRunSync = <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): A => {
   const result = unsafeRunSyncExit(runtime)(effect)
   if (result._tag === "Failure") {
     throw fiberFailure(result.i0)
@@ -131,8 +131,7 @@ export const unsafeRunSync = <R>(runtime: Runtime.Runtime<R>) => <E, A>(effect: 
   }
 }
 
-/** @internal */
-const asyncFiberException = <E, A>(fiber: Fiber.RuntimeFiber<E, A>): Runtime.AsyncFiberException<E, A> => {
+const asyncFiberException = <A, E>(fiber: Fiber.RuntimeFiber<A, E>): Runtime.AsyncFiberException<A, E> => {
   const limit = Error.stackTraceLimit
   Error.stackTraceLimit = 0
   const error = (new Error()) as any
@@ -215,7 +214,7 @@ export const fiberFailure = <E>(cause: Cause.Cause<E>): Runtime.FiberFailure => 
 /** @internal */
 export const isFiberFailure = (u: unknown): u is Runtime.FiberFailure => Predicate.hasProperty(u, FiberFailureId)
 
-const fastPath = <R, E, A>(effect: Effect.Effect<R, E, A>): Exit.Exit<E, A> | undefined => {
+const fastPath = <A, E, R>(effect: Effect.Effect<A, E, R>): Exit.Exit<A, E> | undefined => {
   const op = effect as core.Primitive
   switch (op._op) {
     case "Failure":
@@ -241,7 +240,7 @@ const fastPath = <R, E, A>(effect: Effect.Effect<R, E, A>): Exit.Exit<E, A> | un
 
 /** @internal */
 export const unsafeRunSyncExit =
-  <R>(runtime: Runtime.Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>): Exit.Exit<E, A> => {
+  <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): Exit.Exit<A, E> => {
     const op = fastPath(effect)
     if (op) {
       return op
@@ -258,7 +257,7 @@ export const unsafeRunSyncExit =
 
 /** @internal */
 export const unsafeRunPromise =
-  <R>(runtime: Runtime.Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>): Promise<A> =>
+  <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): Promise<A> =>
     unsafeRunPromiseExit(runtime)(effect).then((result) => {
       switch (result._tag) {
         case OpCodes.OP_SUCCESS: {
@@ -272,7 +271,7 @@ export const unsafeRunPromise =
 
 /** @internal */
 export const unsafeRunPromiseExit =
-  <R>(runtime: Runtime.Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>): Promise<Exit.Exit<E, A>> =>
+  <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): Promise<Exit.Exit<A, E>> =>
     new Promise((resolve) => {
       const op = fastPath(effect)
       if (op) {
@@ -306,8 +305,8 @@ export const make = <R>(
 ): Runtime.Runtime<R> => new RuntimeImpl(options.context, options.runtimeFlags, options.fiberRefs)
 
 /** @internal */
-export const runtime = <R>(): Effect.Effect<R, never, Runtime.Runtime<R>> =>
-  core.withFiberRuntime<R, never, RuntimeImpl<R>>((state, status) =>
+export const runtime = <R>(): Effect.Effect<Runtime.Runtime<R>, never, R> =>
+  core.withFiberRuntime((state, status) =>
     core.succeed(
       new RuntimeImpl<R>(
         state.getFiberRef(core.currentContext as unknown as FiberRef.FiberRef<Context.Context<R>>),
@@ -410,11 +409,11 @@ export const unsafeRunSyncExitEffect = unsafeRunSyncExit(defaultRuntime)
 // circular with Effect
 
 /** @internal */
-export const asyncEffect = <R, E, A, R2, E2, X>(
-  register: (callback: (_: Effect.Effect<R, E, A>) => void) => Effect.Effect<R2, E2, X>
-): Effect.Effect<R | R2, E | E2, A> =>
+export const asyncEffect = <A, E, R, X, E2, R2>(
+  register: (callback: (_: Effect.Effect<A, E, R>) => void) => Effect.Effect<X, E2, R2>
+): Effect.Effect<A, E | E2, R | R2> =>
   core.flatMap(
-    core.deferredMake<E | E2, A>(),
+    core.deferredMake<A, E | E2>(),
     (deferred) =>
       core.flatMap(runtime<R | R2>(), (runtime) =>
         core.uninterruptibleMask((restore) =>

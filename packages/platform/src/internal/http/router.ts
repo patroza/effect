@@ -27,7 +27,7 @@ export const RouteContextTypeId: Router.RouteContextTypeId = Symbol.for(
 ) as Router.RouteContextTypeId
 
 /** @internal */
-export const RouteContext = Context.Tag<Router.RouteContext>("@effect/platform/Http/Router/RouteContext")
+export const RouteContext = Context.GenericTag<Router.RouteContext>("@effect/platform/Http/Router/RouteContext")
 
 /** @internal */
 export const params = Effect.map(RouteContext, (_) => _.params)
@@ -36,29 +36,29 @@ export const params = Effect.map(RouteContext, (_) => _.params)
 export const searchParams = Effect.map(RouteContext, (_) => _.searchParams)
 
 /** @internal */
-export const schemaParams = <R, I extends Readonly<Record<string, string>>, A>(schema: Schema.Schema<R, I, A>) => {
+export const schemaParams = <R, I extends Readonly<Record<string, string>>, A>(schema: Schema.Schema<A, I, R>) => {
   const parse = Schema.decodeUnknown(schema)
   return Effect.flatMap(RouteContext, (_) => parse({ ..._.searchParams, ..._.params }))
 }
 
 /** @internal */
-export const schemaPathParams = <R, I extends Readonly<Record<string, string>>, A>(schema: Schema.Schema<R, I, A>) => {
+export const schemaPathParams = <R, I extends Readonly<Record<string, string>>, A>(schema: Schema.Schema<A, I, R>) => {
   const parse = Schema.decodeUnknown(schema)
   return Effect.flatMap(RouteContext, (_) => parse(_.params))
 }
 
 /** @internal */
 export const schemaSearchParams = <R, I extends Readonly<Record<string, string>>, A>(
-  schema: Schema.Schema<R, I, A>
+  schema: Schema.Schema<A, I, R>
 ) => {
   const parse = Schema.decodeUnknown(schema)
   return Effect.flatMap(RouteContext, (_) => parse(_.searchParams))
 }
 
 class RouterImpl<R, E> extends Effectable.StructuralClass<
-  Exclude<R, Router.RouteContext>,
+  ServerResponse.ServerResponse,
   E | Error.RouteNotFound,
-  ServerResponse.ServerResponse
+  Exclude<R, Router.RouteContext>
 > implements Router.Router<R, E> {
   readonly [TypeId]: Router.TypeId
   constructor(
@@ -70,9 +70,9 @@ class RouterImpl<R, E> extends Effectable.StructuralClass<
     this.httpApp = toHttpApp(this) as any
   }
   private httpApp: Effect.Effect<
-    Exclude<R, Router.RouteContext>,
+    ServerResponse.ServerResponse,
     E | Error.RouteNotFound,
-    ServerResponse.ServerResponse
+    Exclude<R, Router.RouteContext>
   >
   commit() {
     return this.httpApp
@@ -134,7 +134,7 @@ const toHttpApp = <R, E>(
         request = sliceRequestUrl(request, route.prefix.value)
       }
       return Effect.mapInputContext(
-        route.handler as Effect.Effect<Router.Router.ExcludeProvided<R>, E, ServerResponse.ServerResponse>,
+        route.handler as Effect.Effect<ServerResponse.ServerResponse, E, Router.Router.ExcludeProvided<R>>,
         (context) =>
           Context.add(
             Context.add(context, ServerRequest.ServerRequest, request),
@@ -387,7 +387,7 @@ export const catchTags: {
     Router.Router.ExcludeProvided<
       | R
       | {
-        [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<infer R, any, any>) ? R : never
+        [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<any, any, infer R>) ? R : never
       }[keyof Cases]
     >,
     | Exclude<E, { _tag: keyof Cases }>
@@ -409,7 +409,7 @@ export const catchTags: {
     Router.Router.ExcludeProvided<
       | R
       | {
-        [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<infer R, any, any>) ? R : never
+        [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<any, any, infer R>) ? R : never
       }[keyof Cases]
     >,
     | Exclude<E, { _tag: keyof Cases }>
@@ -442,7 +442,7 @@ export const provideService = dual<
 export const provideServiceEffect = dual<
   <T extends Context.Tag<any, any>, R1, E1>(
     tag: T,
-    effect: Effect.Effect<R1, E1, Context.Tag.Service<T>>
+    effect: Effect.Effect<Context.Tag.Service<T>, E1, R1>
   ) => <R, E>(
     self: Router.Router<R, E>
   ) => Router.Router<
@@ -452,7 +452,7 @@ export const provideServiceEffect = dual<
   <R, E, T extends Context.Tag<any, any>, R1, E1>(
     self: Router.Router<R, E>,
     tag: T,
-    effect: Effect.Effect<R1, E1, Context.Tag.Service<T>>
+    effect: Effect.Effect<Context.Tag.Service<T>, E1, R1>
   ) => Router.Router<
     Router.Router.ExcludeProvided<R1 | Exclude<R, Context.Tag.Identifier<T>>>,
     E | E1
@@ -460,5 +460,5 @@ export const provideServiceEffect = dual<
 >(3, <R, E, T extends Context.Tag<any, any>, R1, E1>(
   self: Router.Router<R, E>,
   tag: T,
-  effect: Effect.Effect<R1, E1, Context.Tag.Service<T>>
+  effect: Effect.Effect<Context.Tag.Service<T>, E1, R1>
 ) => use(self, Effect.provideServiceEffect(tag, effect)))

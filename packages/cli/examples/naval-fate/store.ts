@@ -1,4 +1,4 @@
-import * as KeyValueStore from "@effect/platform-node/KeyValueStore"
+import * as KeyValueStore from "@effect/platform/KeyValueStore"
 import * as Schema from "@effect/schema/Schema"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -12,23 +12,23 @@ import { CoordinatesOccupiedError, Mine, Ship, ShipExistsError, ShipNotFoundErro
  * Represents the storage layer for the Naval Fate command-line application.
  */
 export interface NavalFateStore {
-  createShip(name: string): Effect.Effect<never, ShipExistsError, Ship>
+  createShip(name: string): Effect.Effect<Ship, ShipExistsError>
   moveShip(
     name: string,
     x: number,
     y: number
-  ): Effect.Effect<never, CoordinatesOccupiedError | ShipNotFoundError, Ship>
-  shoot(x: number, y: number): Effect.Effect<never, never, void>
-  setMine(x: number, y: number): Effect.Effect<never, never, void>
-  removeMine(x: number, y: number): Effect.Effect<never, never, void>
+  ): Effect.Effect<Ship, CoordinatesOccupiedError | ShipNotFoundError>
+  shoot(x: number, y: number): Effect.Effect<void>
+  setMine(x: number, y: number): Effect.Effect<void>
+  removeMine(x: number, y: number): Effect.Effect<void>
 }
 
-export const NavalFateStore = Context.Tag<NavalFateStore>()
+export const NavalFateStore = Context.GenericTag<NavalFateStore>("NavalFateStore")
 
 export const make = Effect.gen(function*($) {
   const shipsStore = yield* $(Effect.map(
     KeyValueStore.KeyValueStore,
-    (store) => store.forSchema(Schema.readonlyMap(Schema.string, Ship))
+    (store) => store.forSchema(Schema.readonlyMap({ key: Schema.string, value: Ship }))
   ))
   const minesStore = yield* $(Effect.map(
     KeyValueStore.KeyValueStore,

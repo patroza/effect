@@ -36,13 +36,13 @@ export interface Client {
  * @since 1.0.0
  * @category tags
  */
-export const Client = Context.Tag<Client, ClientImpl>("@effect/experimental/DevTools/Client")
+export const Client = Context.GenericTag<Client, ClientImpl>("@effect/experimental/DevTools/Client")
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const make: Effect.Effect<Scope.Scope | Socket.Socket, never, ClientImpl> = Effect.gen(function*(_) {
+export const make: Effect.Effect<ClientImpl, never, Scope.Scope | Socket.Socket> = Effect.gen(function*(_) {
   const socket = yield* _(Socket.Socket)
   const requests = yield* _(Effect.acquireRelease(
     Queue.sliding<Domain.Request>(1024),
@@ -150,13 +150,13 @@ export const make: Effect.Effect<Scope.Scope | Socket.Socket, never, ClientImpl>
  * @since 1.0.0
  * @category layers
  */
-export const layer: Layer.Layer<Socket.Socket, never, Client> = Layer.scoped(Client, make)
+export const layer: Layer.Layer<Client, never, Socket.Socket> = Layer.scoped(Client, make)
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const makeTracer: Effect.Effect<Client, never, Tracer.Tracer> = Effect.gen(function*(_) {
+export const makeTracer: Effect.Effect<Tracer.Tracer, never, Client> = Effect.gen(function*(_) {
   const client = yield* _(Client)
   const currentTracer = yield* _(Effect.tracer)
 
@@ -185,7 +185,7 @@ export const makeTracer: Effect.Effect<Client, never, Tracer.Tracer> = Effect.ge
  * @since 1.0.0
  * @category layers
  */
-export const layerTracer = (url = "ws://localhost:34437"): Layer.Layer<never, never, never> =>
+export const layerTracer = (url = "ws://localhost:34437"): Layer.Layer<never> =>
   pipe(
     makeTracer,
     Effect.map(Layer.setTracer),

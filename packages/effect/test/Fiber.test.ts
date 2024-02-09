@@ -60,8 +60,8 @@ describe("Fiber", () => {
   it.scoped("inheritLocals works for Fiber created using orElse", () =>
     Effect.gen(function*($) {
       const fiberRef = yield* $(FiberRef.make(initial))
-      const latch1 = yield* $(Deferred.make<never, void>())
-      const latch2 = yield* $(Deferred.make<never, void>())
+      const latch1 = yield* $(Deferred.make<void>())
+      const latch2 = yield* $(Deferred.make<void>())
       const child1 = yield* $(
         FiberRef.set(fiberRef, "child1"),
         Effect.zipRight(Deferred.succeed(latch1, void 0)),
@@ -80,8 +80,8 @@ describe("Fiber", () => {
   it.scoped("inheritLocals works for Fiber created using zip", () =>
     Effect.gen(function*($) {
       const fiberRef = yield* $(FiberRef.make(initial))
-      const latch1 = yield* $(Deferred.make<never, void>())
-      const latch2 = yield* $(Deferred.make<never, void>())
+      const latch1 = yield* $(Deferred.make<void>())
+      const latch2 = yield* $(Deferred.make<void>())
       const child1 = yield* $(
         FiberRef.set(fiberRef, "child1"),
         Effect.zipRight(Deferred.succeed(latch1, void 0)),
@@ -125,8 +125,8 @@ describe("Fiber", () => {
       const shard = <R, E, A>(
         queue: Queue.Queue<A>,
         n: number,
-        worker: (a: A) => Effect.Effect<R, E, void>
-      ): Effect.Effect<R, E, never> => {
+        worker: (a: A) => Effect.Effect<void, E, R>
+      ): Effect.Effect<never, E, R> => {
         const worker1 = pipe(
           Queue.take(queue),
           Effect.flatMap((a) => Effect.uninterruptible(worker(a))),
@@ -152,7 +152,7 @@ describe("Fiber", () => {
     }))
   it.effect("child becoming interruptible is interrupted due to auto-supervision of uninterruptible parent", () =>
     Effect.gen(function*($) {
-      const latch = yield* $(Deferred.make<never, void>())
+      const latch = yield* $(Deferred.make<void>())
       const child = pipe(
         Effect.interruptible(Effect.never),
         Effect.onInterrupt(() => Deferred.succeed(latch, void 0)),
@@ -164,7 +164,7 @@ describe("Fiber", () => {
     }))
   it.effect("dual roots", () =>
     Effect.gen(function*($) {
-      const rootContains = (fiber: Fiber.RuntimeFiber<any, any>): Effect.Effect<never, never, boolean> => {
+      const rootContains = (fiber: Fiber.RuntimeFiber<any, any>): Effect.Effect<boolean> => {
         return pipe(Fiber.roots, Effect.map(Chunk.unsafeFromArray), Effect.map(ReadonlyArray.contains(fiber)))
       }
       const fiber1 = yield* $(Effect.forkDaemon(Effect.never))
@@ -179,8 +179,8 @@ describe("Fiber", () => {
     }))
   it.effect("interruptAll interrupts fibers in parallel", () =>
     Effect.gen(function*($) {
-      const deferred1 = yield* $(Deferred.make<never, void>())
-      const deferred2 = yield* $(Deferred.make<never, void>())
+      const deferred1 = yield* $(Deferred.make<void>())
+      const deferred2 = yield* $(Deferred.make<void>())
       const fiber1 = yield* $(
         pipe(Deferred.succeed(deferred1, void 0), Effect.zipRight(Effect.never), Effect.forkDaemon)
       )

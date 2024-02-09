@@ -1,13 +1,13 @@
-import { Tag } from "effect/Context"
+import { GenericTag } from "effect/Context"
 import * as Effect from "effect/Effect"
 import { identity } from "effect/Function"
 import * as Layer from "effect/Layer"
-import * as PathB from "path-browserify"
+import PathB from "path-browserify"
 import { BadArgument } from "../Error.js"
 import type { Path as _Path } from "../Path.js"
 
 /** @internal */
-export const Path = Tag<_Path>("@effect/platform/Path")
+export const Path = GenericTag<_Path>("@effect/platform/Path")
 
 /** @internal */
 export const layer = Layer.succeed(
@@ -28,7 +28,7 @@ export const layer = Layer.succeed(
  * - MIT
  */
 
-function fromFileUrl(url: URL): Effect.Effect<never, BadArgument, string> {
+function fromFileUrl(url: URL): Effect.Effect<string, BadArgument> {
   if (url.protocol !== "file:") {
     return Effect.fail(BadArgument({
       module: "Path",

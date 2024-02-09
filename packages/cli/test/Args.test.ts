@@ -2,9 +2,8 @@ import * as Args from "@effect/cli/Args"
 import * as CliConfig from "@effect/cli/CliConfig"
 import * as HelpDoc from "@effect/cli/HelpDoc"
 import * as ValidationError from "@effect/cli/ValidationError"
-import * as FileSystem from "@effect/platform-node/FileSystem"
-import * as NodeContext from "@effect/platform-node/NodeContext"
-import * as Path from "@effect/platform-node/Path"
+import { FileSystem, Path } from "@effect/platform"
+import { NodeContext } from "@effect/platform-node"
 import * as Schema from "@effect/schema/Schema"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -12,7 +11,7 @@ import * as ReadonlyArray from "effect/ReadonlyArray"
 import { describe, expect, it } from "vitest"
 
 const runEffect = <E, A>(
-  self: Effect.Effect<NodeContext.NodeContext, E, A>
+  self: Effect.Effect<A, E, NodeContext.NodeContext>
 ): Promise<A> => Effect.provide(self, NodeContext.layer).pipe(Effect.runPromise)
 
 describe("Args", () => {

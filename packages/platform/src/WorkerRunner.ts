@@ -21,7 +21,7 @@ export interface BackingRunner<I, O> {
   readonly send: (
     message: O,
     transfers?: ReadonlyArray<unknown>
-  ) => Effect.Effect<never, never, void>
+  ) => Effect.Effect<void>
 }
 
 /**
@@ -55,8 +55,8 @@ export type PlatformRunnerTypeId = typeof PlatformRunnerTypeId
 export interface PlatformRunner {
   readonly [PlatformRunnerTypeId]: PlatformRunnerTypeId
   readonly start: <I, O>(
-    shutdown: Effect.Effect<never, never, void>
-  ) => Effect.Effect<Scope.Scope, WorkerError, BackingRunner<I, O>>
+    shutdown: Effect.Effect<void>
+  ) => Effect.Effect<BackingRunner<I, O>, WorkerError, Scope.Scope>
 }
 
 /**
@@ -77,15 +77,15 @@ export declare namespace Runner {
   export interface Options<I, E, O> {
     readonly decode?: (
       message: unknown
-    ) => Effect.Effect<never, WorkerError, I>
+    ) => Effect.Effect<I, WorkerError>
     readonly encodeOutput?: (
       request: I,
       message: O
-    ) => Effect.Effect<never, WorkerError, unknown>
+    ) => Effect.Effect<unknown, WorkerError>
     readonly encodeError?: (
       request: I,
       error: E
-    ) => Effect.Effect<never, WorkerError, unknown>
+    ) => Effect.Effect<unknown, WorkerError>
     readonly transfers?: (message: O | E) => ReadonlyArray<unknown>
   }
 }
@@ -95,18 +95,18 @@ export declare namespace Runner {
  * @category constructors
  */
 export const make: <I, R, E, O>(
-  process: (request: I) => Stream.Stream<R, E, O> | Effect.Effect<R, E, O>,
+  process: (request: I) => Stream.Stream<O, E, R> | Effect.Effect<O, E, R>,
   options?: Runner.Options<I, E, O> | undefined
-) => Effect.Effect<Scope.Scope | R | PlatformRunner, WorkerError, void> = internal.make
+) => Effect.Effect<void, WorkerError, Scope.Scope | R | PlatformRunner> = internal.make
 
 /**
  * @since 1.0.0
  * @category layers
  */
 export const layer: <I, R, E, O>(
-  process: (request: I) => Stream.Stream<R, E, O> | Effect.Effect<R, E, O>,
+  process: (request: I) => Stream.Stream<O, E, R> | Effect.Effect<O, E, R>,
   options?: Runner.Options<I, E, O> | undefined
-) => Layer.Layer<R | PlatformRunner, WorkerError, never> = internal.layer
+) => Layer.Layer<never, WorkerError, R | PlatformRunner> = internal.layer
 
 /**
  * @since 1.0.0
@@ -132,10 +132,10 @@ export declare namespace SerializedRunner {
     > ? (
         _: S
       ) =>
-        | Stream.Stream<any, E, O>
-        | Effect.Effect<any, E, O>
+        | Stream.Stream<O, E, any>
+        | Effect.Effect<O, E, any>
         | Layer.Layer<any, E, any>
-        | Layer.Layer<any, E, never>
+        | Layer.Layer<never, E, any>
       : never
   }
 
@@ -148,9 +148,9 @@ export declare namespace SerializedRunner {
     | Exclude<
       {
         [K in keyof Handlers]: ReturnType<Handlers[K]> extends Stream.Stream<
-          infer R,
+          infer _A,
           infer _E,
-          infer _A
+          infer R
         > ? R
           : never
       }[keyof Handlers],
@@ -165,7 +165,7 @@ export declare namespace SerializedRunner {
     Handlers extends Record<string, (...args: ReadonlyArray<any>) => any>
   > = Handlers["InitialMessage"] extends (
     ...args: ReadonlyArray<any>
-  ) => Layer.Layer<infer _R, infer _E, infer A> ? A
+  ) => Layer.Layer<infer A, infer _E, infer _R> ? A
     : never
 
   /**
@@ -175,7 +175,7 @@ export declare namespace SerializedRunner {
     Handlers extends Record<string, (...args: ReadonlyArray<any>) => any>
   > = Handlers["InitialMessage"] extends (
     ...args: ReadonlyArray<any>
-  ) => Layer.Layer<infer R, infer _E, infer _A> ? R
+  ) => Layer.Layer<infer _A, infer _E, infer R> ? R
     : never
 }
 
@@ -189,9 +189,9 @@ export const makeSerialized: <
   A extends Schema.TaggedRequest.Any,
   const Handlers extends SerializedRunner.Handlers<A>
 >(
-  schema: Schema.Schema<R, I, A>,
+  schema: Schema.Schema<A, I, R>,
   handlers: Handlers
-) => Effect.Effect<PlatformRunner | Scope.Scope | R | SerializedRunner.HandlersContext<Handlers>, WorkerError, void> =
+) => Effect.Effect<void, WorkerError, PlatformRunner | Scope.Scope | R | SerializedRunner.HandlersContext<Handlers>> =
   internal.makeSerialized
 
 /**
@@ -204,7 +204,7 @@ export const layerSerialized: <
   A extends Schema.TaggedRequest.Any,
   const Handlers extends SerializedRunner.Handlers<A>
 >(
-  schema: Schema.Schema<R, I, A>,
+  schema: Schema.Schema<A, I, R>,
   handlers: Handlers
-) => Layer.Layer<PlatformRunner | R | SerializedRunner.HandlersContext<Handlers>, WorkerError, never> =
+) => Layer.Layer<never, WorkerError, PlatformRunner | R | SerializedRunner.HandlersContext<Handlers>> =
   internal.layerSerialized

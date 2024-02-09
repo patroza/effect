@@ -41,15 +41,15 @@ const randomNumber = (state: Random.PCGRandomState): [number, Random.PCGRandomSt
 const withState = <A>(
   state: TRef.TRef<Random.PCGRandomState>,
   f: (state: Random.PCGRandomState) => [A, Random.PCGRandomState]
-): STM.STM<never, never, A> => {
+): STM.STM<A> => {
   return pipe(state, tRef.modify(f))
 }
 
 const shuffleWith = <A>(
   iterable: Iterable<A>,
-  nextIntBounded: (n: number) => STM.STM<never, never, number>
-): STM.STM<never, never, Array<A>> => {
-  const swap = (buffer: TArray.TArray<A>, index1: number, index2: number): STM.STM<never, never, void> =>
+  nextIntBounded: (n: number) => STM.STM<number>
+): STM.STM<Array<A>> => {
+  const swap = (buffer: TArray.TArray<A>, index1: number, index2: number): STM.STM<void> =>
     pipe(
       buffer,
       tArray.get(index1),
@@ -83,7 +83,7 @@ const shuffleWith = <A>(
 }
 
 /** @internal */
-export const Tag = Context.Tag<TRandom.TRandom>()
+export const Tag = Context.GenericTag<TRandom.TRandom>("effect/TRandom")
 
 class TRandomImpl implements TRandom.TRandom {
   readonly [TRandomTypeId]: TRandom.TRandomTypeId = TRandomTypeId
@@ -93,23 +93,23 @@ class TRandomImpl implements TRandom.TRandom {
     this.nextInt = withState(this.state, randomInteger)
   }
 
-  next: STM.STM<never, never, number>
-  nextBoolean: STM.STM<never, never, boolean>
-  nextInt: STM.STM<never, never, number>
+  next: STM.STM<number>
+  nextBoolean: STM.STM<boolean>
+  nextInt: STM.STM<number>
 
-  nextRange(min: number, max: number): STM.STM<never, never, number> {
+  nextRange(min: number, max: number): STM.STM<number> {
     return core.flatMap(this.next, (n) => core.succeed((max - min) * n + min))
   }
-  nextIntBetween(low: number, high: number): STM.STM<never, never, number> {
+  nextIntBetween(low: number, high: number): STM.STM<number> {
     return withState(this.state, randomIntegerBetween(low, high))
   }
-  shuffle<A>(elements: Iterable<A>): STM.STM<never, never, Array<A>> {
+  shuffle<A>(elements: Iterable<A>): STM.STM<Array<A>> {
     return shuffleWith(elements, (n) => this.nextIntBetween(0, n))
   }
 }
 
 /** @internal */
-export const live: Layer.Layer<never, never, TRandom.TRandom> = Layer.effect(
+export const live: Layer.Layer<TRandom.TRandom> = Layer.effect(
   Tag,
   pipe(
     tRef.make(new Random.PCGRandom((Math.random() * 4294967296) >>> 0).getState()),
@@ -119,22 +119,22 @@ export const live: Layer.Layer<never, never, TRandom.TRandom> = Layer.effect(
 )
 
 /** @internal */
-export const next: STM.STM<TRandom.TRandom, never, number> = core.flatMap(Tag, (random) => random.next)
+export const next: STM.STM<number, never, TRandom.TRandom> = core.flatMap(Tag, (random) => random.next)
 
 /** @internal */
-export const nextBoolean: STM.STM<TRandom.TRandom, never, boolean> = core.flatMap(Tag, (random) => random.nextBoolean)
+export const nextBoolean: STM.STM<boolean, never, TRandom.TRandom> = core.flatMap(Tag, (random) => random.nextBoolean)
 
 /** @internal */
-export const nextInt: STM.STM<TRandom.TRandom, never, number> = core.flatMap(Tag, (random) => random.nextInt)
+export const nextInt: STM.STM<number, never, TRandom.TRandom> = core.flatMap(Tag, (random) => random.nextInt)
 
 /** @internal */
-export const nextIntBetween = (low: number, high: number): STM.STM<TRandom.TRandom, never, number> =>
+export const nextIntBetween = (low: number, high: number): STM.STM<number, never, TRandom.TRandom> =>
   core.flatMap(Tag, (random) => random.nextIntBetween(low, high))
 
 /** @internal */
-export const nextRange = (min: number, max: number): STM.STM<TRandom.TRandom, never, number> =>
+export const nextRange = (min: number, max: number): STM.STM<number, never, TRandom.TRandom> =>
   core.flatMap(Tag, (random) => random.nextRange(min, max))
 
 /** @internal */
-export const shuffle = <A>(elements: Iterable<A>): STM.STM<TRandom.TRandom, never, Array<A>> =>
+export const shuffle = <A>(elements: Iterable<A>): STM.STM<Array<A>, never, TRandom.TRandom> =>
   core.flatMap(Tag, (random) => random.shuffle(elements))

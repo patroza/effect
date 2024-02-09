@@ -18,11 +18,11 @@ import { describe, expect } from "vitest"
 interface Counter {
   readonly _: unique symbol
 }
-const Counter = Context.Tag<Counter, { count: number }>()
+const Counter = Context.GenericTag<Counter, { count: number }>("counter")
 interface Requests {
   readonly _: unique symbol
 }
-const Requests = Context.Tag<Requests, { count: number }>()
+const Requests = Context.GenericTag<Requests, { count: number }>("requests")
 
 export const userIds: ReadonlyArray<number> = ReadonlyArray.range(1, 26)
 
@@ -36,7 +36,7 @@ export const userNames: ReadonlyMap<number, string> = new Map(
 
 export type UserRequest = GetAllIds | GetNameById
 
-export interface GetAllIds extends Request.Request<never, ReadonlyArray<number>> {
+export interface GetAllIds extends Request.Request<ReadonlyArray<number>> {
   readonly _tag: "GetAllIds"
 }
 
@@ -46,13 +46,13 @@ export class GetNameById extends Request.TaggedClass("GetNameById")<string, stri
   readonly id: number
 }> {}
 
-const delay = <R, E, A>(self: Effect.Effect<R, E, A>) =>
+const delay = <A, E, R>(self: Effect.Effect<A, E, R>) =>
   Effect.zipRight(
     Effect.promise(() => new Promise((r) => timeout.set(() => r(0), 0))),
     self
   )
 
-const counted = <R, E, A>(self: Effect.Effect<R, E, A>) => Effect.tap(self, () => Effect.map(Counter, (c) => c.count++))
+const counted = <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.tap(self, () => Effect.map(Counter, (c) => c.count++))
 
 const UserResolver = Resolver.makeBatched((requests: Array<UserRequest>) =>
   Effect.flatMap(Requests, (r) => {
@@ -89,7 +89,7 @@ export const print = (request: UserRequest): string => {
   }
 }
 
-const processRequest = (request: UserRequest): Effect.Effect<never, never, void> => {
+const processRequest = (request: UserRequest): Effect.Effect<void> => {
   switch (request._tag) {
     case "GetAllIds": {
       return Request.complete(request, Exit.succeed(userIds))

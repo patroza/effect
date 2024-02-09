@@ -18,14 +18,14 @@ export interface Path {
   readonly dirname: (path: string) => string
   readonly extname: (path: string) => string
   readonly format: (pathObject: Partial<Path.Parsed>) => string
-  readonly fromFileUrl: (url: URL) => Effect<never, BadArgument, string>
+  readonly fromFileUrl: (url: URL) => Effect<string, BadArgument>
   readonly isAbsolute: (path: string) => boolean
   readonly join: (...paths: ReadonlyArray<string>) => string
   readonly normalize: (path: string) => string
   readonly parse: (path: string) => Path.Parsed
   readonly relative: (from: string, to: string) => string
   readonly resolve: (...pathSegments: ReadonlyArray<string>) => string
-  readonly toFileUrl: (path: string) => Effect<never, BadArgument, URL>
+  readonly toFileUrl: (path: string) => Effect<URL, BadArgument>
   readonly toNamespacedPath: (path: string) => string
 }
 
@@ -61,4 +61,4 @@ export const Path: Tag<Path, Path> = internal.Path
  * @since 1.0.0
  * @category layer
  */
-export const layer: Layer<never, never, Path> = internal.layer
+export const layer: Layer<Path> = internal.layer

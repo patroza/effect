@@ -49,8 +49,8 @@ export interface BothRunning<_Env, out Err, out Err1, _Err2, out Elem, out Done,
   extends MergeState.Proto
 {
   readonly _tag: "BothRunning"
-  readonly left: Fiber.Fiber<Err, Either.Either<Done, Elem>>
-  readonly right: Fiber.Fiber<Err1, Either.Either<Done1, Elem>>
+  readonly left: Fiber.Fiber<Either.Either<Done, Elem>, Err>
+  readonly right: Fiber.Fiber<Either.Either<Done1, Elem>, Err1>
 }
 
 /**
@@ -61,7 +61,7 @@ export interface LeftDone<out Env, _Err, in Err1, out Err2, _Elem, _Done, in Don
   extends MergeState.Proto
 {
   readonly _tag: "LeftDone"
-  f(exit: Exit.Exit<Err1, Done1>): Effect.Effect<Env, Err2, Done2>
+  f(exit: Exit.Exit<Done1, Err1>): Effect.Effect<Done2, Err2, Env>
 }
 
 /**
@@ -72,7 +72,7 @@ export interface RightDone<out Env, in Err, _Err1, out Err2, _Elem, in Done, _Do
   extends MergeState.Proto
 {
   readonly _tag: "RightDone"
-  f(exit: Exit.Exit<Err, Done>): Effect.Effect<Env, Err2, Done2>
+  f(exit: Exit.Exit<Done, Err>): Effect.Effect<Done2, Err2, Env>
 }
 
 /**
@@ -80,8 +80,8 @@ export interface RightDone<out Env, in Err, _Err1, out Err2, _Elem, in Done, _Do
  * @category constructors
  */
 export const BothRunning: <Env, Err, Err1, Err2, Elem, Done, Done1, Done2>(
-  left: Fiber.Fiber<Err, Either.Either<Done, Elem>>,
-  right: Fiber.Fiber<Err1, Either.Either<Done1, Elem>>
+  left: Fiber.Fiber<Either.Either<Done, Elem>, Err>,
+  right: Fiber.Fiber<Either.Either<Done1, Elem>, Err1>
 ) => MergeState<Env, Err, Err1, Err2, Elem, Done, Done1, Done2> = internal.BothRunning
 
 /**
@@ -89,7 +89,7 @@ export const BothRunning: <Env, Err, Err1, Err2, Elem, Done, Done1, Done2>(
  * @category constructors
  */
 export const LeftDone: <Env, Err, Err1, Err2, Elem, Done, Done1, Done2>(
-  f: (exit: Exit.Exit<Err1, Done1>) => Effect.Effect<Env, Err2, Done2>
+  f: (exit: Exit.Exit<Done1, Err1>) => Effect.Effect<Done2, Err2, Env>
 ) => MergeState<Env, Err, Err1, Err2, Elem, Done, Done1, Done2> = internal.LeftDone
 
 /**
@@ -97,7 +97,7 @@ export const LeftDone: <Env, Err, Err1, Err2, Elem, Done, Done1, Done2>(
  * @category constructors
  */
 export const RightDone: <Env, Err, Err1, Err2, Elem, Done, Done1, Done2>(
-  f: (exit: Exit.Exit<Err, Done>) => Effect.Effect<Env, Err2, Done2>
+  f: (exit: Exit.Exit<Done, Err>) => Effect.Effect<Done2, Err2, Env>
 ) => MergeState<Env, Err, Err1, Err2, Elem, Done, Done1, Done2> = internal.RightDone
 
 /**
@@ -151,22 +151,22 @@ export const match: {
   <Env, Err, Err1, Err2, Elem, Done, Done1, Done2, Z>(
     options: {
       readonly onBothRunning: (
-        left: Fiber.Fiber<Err, Either.Either<Done, Elem>>,
-        right: Fiber.Fiber<Err1, Either.Either<Done1, Elem>>
+        left: Fiber.Fiber<Either.Either<Done, Elem>, Err>,
+        right: Fiber.Fiber<Either.Either<Done1, Elem>, Err1>
       ) => Z
-      readonly onLeftDone: (f: (exit: Exit.Exit<Err1, Done1>) => Effect.Effect<Env, Err2, Done2>) => Z
-      readonly onRightDone: (f: (exit: Exit.Exit<Err, Done>) => Effect.Effect<Env, Err2, Done2>) => Z
+      readonly onLeftDone: (f: (exit: Exit.Exit<Done1, Err1>) => Effect.Effect<Done2, Err2, Env>) => Z
+      readonly onRightDone: (f: (exit: Exit.Exit<Done, Err>) => Effect.Effect<Done2, Err2, Env>) => Z
     }
   ): (self: MergeState<Env, Err, Err1, Err2, Elem, Done, Done1, Done2>) => Z
   <Env, Err, Err1, Err2, Elem, Done, Done1, Done2, Z>(
     self: MergeState<Env, Err, Err1, Err2, Elem, Done, Done1, Done2>,
     options: {
       readonly onBothRunning: (
-        left: Fiber.Fiber<Err, Either.Either<Done, Elem>>,
-        right: Fiber.Fiber<Err1, Either.Either<Done1, Elem>>
+        left: Fiber.Fiber<Either.Either<Done, Elem>, Err>,
+        right: Fiber.Fiber<Either.Either<Done1, Elem>, Err1>
       ) => Z
-      readonly onLeftDone: (f: (exit: Exit.Exit<Err1, Done1>) => Effect.Effect<Env, Err2, Done2>) => Z
-      readonly onRightDone: (f: (exit: Exit.Exit<Err, Done>) => Effect.Effect<Env, Err2, Done2>) => Z
+      readonly onLeftDone: (f: (exit: Exit.Exit<Done1, Err1>) => Effect.Effect<Done2, Err2, Env>) => Z
+      readonly onRightDone: (f: (exit: Exit.Exit<Done, Err>) => Effect.Effect<Done2, Err2, Env>) => Z
     }
   ): Z
 } = internal.match

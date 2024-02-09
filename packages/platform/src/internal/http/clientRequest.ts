@@ -323,11 +323,11 @@ export const textBody = dual<
 export const jsonBody = dual<
   (
     body: unknown
-  ) => (self: ClientRequest.ClientRequest) => Effect.Effect<never, Body.BodyError, ClientRequest.ClientRequest>,
+  ) => (self: ClientRequest.ClientRequest) => Effect.Effect<ClientRequest.ClientRequest, Body.BodyError>,
   (
     self: ClientRequest.ClientRequest,
     body: unknown
-  ) => Effect.Effect<never, Body.BodyError, ClientRequest.ClientRequest>
+  ) => Effect.Effect<ClientRequest.ClientRequest, Body.BodyError>
 >(2, (self, body) => Effect.map(internalBody.json(body), (body) => setBody(self, body)))
 
 /** @internal */
@@ -343,12 +343,12 @@ export const fileBody = dual<
     options?: FileSystem.StreamOptions & { readonly contentType?: string }
   ) => (
     self: ClientRequest.ClientRequest
-  ) => Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, ClientRequest.ClientRequest>,
+  ) => Effect.Effect<ClientRequest.ClientRequest, PlatformError.PlatformError, FileSystem.FileSystem>,
   (
     self: ClientRequest.ClientRequest,
     path: string,
     options?: FileSystem.StreamOptions & { readonly contentType?: string }
-  ) => Effect.Effect<FileSystem.FileSystem, PlatformError.PlatformError, ClientRequest.ClientRequest>
+  ) => Effect.Effect<ClientRequest.ClientRequest, PlatformError.PlatformError, FileSystem.FileSystem>
 >(
   (args) => isClientRequest(args[0]),
   (self, path, options) => Effect.map(internalBody.file(path, options), (body) => setBody(self, body))
@@ -361,16 +361,16 @@ export const fileWebBody = dual<
 >(2, (self, file) => setBody(self, internalBody.fileWeb(file)))
 
 /** @internal */
-export const schemaBody = <R, I, A>(schema: Schema.Schema<R, I, A>): {
-  (body: A): (self: ClientRequest.ClientRequest) => Effect.Effect<R, Body.BodyError, ClientRequest.ClientRequest>
-  (self: ClientRequest.ClientRequest, body: A): Effect.Effect<R, Body.BodyError, ClientRequest.ClientRequest>
+export const schemaBody = <A, I, R>(schema: Schema.Schema<A, I, R>): {
+  (body: A): (self: ClientRequest.ClientRequest) => Effect.Effect<ClientRequest.ClientRequest, Body.BodyError, R>
+  (self: ClientRequest.ClientRequest, body: A): Effect.Effect<ClientRequest.ClientRequest, Body.BodyError, R>
 } => {
   const encode = internalBody.jsonSchema(schema)
   return dual<
     (
       body: A
-    ) => (self: ClientRequest.ClientRequest) => Effect.Effect<R, Body.BodyError, ClientRequest.ClientRequest>,
-    (self: ClientRequest.ClientRequest, body: A) => Effect.Effect<R, Body.BodyError, ClientRequest.ClientRequest>
+    ) => (self: ClientRequest.ClientRequest) => Effect.Effect<ClientRequest.ClientRequest, Body.BodyError, R>,
+    (self: ClientRequest.ClientRequest, body: A) => Effect.Effect<ClientRequest.ClientRequest, Body.BodyError, R>
   >(2, (self, body) => Effect.map(encode(body), (body) => setBody(self, body)))
 }
 
@@ -396,18 +396,18 @@ export const formDataBody = dual<
 /** @internal */
 export const streamBody = dual<
   (
-    body: Stream.Stream<never, unknown, Uint8Array>,
+    body: Stream.Stream<Uint8Array, unknown>,
     options?: {
-      readonly contentType?: string
-      readonly contentLength?: number
+      readonly contentType?: string | undefined
+      readonly contentLength?: number | undefined
     }
   ) => (self: ClientRequest.ClientRequest) => ClientRequest.ClientRequest,
   (
     self: ClientRequest.ClientRequest,
-    body: Stream.Stream<never, unknown, Uint8Array>,
+    body: Stream.Stream<Uint8Array, unknown>,
     options?: {
-      readonly contentType?: string
-      readonly contentLength?: number
+      readonly contentType?: string | undefined
+      readonly contentLength?: number | undefined
     }
   ) => ClientRequest.ClientRequest
 >(

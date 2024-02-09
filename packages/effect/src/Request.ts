@@ -3,7 +3,6 @@
  */
 import type * as _Cache from "./Cache.js"
 import type { Cause } from "./Cause.js"
-import type * as Data from "./Data.js"
 import type { Deferred } from "./Deferred.js"
 import type { DurationInput } from "./Duration.js"
 import type * as Effect from "./Effect.js"
@@ -30,13 +29,13 @@ export const RequestTypeId: unique symbol = internal.RequestTypeId
 export type RequestTypeId = typeof RequestTypeId
 
 /**
- * A `Request<E, A>` is a request from a data source for a value of type `A`
+ * A `Request<A, E>` is a request from a data source for a value of type `A`
  * that may fail with an `E`.
  *
  * @since 2.0.0
  * @category models
  */
-export interface Request<out E, out A> extends Request.Variance<E, A>, Data.Case {}
+export interface Request<out A, out E = never> extends Request.Variance<A, E> {}
 
 /**
  * @since 2.0.0
@@ -46,10 +45,10 @@ export declare namespace Request {
    * @since 2.0.0
    * @category models
    */
-  export interface Variance<out E, out A> {
+  export interface Variance<out A, out E> {
     readonly [RequestTypeId]: {
-      readonly _E: Types.Covariant<E>
       readonly _A: Types.Covariant<A>
+      readonly _E: Types.Covariant<E>
     }
   }
 
@@ -58,7 +57,7 @@ export declare namespace Request {
    * @category models
    */
   export interface Constructor<R extends Request<any, any>, T extends keyof R = never> {
-    (args: Omit<R, T | keyof (Data.Case & Request.Variance<Request.Error<R>, Request.Success<R>>)>): R
+    (args: Omit<R, T | keyof (Request.Variance<Request.Error<R>, Request.Success<R>>)>): R
   }
 
   /**
@@ -67,7 +66,7 @@ export declare namespace Request {
    * @since 2.0.0
    * @category type-level
    */
-  export type Error<T extends Request<any, any>> = [T] extends [Request<infer _E, infer _A>] ? _E : never
+  export type Error<T extends Request<any, any>> = [T] extends [Request<infer _A, infer _E>] ? _E : never
 
   /**
    * A utility type to extract the value type from a `Request`.
@@ -75,7 +74,7 @@ export declare namespace Request {
    * @since 2.0.0
    * @category type-level
    */
-  export type Success<T extends Request<any, any>> = [T] extends [Request<infer _E, infer _A>] ? _A : never
+  export type Success<T extends Request<any, any>> = [T] extends [Request<infer _A, infer _E>] ? _A : never
 
   /**
    * A utility type to extract the result type from a `Request`.
@@ -83,7 +82,7 @@ export declare namespace Request {
    * @since 2.0.0
    * @category type-level
    */
-  export type Result<T extends Request<any, any>> = T extends Request<infer E, infer A> ? Exit.Exit<E, A> : never
+  export type Result<T extends Request<any, any>> = T extends Request<infer A, infer E> ? Exit.Exit<A, E> : never
 
   /**
    * A utility type to extract the optional result type from a `Request`.
@@ -91,8 +90,8 @@ export declare namespace Request {
    * @since 2.0.0
    * @category type-level
    */
-  export type OptionalResult<T extends Request<any, any>> = T extends Request<infer E, infer A>
-    ? Exit.Exit<E, Option.Option<A>>
+  export type OptionalResult<T extends Request<any, any>> = T extends Request<infer A, infer E>
+    ? Exit.Exit<Option.Option<A>, E>
     : never
 }
 
@@ -141,7 +140,7 @@ export const tagged: <R extends Request<any, any> & { _tag: string }>(
 export const Class: new<Error, Success, A extends Record<string, any>>(
   args: Types.Equals<Omit<A, keyof Request<unknown, unknown>>, {}> extends true ? void
     : { readonly [P in keyof A as P extends keyof Request<unknown, unknown> ? never : P]: A[P] }
-) => Request<Error, Success> & Readonly<A> = internal.Class as any
+) => Request<Success, Error> & Readonly<A> = internal.Class as any
 
 /**
  * Provides a Tagged constructor for a Request Class.
@@ -164,7 +163,7 @@ export const TaggedClass: <Tag extends string>(
 ) => new<Error, Success, A extends Record<string, any>>(
   args: Types.Equals<Omit<A, keyof Request<unknown, unknown>>, {}> extends true ? void
     : { readonly [P in keyof A as P extends "_tag" | keyof Request<unknown, unknown> ? never : P]: A[P] }
-) => Request<Error, Success> & Readonly<A> & { readonly _tag: Tag } = internal.TaggedClass as any
+) => Request<Success, Error> & Readonly<A> & { readonly _tag: Tag } = internal.TaggedClass as any
 
 /**
  * Complete a `Request` with the specified result.
@@ -173,8 +172,8 @@ export const TaggedClass: <Tag extends string>(
  * @category request completion
  */
 export const complete: {
-  <A extends Request<any, any>>(result: Request.Result<A>): (self: A) => Effect.Effect<never, never, void>
-  <A extends Request<any, any>>(self: A, result: Request.Result<A>): Effect.Effect<never, never, void>
+  <A extends Request<any, any>>(result: Request.Result<A>): (self: A) => Effect.Effect<void>
+  <A extends Request<any, any>>(self: A, result: Request.Result<A>): Effect.Effect<void>
 } = internal.complete
 
 /**
@@ -184,8 +183,8 @@ export const complete: {
  * @category request completion
  */
 export const interruptWhenPossible: {
-  (all: Iterable<Request<any, any>>): <R, E, A>(self: Effect.Effect<R, E, A>) => Effect.Effect<R, E, void>
-  <R, E, A>(self: Effect.Effect<R, E, A>, all: Iterable<Request<any, any>>): Effect.Effect<R, E, void>
+  (all: Iterable<Request<any, any>>): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<void, E, R>
+  <A, E, R>(self: Effect.Effect<A, E, R>, all: Iterable<Request<any, any>>): Effect.Effect<void, E, R>
 } = fiberRuntime.interruptWhenPossible
 
 /**
@@ -198,12 +197,12 @@ export const interruptWhenPossible: {
  */
 export const completeEffect: {
   <A extends Request<any, any>, R>(
-    effect: Effect.Effect<R, Request.Error<A>, Request.Success<A>>
-  ): (self: A) => Effect.Effect<R, never, void>
+    effect: Effect.Effect<Request.Success<A>, Request.Error<A>, R>
+  ): (self: A) => Effect.Effect<void, never, R>
   <A extends Request<any, any>, R>(
     self: A,
-    effect: Effect.Effect<R, Request.Error<A>, Request.Success<A>>
-  ): Effect.Effect<R, never, void>
+    effect: Effect.Effect<Request.Success<A>, Request.Error<A>, R>
+  ): Effect.Effect<void, never, R>
 } = internal.completeEffect
 
 /**
@@ -213,8 +212,8 @@ export const completeEffect: {
  * @category request completion
  */
 export const fail: {
-  <A extends Request<any, any>>(error: Request.Error<A>): (self: A) => Effect.Effect<never, never, void>
-  <A extends Request<any, any>>(self: A, error: Request.Error<A>): Effect.Effect<never, never, void>
+  <A extends Request<any, any>>(error: Request.Error<A>): (self: A) => Effect.Effect<void>
+  <A extends Request<any, any>>(self: A, error: Request.Error<A>): Effect.Effect<void>
 } = internal.fail
 
 /**
@@ -224,8 +223,8 @@ export const fail: {
  * @category request completion
  */
 export const failCause: {
-  <A extends Request<any, any>>(cause: Cause<Request.Error<A>>): (self: A) => Effect.Effect<never, never, void>
-  <A extends Request<any, any>>(self: A, cause: Cause<Request.Error<A>>): Effect.Effect<never, never, void>
+  <A extends Request<any, any>>(cause: Cause<Request.Error<A>>): (self: A) => Effect.Effect<void>
+  <A extends Request<any, any>>(self: A, cause: Cause<Request.Error<A>>): Effect.Effect<void>
 } = internal.failCause
 
 /**
@@ -235,8 +234,8 @@ export const failCause: {
  * @category request completion
  */
 export const succeed: {
-  <A extends Request<any, any>>(value: Request.Success<A>): (self: A) => Effect.Effect<never, never, void>
-  <A extends Request<any, any>>(self: A, value: Request.Success<A>): Effect.Effect<never, never, void>
+  <A extends Request<any, any>>(value: Request.Success<A>): (self: A) => Effect.Effect<void>
+  <A extends Request<any, any>>(self: A, value: Request.Success<A>): Effect.Effect<void>
 } = internal.succeed
 
 /**
@@ -272,10 +271,11 @@ export const makeCache = (
     readonly capacity: number
     readonly timeToLive: DurationInput
   }
-): Effect.Effect<never, never, Cache> =>
+): Effect.Effect<Cache> =>
   cache.make({
     ...options,
-    lookup: () => core.map(core.deferredMake(), (handle) => ({ listeners: new internal.Listeners(), handle }))
+    lookup: () =>
+      core.map(core.deferredMake<unknown, unknown>(), (handle) => ({ listeners: new internal.Listeners(), handle }))
   })
 
 /**
@@ -303,8 +303,8 @@ export type EntryTypeId = typeof EntryTypeId
 export interface Entry<out R> extends Entry.Variance<R> {
   readonly request: R
   readonly result: Deferred<
-    [R] extends [Request<infer _E, infer _A>] ? _E : never,
-    [R] extends [Request<infer _E, infer _A>] ? _A : never
+    [R] extends [Request<infer _A, infer _E>] ? _A : never,
+    [R] extends [Request<infer _A, infer _E>] ? _E : never
   >
   readonly listeners: Listeners
   readonly ownerId: FiberId

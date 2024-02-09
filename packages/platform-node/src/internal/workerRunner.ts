@@ -1,17 +1,15 @@
 import { WorkerError } from "@effect/platform/WorkerError"
 import * as Runner from "@effect/platform/WorkerRunner"
-import type * as Schema from "@effect/schema/Schema"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Queue from "effect/Queue"
 import * as Schedule from "effect/Schedule"
-import type * as Stream from "effect/Stream"
 import * as WorkerThreads from "node:worker_threads"
 
 const platformRunnerImpl = Runner.PlatformRunner.of({
   [Runner.PlatformRunnerTypeId]: Runner.PlatformRunnerTypeId,
-  start<I, O>(shutdown: Effect.Effect<never, never, void>) {
+  start<I, O>(shutdown: Effect.Effect<void>) {
     return Effect.gen(function*(_) {
       if (!WorkerThreads.parentPort) {
         return yield* _(Effect.fail(WorkerError("spawn", "not in worker")))
@@ -19,7 +17,7 @@ const platformRunnerImpl = Runner.PlatformRunner.of({
       const port = WorkerThreads.parentPort
       const queue = yield* _(Queue.unbounded<I>())
       yield* _(
-        Effect.async<never, WorkerError, never>((resume) => {
+        Effect.async<never, WorkerError>((resume) => {
           port.on("message", (message: Runner.BackingRunner.Message<I>) => {
             if (message[0] === 0) {
               queue.unsafeOffer(message[1])
@@ -53,25 +51,4 @@ const platformRunnerImpl = Runner.PlatformRunner.of({
 })
 
 /** @internal */
-export const layerPlatform = Layer.succeed(Runner.PlatformRunner, platformRunnerImpl)
-
-/** @internal */
-export const layer = <I, R, E, O>(
-  process: (request: I) => Stream.Stream<R, E, O>,
-  options?: Runner.Runner.Options<I, E, O>
-): Layer.Layer<R, WorkerError, never> => Layer.provide(Runner.layer(process, options), layerPlatform)
-
-/** @internal */
-export const layerSerialized = <
-  R,
-  I,
-  A extends Schema.TaggedRequest.Any,
-  Handlers extends Runner.SerializedRunner.Handlers<A>
->(
-  schema: Schema.Schema<R, I, A>,
-  handlers: Handlers
-): Layer.Layer<
-  R | Runner.SerializedRunner.HandlersContext<Handlers>,
-  WorkerError,
-  never
-> => Layer.provide(Runner.layerSerialized(schema, handlers), layerPlatform)
+export const layer = Layer.succeed(Runner.PlatformRunner, platformRunnerImpl)

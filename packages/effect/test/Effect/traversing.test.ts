@@ -238,7 +238,7 @@ describe("Effect", () => {
     }))
   it.effect("forEach/concurrency - runs effects in parallel", () =>
     Effect.gen(function*($) {
-      const deferred = yield* $(Deferred.make<never, void>())
+      const deferred = yield* $(Deferred.make<void>())
       yield* $(
         pipe(
           [Effect.never, Deferred.succeed(deferred, void 0)],
@@ -261,7 +261,7 @@ describe("Effect", () => {
   it.effect("forEach/concurrency - interrupts effects on first failure", () =>
     Effect.gen(function*($) {
       const ref = yield* $(Ref.make(false))
-      const deferred = yield* $(Deferred.make<never, void>())
+      const deferred = yield* $(Deferred.make<void>())
       const actions = [
         Effect.never,
         Effect.succeed(1),
@@ -308,7 +308,7 @@ describe("Effect", () => {
     }))
   it.effect("forEach/concurrency - parallelism - runs effects in parallel", () =>
     Effect.gen(function*($) {
-      const deferred = yield* $(Deferred.make<never, void>())
+      const deferred = yield* $(Deferred.make<void>())
       yield* $(
         pipe(
           [Effect.never, Deferred.succeed(deferred, void 0)],
@@ -346,9 +346,9 @@ describe("Effect", () => {
     Effect.gen(function*($) {
       const task = (
         started: Ref.Ref<number>,
-        trigger: Deferred.Deferred<never, void>,
+        trigger: Deferred.Deferred<void, never>,
         n: number
-      ): Effect.Effect<never, number, void> => {
+      ): Effect.Effect<void, number> => {
         return pipe(
           Ref.updateAndGet(started, (n) => n + 1),
           Effect.flatMap((count) =>
@@ -362,7 +362,7 @@ describe("Effect", () => {
         )
       }
       const started = yield* $(Ref.make(0))
-      const trigger = yield* $(Deferred.make<never, void>())
+      const trigger = yield* $(Deferred.make<void>())
       const result = yield* $(
         [1, 2, 3],
         Effect.forEach((n) => pipe(task(started, trigger, n), Effect.uninterruptible), {
@@ -415,7 +415,7 @@ describe("Effect", () => {
     }))
   it.effect("merge - on flipped result", () =>
     Effect.gen(function*($) {
-      const effect: Effect.Effect<never, number, number> = Effect.succeed(1)
+      const effect: Effect.Effect<number, number> = Effect.succeed(1)
       const a = yield* $(Effect.merge(effect))
       const b = yield* $(Effect.merge(Effect.flip(effect)))
       assert.strictEqual(a, b)
@@ -425,7 +425,7 @@ describe("Effect", () => {
       const zeroElement = 42
       const nonZero = 43
       const result = yield* $(
-        pipe([] as ReadonlyArray<Effect.Effect<never, never, unknown>>, Effect.mergeAll(zeroElement, () => nonZero))
+        pipe([] as ReadonlyArray<Effect.Effect<unknown>>, Effect.mergeAll(zeroElement, () => nonZero))
       )
       assert.strictEqual(result, zeroElement)
     }))
@@ -446,7 +446,7 @@ describe("Effect", () => {
     }))
   it.effect("mergeAll - return error if it exists in list", () =>
     Effect.gen(function*($) {
-      const effects: ReadonlyArray<Effect.Effect<never, number, void>> = [Effect.unit, Effect.fail(1)]
+      const effects: ReadonlyArray<Effect.Effect<void, number>> = [Effect.unit, Effect.fail(1)]
       const result = yield* $(effects, Effect.mergeAll(void 0 as void, constVoid), Effect.exit)
       assert.deepStrictEqual(result, Exit.fail(1))
     }))
@@ -456,7 +456,7 @@ describe("Effect", () => {
       const nonZero = 43
       const result = yield* $(
         pipe(
-          [] as ReadonlyArray<Effect.Effect<never, never, unknown>>,
+          [] as ReadonlyArray<Effect.Effect<unknown>>,
           Effect.mergeAll(zeroElement, () => nonZero, {
             concurrency: "unbounded"
           })
@@ -476,7 +476,7 @@ describe("Effect", () => {
     }))
   it.effect("mergeAll/concurrency - return error if it exists in list", () =>
     Effect.gen(function*($) {
-      const effects: ReadonlyArray<Effect.Effect<never, number, void>> = [Effect.unit, Effect.fail(1)]
+      const effects: ReadonlyArray<Effect.Effect<void, number>> = [Effect.unit, Effect.fail(1)]
       const result = yield* $(
         effects,
         Effect.mergeAll(void 0 as void, constVoid, {
@@ -630,7 +630,7 @@ describe("Effect", () => {
       const nonZero = 43
       const result = yield* $(
         pipe(
-          [] as ReadonlyArray<Effect.Effect<never, never, number>>,
+          [] as ReadonlyArray<Effect.Effect<number>>,
           Effect.reduceEffect(Effect.succeed(zeroElement), () => nonZero, {
             concurrency: "unbounded"
           })
@@ -665,11 +665,11 @@ describe("Effect", () => {
     }))
   it.effect("reduceEffect/concurrency - return error if it exists in list", () =>
     Effect.gen(function*($) {
-      const effects: ReadonlyArray<Effect.Effect<never, number, void>> = [Effect.unit, Effect.fail(1)]
+      const effects: ReadonlyArray<Effect.Effect<void, number>> = [Effect.unit, Effect.fail(1)]
       const result = yield* $(
         pipe(
           effects,
-          Effect.reduceEffect(Effect.unit as Effect.Effect<never, number, void>, constVoid, {
+          Effect.reduceEffect(Effect.unit as Effect.Effect<void, number>, constVoid, {
             concurrency: "unbounded"
           }),
           Effect.exit

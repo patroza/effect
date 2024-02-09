@@ -9,10 +9,10 @@ export interface MockConsole extends Console.Console {
     params?: Partial<{
       readonly stripAnsi: boolean
     }>
-  ) => Effect.Effect<never, never, ReadonlyArray<string>>
+  ) => Effect.Effect<ReadonlyArray<string>>
 }
 
-export const MockConsole = Context.Tag<Console.Console, MockConsole>(
+export const MockConsole = Context.GenericTag<Console.Console, MockConsole>(
   "effect/Console"
 )
 const pattern = new RegExp(
@@ -66,5 +66,4 @@ export const getLines = (
   params?: Partial<{
     readonly stripAnsi?: boolean
   }>
-): Effect.Effect<never, never, ReadonlyArray<string>> =>
-  Effect.consoleWith((console) => (console as MockConsole).getLines(params))
+): Effect.Effect<ReadonlyArray<string>> => Effect.consoleWith((console) => (console as MockConsole).getLines(params))

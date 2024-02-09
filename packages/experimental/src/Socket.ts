@@ -31,7 +31,7 @@ export type SocketTypeId = typeof SocketTypeId
  * @since 1.0.0
  * @category tags
  */
-export const Socket: Context.Tag<Socket, Socket> = Context.Tag<Socket>(
+export const Socket: Context.Tag<Socket, Socket> = Context.GenericTag<Socket>(
   "@effect/experimental/Socket"
 )
 
@@ -42,9 +42,9 @@ export const Socket: Context.Tag<Socket, Socket> = Context.Tag<Socket>(
 export interface Socket {
   readonly [SocketTypeId]: SocketTypeId
   readonly run: <R, E, _>(
-    handler: (_: Uint8Array) => Effect.Effect<R, E, _>
-  ) => Effect.Effect<R, SocketError, void>
-  readonly writer: Effect.Effect<Scope.Scope, never, (chunk: Uint8Array) => Effect.Effect<never, never, void>>
+    handler: (_: Uint8Array) => Effect.Effect<_, E, R>
+  ) => Effect.Effect<void, SocketError, R>
+  readonly writer: Effect.Effect<(chunk: Uint8Array) => Effect.Effect<void>, never, Scope.Scope>
   // readonly messages: Queue.Dequeue<Uint8Array>
 }
 
@@ -70,12 +70,12 @@ export class SocketError extends Data.TaggedError("SocketError")<{
  */
 export const toChannel = <IE>(
   self: Socket
-): Channel.Channel<never, IE, Chunk.Chunk<Uint8Array>, unknown, SocketError | IE, Chunk.Chunk<Uint8Array>, void> =>
+): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, SocketError | IE, IE, void, unknown> =>
   Channel.unwrap(
     Effect.gen(function*(_) {
       const writeScope = yield* _(Scope.make())
       const write = yield* _(Scope.extend(self.writer, writeScope))
-      const exitQueue = yield* _(Queue.unbounded<Exit.Exit<SocketError | IE, Chunk.Chunk<Uint8Array>>>())
+      const exitQueue = yield* _(Queue.unbounded<Exit.Exit<Chunk.Chunk<Uint8Array>, SocketError | IE>>())
 
       const input: AsyncProducer.AsyncInputProducer<IE, Chunk.Chunk<Uint8Array>, unknown> = {
         awaitRead: () => Effect.unit,
@@ -104,21 +104,14 @@ export const toChannel = <IE>(
         Effect.fork
       )
 
-      const loop: Channel.Channel<
-        never,
-        unknown,
-        unknown,
-        unknown,
-        SocketError | IE,
-        Chunk.Chunk<Uint8Array>,
-        void
-      > = Channel.flatMap(
-        Queue.take(exitQueue),
-        Exit.match({
-          onFailure: (cause) => Cause.isEmptyType(cause) ? Channel.unit : Channel.failCause(cause),
-          onSuccess: (chunk) => Channel.zipRight(Channel.write(chunk), loop)
-        })
-      )
+      const loop: Channel.Channel<Chunk.Chunk<Uint8Array>, unknown, SocketError | IE, unknown, void, unknown> = Channel
+        .flatMap(
+          Queue.take(exitQueue),
+          Exit.match({
+            onFailure: (cause) => Cause.isEmptyType(cause) ? Channel.unit : Channel.failCause(cause),
+            onSuccess: (chunk) => Channel.zipRight(Channel.write(chunk), loop)
+          })
+        )
 
       return Channel.embedInput(loop, input)
     })
@@ -131,7 +124,7 @@ export const toChannel = <IE>(
 export const toChannelWith = <IE = never>() =>
 (
   self: Socket
-): Channel.Channel<never, IE, Chunk.Chunk<Uint8Array>, unknown, SocketError | IE, Chunk.Chunk<Uint8Array>, void> =>
+): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, SocketError | IE, IE, void, unknown> =>
   toChannel(self)
 
 /**
@@ -139,13 +132,13 @@ export const toChannelWith = <IE = never>() =>
  * @category constructors
  */
 export const makeChannel = <IE = never>(): Channel.Channel<
-  Socket,
-  IE,
   Chunk.Chunk<Uint8Array>,
-  unknown,
+  Chunk.Chunk<Uint8Array>,
   SocketError | IE,
-  Chunk.Chunk<Uint8Array>,
-  void
+  IE,
+  void,
+  unknown,
+  Socket
 > => Channel.unwrap(Effect.map(Socket, toChannelWith<IE>()))
 
 /**
@@ -165,7 +158,7 @@ export interface WebSocket {
  * @since 1.0.0
  * @category tags
  */
-export const WebSocket: Context.Tag<WebSocket, globalThis.WebSocket> = Context.Tag(
+export const WebSocket: Context.Tag<WebSocket, globalThis.WebSocket> = Context.GenericTag(
   "@effect/experimental/Socket/WebSocket"
 )
 
@@ -173,9 +166,9 @@ export const WebSocket: Context.Tag<WebSocket, globalThis.WebSocket> = Context.T
  * @since 1.0.0
  * @category constructors
  */
-export const makeWebSocket = (url: string | Effect.Effect<never, never, string>, options?: {
+export const makeWebSocket = (url: string | Effect.Effect<string>, options?: {
   readonly closeCodeIsError?: (code: number) => boolean
-}): Effect.Effect<never, never, Socket> =>
+}): Effect.Effect<Socket> =>
   fromWebSocket(
     Effect.acquireRelease(
       Effect.map(
@@ -195,16 +188,16 @@ export const makeWebSocket = (url: string | Effect.Effect<never, never, string>,
  * @category constructors
  */
 export const fromWebSocket = (
-  acquire: Effect.Effect<Scope.Scope, SocketError, globalThis.WebSocket>,
+  acquire: Effect.Effect<globalThis.WebSocket, SocketError, Scope.Scope>,
   options?: {
     readonly closeCodeIsError?: (code: number) => boolean
   }
-): Effect.Effect<never, never, Socket> =>
+): Effect.Effect<Socket> =>
   Effect.gen(function*(_) {
     const closeCodeIsError = options?.closeCodeIsError ?? defaultCloseCodeIsError
     const sendQueue = yield* _(Queue.unbounded<Uint8Array>())
 
-    const run = <R, E, _>(handler: (_: Uint8Array) => Effect.Effect<R, E, _>) =>
+    const run = <R, E, _>(handler: (_: Uint8Array) => Effect.Effect<_, E, R>) =>
       Effect.gen(function*(_) {
         const ws = yield* _(acquire)
         const encoder = new TextEncoder()
@@ -227,7 +220,7 @@ export const fromWebSocket = (
         }
 
         if (ws.readyState !== IsoWebSocket.OPEN) {
-          yield* _(Effect.async<never, SocketError, void>((resume) => {
+          yield* _(Effect.async<void, SocketError, never>((resume) => {
             ws.onopen = () => {
               resume(Effect.unit)
             }
@@ -250,7 +243,7 @@ export const fromWebSocket = (
         )
 
         yield* _(
-          Effect.async<never, SocketError, void>((resume) => {
+          Effect.async<void, SocketError, never>((resume) => {
             ws.onclose = (event) => {
               if (closeCodeIsError(event.code)) {
                 resume(Effect.fail(new SocketError({ reason: "Close", error: event })))
@@ -284,15 +277,7 @@ export const makeWebSocketChannel = <IE = never>(
   options?: {
     readonly closeCodeIsError?: (code: number) => boolean
   }
-): Channel.Channel<
-  never,
-  IE,
-  Chunk.Chunk<Uint8Array>,
-  unknown,
-  SocketError | IE,
-  Chunk.Chunk<Uint8Array>,
-  void
-> =>
+): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, SocketError | IE, IE, void, unknown> =>
   Channel.unwrapScoped(
     Effect.map(makeWebSocket(url, options), toChannelWith<IE>())
   )
@@ -303,4 +288,4 @@ export const makeWebSocketChannel = <IE = never>(
  */
 export const layerWebSocket = (url: string, options?: {
   readonly closeCodeIsError?: (code: number) => boolean
-}): Layer.Layer<never, never, Socket> => Layer.scoped(Socket, makeWebSocket(url, options))
+}): Layer.Layer<Socket> => Layer.scoped(Socket, makeWebSocket(url, options))

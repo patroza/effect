@@ -253,7 +253,7 @@ export const fileParse: (config?: Args.FormatArgsConfig | undefined) => Args<unk
  * @category constructors
  */
 export const fileSchema: <I, A>(
-  schema: Schema<FileSystem | Path | Terminal, I, A>,
+  schema: Schema<A, I, FileSystem | Path | Terminal>,
   config?: Args.FormatArgsConfig | undefined
 ) => Args<A> = InternalArgs.fileSchema
 
@@ -333,8 +333,8 @@ export const map: {
  * @category mapping
  */
 export const mapEffect: {
-  <A, B>(f: (a: A) => Effect<FileSystem | Path | Terminal, HelpDoc, B>): (self: Args<A>) => Args<B>
-  <A, B>(self: Args<A>, f: (a: A) => Effect<FileSystem | Path | Terminal, HelpDoc, B>): Args<B>
+  <A, B>(f: (a: A) => Effect<B, HelpDoc, FileSystem | Path | Terminal>): (self: Args<A>) => Args<B>
+  <A, B>(self: Args<A>, f: (a: A) => Effect<B, HelpDoc, FileSystem | Path | Terminal>): Args<B>
 } = InternalArgs.mapEffect
 
 /**
@@ -404,12 +404,20 @@ export const validate: {
   (
     args: ReadonlyArray<string>,
     config: CliConfig
-  ): <A>(self: Args<A>) => Effect<FileSystem | Path | Terminal, ValidationError, [Array<string>, A]>
+  ): <A>(self: Args<A>) => Effect<
+    [Array<string>, A],
+    ValidationError,
+    FileSystem | Path | Terminal
+  >
   <A>(
     self: Args<A>,
     args: ReadonlyArray<string>,
     config: CliConfig
-  ): Effect<FileSystem | Path | Terminal, ValidationError, [Array<string>, A]>
+  ): Effect<
+    [Array<string>, A],
+    ValidationError,
+    FileSystem | Path | Terminal
+  >
 } = InternalArgs.validate
 
 /**
@@ -444,8 +452,8 @@ export const withDescription: {
  * @category combinators
  */
 export const withSchema: {
-  <A, I extends A, B>(schema: Schema<FileSystem | Path | Terminal, I, B>): (self: Args<A>) => Args<B>
-  <A, I extends A, B>(self: Args<A>, schema: Schema<FileSystem | Path | Terminal, I, B>): Args<B>
+  <A, I extends A, B>(schema: Schema<B, I, FileSystem | Path | Terminal>): (self: Args<A>) => Args<B>
+  <A, I extends A, B>(self: Args<A>, schema: Schema<B, I, FileSystem | Path | Terminal>): Args<B>
 } = InternalArgs.withSchema
 
 /**
@@ -455,9 +463,19 @@ export const withSchema: {
 export const wizard: {
   (
     config: CliConfig
-  ): <A>(self: Args<A>) => Effect<FileSystem | Path | Terminal, ValidationError | QuitException, Array<string>>
+  ): <A>(
+    self: Args<A>
+  ) => Effect<
+    Array<string>,
+    ValidationError | QuitException,
+    FileSystem | Path | Terminal
+  >
   <A>(
     self: Args<A>,
     config: CliConfig
-  ): Effect<FileSystem | Path | Terminal, ValidationError | QuitException, Array<string>>
+  ): Effect<
+    Array<string>,
+    ValidationError | QuitException,
+    FileSystem | Path | Terminal
+  >
 } = InternalArgs.wizard

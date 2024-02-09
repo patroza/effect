@@ -1,6 +1,6 @@
 import * as Brand from "effect/Brand"
 import * as Chunk from "effect/Chunk"
-import { Tag } from "effect/Context"
+import { GenericTag } from "effect/Context"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
 import * as Sink from "effect/Sink"
@@ -19,7 +19,7 @@ export const ExitCode = Brand.nominal<_CommandExecutor.ExitCode>()
 export const ProcessId = Brand.nominal<_CommandExecutor.Process.Id>()
 
 /** @internal */
-export const CommandExecutor = Tag<_CommandExecutor.CommandExecutor>("@effect/platform/CommandExecutor")
+export const CommandExecutor = GenericTag<_CommandExecutor.CommandExecutor>("@effect/platform/CommandExecutor")
 
 /** @internal */
 export const makeExecutor = (start: _CommandExecutor.CommandExecutor["start"]): _CommandExecutor.CommandExecutor => {
@@ -55,7 +55,7 @@ export const makeExecutor = (start: _CommandExecutor.CommandExecutor["start"]): 
   }
 }
 
-const collectUint8Array: Sink.Sink<never, never, Uint8Array, never, Uint8Array> = Sink.foldLeftChunks(
+const collectUint8Array: Sink.Sink<Uint8Array, Uint8Array> = Sink.foldLeftChunks(
   new Uint8Array(),
   (bytes, chunk: Chunk.Chunk<Uint8Array>) =>
     Chunk.reduce(chunk, bytes, (acc, curr) => {

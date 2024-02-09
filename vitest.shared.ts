@@ -24,15 +24,13 @@ const config: UserConfig = {
       ...alias("opentelemetry"),
       ...alias("platform"),
       ...alias("platform-node"),
+      ...alias("platform-node-shared"),
       ...alias("platform-bun"),
       ...alias("platform-browser"),
       ...alias("printer"),
       ...alias("printer-ansi"),
       ...alias("rpc"),
       ...alias("rpc-http"),
-      ...alias("rpc-http-node"),
-      ...alias("rpc-nextjs"),
-      ...alias("rpc-workers"),
       ...alias("schema"),
       ...alias("typeclass")
     }

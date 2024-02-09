@@ -13,7 +13,7 @@ const platformWorkerImpl = Worker.PlatformWorker.of({
       const worker = worker_ as WorkerThreads.Worker
       yield* _(Effect.addFinalizer(() =>
         pipe(
-          Effect.async<never, never, void>((resume) => {
+          Effect.async<void>((resume) => {
             worker.once("exit", () => {
               resume(Effect.unit)
             })
@@ -26,7 +26,7 @@ const platformWorkerImpl = Worker.PlatformWorker.of({
       const queue = yield* _(Queue.unbounded<Worker.BackingWorker.Message<O>>())
       yield* _(Effect.addFinalizer(() => Queue.shutdown(queue)))
       const fiber = yield* _(
-        Effect.async<never, WorkerError, never>((resume) => {
+        Effect.async<never, WorkerError>((resume) => {
           worker.on("message", (message: Worker.BackingWorker.Message<O>) => {
             queue.unsafeOffer(message)
           })
@@ -60,15 +60,8 @@ export const layerWorker = Layer.succeed(Worker.PlatformWorker, platformWorkerIm
 export const layerManager = Layer.provide(Worker.layerManager, layerWorker)
 
 /** @internal */
-export const makePool = Worker.makePool<WorkerThreads.Worker>()
-
-/** @internal */
-export const makePoolLayer = Worker.makePoolLayer<WorkerThreads.Worker>(layerManager)
-
-/** @internal */
-export const makePoolSerialized = Worker.makePoolSerialized<WorkerThreads.Worker>()
-
-/** @internal */
-export const makePoolSerializedLayer = Worker.makePoolSerializedLayer<WorkerThreads.Worker>(
-  layerManager
-)
+export const layer = (spawn: (id: number) => WorkerThreads.Worker) =>
+  Layer.merge(
+    layerManager,
+    Worker.layerSpawner(spawn)
+  )

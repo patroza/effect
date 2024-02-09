@@ -39,8 +39,8 @@ export const PlatformWorkerTypeId: Worker.PlatformWorkerTypeId = Symbol.for(
 ) as Worker.PlatformWorkerTypeId
 
 /** @internal */
-export const PlatformWorker = Context.Tag<Worker.PlatformWorker>(
-  PlatformWorkerTypeId
+export const PlatformWorker = Context.GenericTag<Worker.PlatformWorker>(
+  "@effect/platform/Worker/PlatformWorker"
 )
 
 /** @internal */
@@ -49,8 +49,13 @@ export const WorkerManagerTypeId: Worker.WorkerManagerTypeId = Symbol.for(
 ) as Worker.WorkerManagerTypeId
 
 /** @internal */
-export const WorkerManager = Context.Tag<Worker.WorkerManager>(
-  WorkerManagerTypeId
+export const WorkerManager = Context.GenericTag<Worker.WorkerManager>(
+  "@effect/platform/Worker/WorkerManager"
+)
+
+/** @internal */
+export const Spawner = Context.GenericTag<Worker.Spawner, Worker.SpawnerFn>(
+  "@effect/platform/Worker/Spawner"
 )
 
 /** @internal */
@@ -64,28 +69,37 @@ export const makeManager = Effect.gen(function*(_) {
       initialMessage,
       permits = 1,
       queue,
-      spawn,
       transfers = (_) => []
     }: Worker.Worker.Options<I>) {
       return Effect.gen(function*(_) {
+        const spawn = yield* _(Spawner)
         const id = idCounter++
         let requestIdCounter = 0
         const semaphore = yield* _(Effect.makeSemaphore(permits))
         const requestMap = new Map<
           number,
-          readonly [Queue.Queue<Exit.Exit<E | WorkerError, ReadonlyArray<O>>>, Deferred.Deferred<never, void>]
+          readonly [Queue.Queue<Exit.Exit<ReadonlyArray<O>, E | WorkerError>>, Deferred.Deferred<void>]
         >()
         const sendQueue = yield* _(Effect.acquireRelease(
           Queue.unbounded<readonly [message: Worker.Worker.Request, transfers?: ReadonlyArray<unknown>]>(),
           Queue.shutdown
         ))
 
+        const collector = Transferable.unsafeMakeCollector()
+        const wrappedEncode = encode ?
+          ((message: I) =>
+            Effect.zipRight(
+              collector.clear,
+              Effect.provideService(encode(message), Transferable.Collector, collector)
+            )) :
+          Effect.succeed
+
         const outbound = queue ?? (yield* _(defaultQueue<I>()))
         yield* _(Effect.addFinalizer(() => outbound.shutdown))
 
         yield* _(
           Effect.gen(function*(_) {
-            const readyLatch = yield* _(Deferred.make<never, void>())
+            const readyLatch = yield* _(Deferred.make<void>())
             const backing = yield* _(
               platform.spawn<Worker.Worker.Request, Worker.Worker.Response<E, O>>(spawn(id))
             )
@@ -172,8 +186,8 @@ export const makeManager = Effect.gen(function*(_) {
           Effect.tap(
             Effect.all([
               Effect.sync(() => requestIdCounter++),
-              Queue.unbounded<Exit.Exit<E | WorkerError, ReadonlyArray<O>>>(),
-              Deferred.make<never, void>(),
+              Queue.unbounded<Exit.Exit<ReadonlyArray<O>, E | WorkerError>>(),
+              Deferred.make<void>(),
               Effect.map(
                 Effect.serviceOption(Tracer.ParentSpan),
                 Option.filter((span): span is Tracer.Span => span._tag === "Span")
@@ -189,8 +203,8 @@ export const makeManager = Effect.gen(function*(_) {
         const executeRelease = (
           [id, , deferred]: [
             number,
-            Queue.Queue<Exit.Exit<E | WorkerError, ReadonlyArray<O>>>,
-            Deferred.Deferred<never, void>,
+            Queue.Queue<Exit.Exit<ReadonlyArray<O>, E | WorkerError>>,
+            Deferred.Deferred<void>,
             Option.Option<Tracer.Span>
           ],
           exit: Exit.Exit<unknown, unknown>
@@ -211,8 +225,8 @@ export const makeManager = Effect.gen(function*(_) {
               executeRelease
             ),
             ([, queue]) => {
-              const loop: Channel.Channel<never, unknown, unknown, unknown, E | WorkerError, Chunk.Chunk<O>, void> =
-                Channel.flatMap(
+              const loop: Channel.Channel<Chunk.Chunk<O>, unknown, E | WorkerError, unknown, void, unknown> = Channel
+                .flatMap(
                   Queue.take(queue),
                   Exit.match({
                     onFailure: (cause) => Cause.isEmpty(cause) ? Channel.unit : Channel.failCause(cause),
@@ -244,8 +258,12 @@ export const makeManager = Effect.gen(function*(_) {
                 )
                 return pipe(
                   Effect.flatMap(
-                    encode ? encode(request) : Effect.succeed(request),
-                    (payload) => sendQueue.offer([[id, 0, payload, spanTuple], transferables])
+                    wrappedEncode(request),
+                    (payload) =>
+                      sendQueue.offer([[id, 0, payload, spanTuple], [
+                        ...transferables,
+                        ...collector.unsafeRead()
+                      ]])
                   ),
                   Effect.catchAllCause((cause) => Queue.offer(result[0], Exit.failCause(cause))),
                   Effect.zipRight(Deferred.await(result[1]))
@@ -278,9 +296,8 @@ export const makeManager = Effect.gen(function*(_) {
 export const layerManager = Layer.effect(WorkerManager, makeManager)
 
 /** @internal */
-export const makePool = <W>() =>
-<I, E, O>(
-  options: Worker.WorkerPool.Options<I, W>
+export const makePool = <I, E, O>(
+  options: Worker.WorkerPool.Options<I>
 ) =>
   Effect.gen(function*(_) {
     const manager = yield* _(WorkerManager)
@@ -329,27 +346,22 @@ export const makePool = <W>() =>
   })
 
 /** @internal */
-export const makePoolLayer = <W>(managerLayer: Layer.Layer<never, never, Worker.WorkerManager>) =>
-<Tag, I, E, O>(
+export const makePoolLayer = <Tag, I, E, O>(
   tag: Context.Tag<Tag, Worker.WorkerPool<I, E, O>>,
-  options: Worker.WorkerPool.Options<I, W>
-) => Layer.scoped(tag, makePool<W>()(options)).pipe(Layer.provide(managerLayer))
+  options: Worker.WorkerPool.Options<I>
+) => Layer.scoped(tag, makePool(options))
 
 /** @internal */
 export const makeSerialized = <
-  I extends Schema.TaggedRequest.Any,
-  W = unknown
+  I extends Schema.TaggedRequest.Any
 >(
-  options: Worker.SerializedWorker.Options<I, W>
-): Effect.Effect<Worker.WorkerManager | Scope.Scope, WorkerError, Worker.SerializedWorker<I>> =>
+  options: Worker.SerializedWorker.Options<I>
+): Effect.Effect<Worker.SerializedWorker<I>, WorkerError, Worker.WorkerManager | Worker.Spawner | Scope.Scope> =>
   Effect.gen(function*(_) {
     const manager = yield* _(WorkerManager)
     const backing = yield* _(
       manager.spawn({
         ...options as any,
-        transfers(message) {
-          return Transferable.get(message)
-        },
         encode(message) {
           return Effect.mapError(Serializable.serialize(message as any), (error) => WorkerError("encode", error))
         }
@@ -380,15 +392,14 @@ export const makeSerialized = <
   })
 
 /** @internal */
-export const makePoolSerialized = <W>() =>
-<I extends Schema.TaggedRequest.Any>(
-  options: Worker.SerializedWorkerPool.Options<I, W>
+export const makePoolSerialized = <I extends Schema.TaggedRequest.Any>(
+  options: Worker.SerializedWorkerPool.Options<I>
 ) =>
   Effect.gen(function*(_) {
     const manager = yield* _(WorkerManager)
     const workers = new Set<Worker.SerializedWorker<I>>()
     const acquire = pipe(
-      makeSerialized<I, W>(options),
+      makeSerialized<I>(options),
       Effect.tap((worker) => Effect.sync(() => workers.add(worker))),
       Effect.tap((worker) => Effect.addFinalizer(() => Effect.sync(() => workers.delete(worker)))),
       options.onCreate ? Effect.tap(options.onCreate) : identity,
@@ -432,9 +443,14 @@ export const makePoolSerialized = <W>() =>
   })
 
 /** @internal */
-export const makePoolSerializedLayer =
-  <W>(managerLayer: Layer.Layer<never, never, Worker.WorkerManager>) =>
-  <Tag, I extends Schema.TaggedRequest.Any>(
-    tag: Context.Tag<Tag, Worker.SerializedWorkerPool<I>>,
-    options: Worker.SerializedWorkerPool.Options<I, W>
-  ) => Layer.scoped(tag, makePoolSerialized<W>()(options)).pipe(Layer.provide(managerLayer))
+export const makePoolSerializedLayer = <Tag, I extends Schema.TaggedRequest.Any>(
+  tag: Context.Tag<Tag, Worker.SerializedWorkerPool<I>>,
+  options: Worker.SerializedWorkerPool.Options<I>
+) => Layer.scoped(tag, makePoolSerialized(options))
+
+/** @internal */
+export const layerSpawner = <W = unknown>(spawner: Worker.SpawnerFn<W>) =>
+  Layer.succeed(
+    Spawner,
+    spawner
+  )

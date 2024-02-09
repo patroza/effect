@@ -20,9 +20,9 @@ interface STMEnv {
   readonly ref: TRef.TRef<number>
 }
 
-const STMEnv = Context.Tag<STMEnv>()
+const STMEnv = Context.GenericTag<STMEnv>("STMEnv")
 
-const makeSTMEnv = (n: number): Effect.Effect<never, never, STMEnv> =>
+const makeSTMEnv = (n: number): Effect.Effect<STMEnv> =>
   pipe(
     TRef.make(n),
     Effect.map((ref) => ({ ref }))
@@ -33,7 +33,7 @@ class UnpureBarrier {
   open(): void {
     this.#isOpen = true
   }
-  await(): Effect.Effect<never, never, unknown> {
+  await(): Effect.Effect<unknown> {
     return Effect.async((cb) => {
       const check = () => {
         if (this.#isOpen) {
@@ -51,9 +51,9 @@ class UnpureBarrier {
 
 const chain = (depth: number) =>
 (
-  next: (stm: STM.STM<never, never, number>) => STM.STM<never, never, number>
-): Effect.Effect<never, never, number> => {
-  const loop = (_n: number, _acc: STM.STM<never, never, number>): Effect.Effect<never, never, number> => {
+  next: (stm: STM.STM<number>) => STM.STM<number>
+): Effect.Effect<number> => {
+  const loop = (_n: number, _acc: STM.STM<number>): Effect.Effect<number> => {
     let n = _n
     let acc = _acc
     while (n > 0) {
@@ -65,8 +65,8 @@ const chain = (depth: number) =>
   return loop(depth, STM.succeed(0))
 }
 
-const chainError = (depth: number): Effect.Effect<never, number, never> => {
-  const loop = (_n: number, _acc: STM.STM<never, number, never>): Effect.Effect<never, number, never> => {
+const chainError = (depth: number): Effect.Effect<never, number> => {
+  const loop = (_n: number, _acc: STM.STM<never, number, never>): Effect.Effect<never, number> => {
     let n = _n
     let acc = _acc
     while (n > 0) {
@@ -78,7 +78,7 @@ const chainError = (depth: number): Effect.Effect<never, number, never> => {
   return loop(depth, STM.fail(0))
 }
 
-const incrementTRefN = (n: number, ref: TRef.TRef<number>): Effect.Effect<never, never, number> =>
+const incrementTRefN = (n: number, ref: TRef.TRef<number>): Effect.Effect<number> =>
   pipe(
     TRef.get(ref),
     STM.tap((n) => pipe(ref, TRef.set(n + 1))),
@@ -91,7 +91,7 @@ const transfer = (
   receiver: TRef.TRef<number>,
   sender: TRef.TRef<number>,
   much: number
-): Effect.Effect<never, never, number> =>
+): Effect.Effect<number> =>
   pipe(
     TRef.get(sender),
     STM.tap((balance) => STM.check(() => balance >= much)),
@@ -106,7 +106,7 @@ const compute3TRefN = (
   ref1: TRef.TRef<number>,
   ref2: TRef.TRef<number>,
   ref3: TRef.TRef<number>
-): Effect.Effect<never, never, number> =>
+): Effect.Effect<number> =>
   pipe(
     STM.all([TRef.get(ref1), TRef.get(ref2)]),
     STM.tap(([v1, v2]) => pipe(ref3, TRef.set(v1 + v2))),
@@ -127,7 +127,7 @@ const compute3TRefN = (
     Effect.repeatN(n)
   )
 
-const permutation = (ref1: TRef.TRef<number>, ref2: TRef.TRef<number>): STM.STM<never, never, void> =>
+const permutation = (ref1: TRef.TRef<number>, ref2: TRef.TRef<number>): STM.STM<void> =>
   pipe(
     STM.all([TRef.get(ref1), TRef.get(ref2)]),
     STM.flatMap(([a, b]) =>
@@ -514,7 +514,7 @@ describe("STM", () => {
   it.effect("mergeAll - return zero element on empty input", () =>
     Effect.gen(function*($) {
       const transaction = pipe(
-        Chunk.empty<STM.STM<never, never, number>>(),
+        Chunk.empty<STM.STM<number>>(),
         STM.mergeAll(42, () => 43)
       )
       const result = yield* $(STM.commit(transaction))
@@ -534,7 +534,7 @@ describe("STM", () => {
   it.effect("mergeAll - return error if it exists in list", () =>
     Effect.gen(function*($) {
       const transaction = pipe(
-        [STM.unit, STM.fail(1)] as Array<STM.STM<never, number, void>>,
+        [STM.unit, STM.fail(1)] as Array<STM.STM<void, number>>,
         STM.mergeAll(void 0 as void, constVoid)
       )
       const result = yield* $(Effect.exit(STM.commit(transaction)))
@@ -804,7 +804,7 @@ describe("STM", () => {
   it.effect("reduceAll - empty iterable", () =>
     Effect.gen(function*($) {
       const transaction = pipe(
-        Chunk.empty<STM.STM<never, never, number>>(),
+        Chunk.empty<STM.STM<number>>(),
         STM.reduceAll(STM.succeed(1), (a, b) => a + b)
       )
       const result = yield* $(STM.commit(transaction))
@@ -993,8 +993,8 @@ describe("STM", () => {
   it.effect("tapBoth - applies the function to success values preserving the original result", () =>
     Effect.gen(function*($) {
       const transaction = STM.gen(function*($) {
-        const tapSuccess = yield* $(TDeferred.make<never, number>())
-        const tapError = yield* $(TDeferred.make<never, string>())
+        const tapSuccess = yield* $(TDeferred.make<number>())
+        const tapError = yield* $(TDeferred.make<string>())
         const result = yield* $(pipe(
           STM.succeed(42),
           STM.tapBoth({
@@ -1012,8 +1012,8 @@ describe("STM", () => {
   it.effect("tapBoth - applies the function to error values preserving the original error", () =>
     Effect.gen(function*($) {
       const transaction = STM.gen(function*($) {
-        const tapSuccess = yield* $(TDeferred.make<never, number>())
-        const tapError = yield* $(TDeferred.make<never, string>())
+        const tapSuccess = yield* $(TDeferred.make<number>())
+        const tapError = yield* $(TDeferred.make<string>())
         const result = yield* $(pipe(
           STM.fail("error"),
           STM.tapBoth({
@@ -1032,7 +1032,7 @@ describe("STM", () => {
   it.effect("tapError - should apply the function to the error result preserving the original error", () =>
     Effect.gen(function*($) {
       const transaction = STM.gen(function*($) {
-        const errorRef = yield* $(TDeferred.make<never, string>())
+        const errorRef = yield* $(TDeferred.make<string>())
         const result = yield* $(pipe(
           STM.fail("error"),
           STM.zipRight(STM.succeed(0)),
@@ -1359,7 +1359,7 @@ describe("STM", () => {
   it.effect("condition locks - resume after satisfying the condition", () => {
     const barrier = new UnpureBarrier()
     return Effect.gen(function*($) {
-      const done = yield* $(Deferred.make<never, void>())
+      const done = yield* $(Deferred.make<void>())
       const ref1 = yield* $(TRef.make(0))
       const ref2 = yield* $(TRef.make("failed"))
       const transaction = pipe(

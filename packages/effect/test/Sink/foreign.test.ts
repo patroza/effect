@@ -10,12 +10,12 @@ import * as Stream from "effect/Stream"
 import { unify } from "effect/Unify"
 import { assert, describe } from "vitest"
 
-const runSink = <R, E, A>(sink: Sink.Sink<R, E, unknown, unknown, A>) => Stream.run(Effect.unit, sink)
+const runSink = <A, E, R>(sink: Sink.Sink<A, unknown, unknown, E, R>) => Stream.run(Effect.unit, sink)
 
 describe("Channel.Foreign", () => {
   it.effect("Tag", () =>
     Effect.gen(function*($) {
-      const tag = Context.Tag<number>()
+      const tag = Context.GenericTag<number>("number")
       const result = yield* $(tag, runSink, Effect.provideService(tag, 10))
       assert.deepEqual(result, 10)
     }))

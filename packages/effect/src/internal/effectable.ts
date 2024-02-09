@@ -35,15 +35,15 @@ export const effectVariance = {
 
 const sinkVariance = {
   /* c8 ignore next */
-  _R: (_: never) => _,
-  /* c8 ignore next */
-  _E: (_: never) => _,
+  _A: (_: never) => _,
   /* c8 ignore next */
   _In: (_: unknown) => _,
   /* c8 ignore next */
   _L: (_: never) => _,
   /* c8 ignore next */
-  _Z: (_: never) => _
+  _E: (_: never) => _,
+  /* c8 ignore next */
+  _R: (_: never) => _
 }
 
 const channelVariance = {
@@ -64,7 +64,7 @@ const channelVariance = {
 }
 
 /** @internal */
-export const EffectPrototype: Effect.Effect<never, never, never> = {
+export const EffectPrototype: Effect.Effect<never> & Equal.Equal = {
   [EffectTypeId]: effectVariance,
   [StreamTypeId]: effectVariance,
   [SinkTypeId]: sinkVariance,
@@ -101,13 +101,13 @@ export const StructuralPrototype: Equal.Equal = {
 }
 
 /** @internal */
-export const CommitPrototype: Effect.Effect<never, never, never> = {
+export const CommitPrototype: Effect.Effect<never> = {
   ...EffectPrototype,
   _op: OpCodes.OP_COMMIT
 } as any
 
 /** @internal */
-export const StructuralCommitPrototype: Effect.Effect<never, never, never> = {
+export const StructuralCommitPrototype: Effect.Effect<never> = {
   ...CommitPrototype,
   ...StructuralPrototype
 } as any

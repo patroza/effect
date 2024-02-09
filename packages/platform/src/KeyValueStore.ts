@@ -33,27 +33,27 @@ export interface KeyValueStore {
   /**
    * Returns the value of the specified key if it exists.
    */
-  readonly get: (key: string) => Effect.Effect<never, PlatformError.PlatformError, Option.Option<string>>
+  readonly get: (key: string) => Effect.Effect<Option.Option<string>, PlatformError.PlatformError>
 
   /**
    * Sets the value of the specified key.
    */
-  readonly set: (key: string, value: string) => Effect.Effect<never, PlatformError.PlatformError, void>
+  readonly set: (key: string, value: string) => Effect.Effect<void, PlatformError.PlatformError>
 
   /**
    * Removes the specified key.
    */
-  readonly remove: (key: string) => Effect.Effect<never, PlatformError.PlatformError, void>
+  readonly remove: (key: string) => Effect.Effect<void, PlatformError.PlatformError>
 
   /**
    * Removes all entries.
    */
-  readonly clear: Effect.Effect<never, PlatformError.PlatformError, void>
+  readonly clear: Effect.Effect<void, PlatformError.PlatformError>
 
   /**
    * Returns the number of entries.
    */
-  readonly size: Effect.Effect<never, PlatformError.PlatformError, number>
+  readonly size: Effect.Effect<number, PlatformError.PlatformError>
 
   /**
    * Updates the value of the specified key if it exists.
@@ -61,22 +61,22 @@ export interface KeyValueStore {
   readonly modify: (
     key: string,
     f: (value: string) => string
-  ) => Effect.Effect<never, PlatformError.PlatformError, Option.Option<string>>
+  ) => Effect.Effect<Option.Option<string>, PlatformError.PlatformError>
 
   /**
    * Returns true if the KeyValueStore contains the specified key.
    */
-  readonly has: (key: string) => Effect.Effect<never, PlatformError.PlatformError, boolean>
+  readonly has: (key: string) => Effect.Effect<boolean, PlatformError.PlatformError>
 
   /**
    * Checks if the KeyValueStore contains any entries.
    */
-  readonly isEmpty: Effect.Effect<never, PlatformError.PlatformError, boolean>
+  readonly isEmpty: Effect.Effect<boolean, PlatformError.PlatformError>
 
   /**
    * Create a SchemaStore for the specified schema.
    */
-  readonly forSchema: <R, I, A>(schema: Schema.Schema<R, I, A>) => SchemaStore<R, A>
+  readonly forSchema: <A, I, R>(schema: Schema.Schema<A, I, R>) => SchemaStore<R, A>
 }
 
 /**
@@ -116,7 +116,7 @@ export const prefix: {
  * @since 1.0.0
  * @category layers
  */
-export const layerMemory: Layer.Layer<never, never, KeyValueStore> = internal.layerMemory
+export const layerMemory: Layer.Layer<KeyValueStore> = internal.layerMemory
 
 /**
  * @since 1.0.0
@@ -124,7 +124,7 @@ export const layerMemory: Layer.Layer<never, never, KeyValueStore> = internal.la
  */
 export const layerFileSystem: (
   directory: string
-) => Layer.Layer<FileSystem.FileSystem | Path.Path, PlatformError.PlatformError, KeyValueStore> =
+) => Layer.Layer<KeyValueStore, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =
   internal.layerFileSystem
 
 /**
@@ -150,7 +150,7 @@ export interface SchemaStore<R, A> {
    */
   readonly get: (
     key: string
-  ) => Effect.Effect<R, PlatformError.PlatformError | ParseResult.ParseError, Option.Option<A>>
+  ) => Effect.Effect<Option.Option<A>, PlatformError.PlatformError | ParseResult.ParseError, R>
 
   /**
    * Sets the value of the specified key.
@@ -158,22 +158,22 @@ export interface SchemaStore<R, A> {
   readonly set: (
     key: string,
     value: A
-  ) => Effect.Effect<R, PlatformError.PlatformError | ParseResult.ParseError, void>
+  ) => Effect.Effect<void, PlatformError.PlatformError | ParseResult.ParseError, R>
 
   /**
    * Removes the specified key.
    */
-  readonly remove: (key: string) => Effect.Effect<never, PlatformError.PlatformError, void>
+  readonly remove: (key: string) => Effect.Effect<void, PlatformError.PlatformError>
 
   /**
    * Removes all entries.
    */
-  readonly clear: Effect.Effect<never, PlatformError.PlatformError, void>
+  readonly clear: Effect.Effect<void, PlatformError.PlatformError>
 
   /**
    * Returns the number of entries.
    */
-  readonly size: Effect.Effect<never, PlatformError.PlatformError, number>
+  readonly size: Effect.Effect<number, PlatformError.PlatformError>
 
   /**
    * Updates the value of the specified key if it exists.
@@ -181,27 +181,27 @@ export interface SchemaStore<R, A> {
   readonly modify: (
     key: string,
     f: (value: A) => A
-  ) => Effect.Effect<R, PlatformError.PlatformError | ParseResult.ParseError, Option.Option<A>>
+  ) => Effect.Effect<Option.Option<A>, PlatformError.PlatformError | ParseResult.ParseError, R>
 
   /**
    * Returns true if the KeyValueStore contains the specified key.
    */
-  readonly has: (key: string) => Effect.Effect<never, PlatformError.PlatformError, boolean>
+  readonly has: (key: string) => Effect.Effect<boolean, PlatformError.PlatformError>
 
   /**
    * Checks if the KeyValueStore contains any entries.
    */
-  readonly isEmpty: Effect.Effect<never, PlatformError.PlatformError, boolean>
+  readonly isEmpty: Effect.Effect<boolean, PlatformError.PlatformError>
 }
 
 /**
  * @since 1.0.0
  * @category layers
  */
-export const layerSchema: <R, I, A>(
-  schema: Schema.Schema<R, I, A>,
-  tagIdentifier?: unknown
+export const layerSchema: <A, I, R>(
+  schema: Schema.Schema<A, I, R>,
+  tagIdentifier: string
 ) => {
   readonly tag: Context.Tag<SchemaStore<R, A>, SchemaStore<R, A>>
-  readonly layer: Layer.Layer<KeyValueStore, never, SchemaStore<R, A>>
+  readonly layer: Layer.Layer<SchemaStore<R, A>, never, KeyValueStore>
 } = internal.layerSchema

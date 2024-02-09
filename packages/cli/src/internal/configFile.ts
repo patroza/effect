@@ -23,7 +23,7 @@ const allFileExtensions = Object.values(fileExtensions).flat()
 export const makeProvider = (fileName: string, options?: {
   readonly formats?: ReadonlyArray<ConfigFile.Kind>
   readonly searchPaths?: ReadonlyArray<string>
-}): Effect.Effect<Path.Path | FileSystem.FileSystem, ConfigFile.ConfigFileError, ConfigProvider.ConfigProvider> =>
+}): Effect.Effect<ConfigProvider.ConfigProvider, ConfigFile.ConfigFileError, Path.Path | FileSystem.FileSystem> =>
   Effect.gen(function*(_) {
     const path = yield* _(Path.Path)
     const fs = yield* _(FileSystem.FileSystem)
@@ -61,7 +61,7 @@ export const makeProvider = (fileName: string, options?: {
 export const layer = (fileName: string, options?: {
   readonly formats?: ReadonlyArray<ConfigFile.Kind>
   readonly searchPaths?: ReadonlyArray<string>
-}): Layer.Layer<Path.Path | FileSystem.FileSystem, ConfigFile.ConfigFileError, never> =>
+}): Layer.Layer<never, ConfigFile.ConfigFileError, Path.Path | FileSystem.FileSystem> =>
   pipe(
     makeProvider(fileName, options),
     Effect.map((provider) =>

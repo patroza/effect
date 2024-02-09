@@ -39,7 +39,7 @@ export const env: {
 /** @internal */
 export const exitCode = (
   self: Command.Command
-): Effect.Effect<CommandExecutor.CommandExecutor, PlatformError, CommandExecutor.ExitCode> =>
+): Effect.Effect<CommandExecutor.ExitCode, PlatformError, CommandExecutor.CommandExecutor> =>
   Effect.flatMap(commandExecutor.CommandExecutor, (executor) => executor.exitCode(self))
 
 /** @internal */
@@ -91,7 +91,7 @@ export const runInShell = dual<
 export const lines = (
   command: Command.Command,
   encoding = "utf-8"
-): Effect.Effect<CommandExecutor.CommandExecutor, PlatformError, ReadonlyArray<string>> =>
+): Effect.Effect<ReadonlyArray<string>, PlatformError, CommandExecutor.CommandExecutor> =>
   Effect.flatMap(commandExecutor.CommandExecutor, (executor) => executor.lines(command, encoding))
 
 /** @internal */
@@ -192,27 +192,27 @@ export const stdout: {
 /** @internal */
 export const start = (
   command: Command.Command
-): Effect.Effect<CommandExecutor.CommandExecutor | Scope, PlatformError, CommandExecutor.Process> =>
+): Effect.Effect<CommandExecutor.Process, PlatformError, CommandExecutor.CommandExecutor | Scope> =>
   Effect.flatMap(commandExecutor.CommandExecutor, (executor) => executor.start(command))
 
 /** @internal */
 export const stream = (
   command: Command.Command
-): Stream.Stream<CommandExecutor.CommandExecutor, PlatformError, Uint8Array> =>
+): Stream.Stream<Uint8Array, PlatformError, CommandExecutor.CommandExecutor> =>
   Stream.flatMap(commandExecutor.CommandExecutor, (process) => process.stream(command))
 
 /** @internal */
 export const streamLines = (
   command: Command.Command
-): Stream.Stream<CommandExecutor.CommandExecutor, PlatformError, string> =>
+): Stream.Stream<string, PlatformError, CommandExecutor.CommandExecutor> =>
   Stream.flatMap(commandExecutor.CommandExecutor, (process) => process.streamLines(command))
 
 /** @internal */
 export const string = dual<
   (
     encoding?: string
-  ) => (command: Command.Command) => Effect.Effect<CommandExecutor.CommandExecutor, PlatformError, string>,
-  (command: Command.Command, encoding?: string) => Effect.Effect<CommandExecutor.CommandExecutor, PlatformError, string>
+  ) => (command: Command.Command) => Effect.Effect<string, PlatformError, CommandExecutor.CommandExecutor>,
+  (command: Command.Command, encoding?: string) => Effect.Effect<string, PlatformError, CommandExecutor.CommandExecutor>
 >(
   (args) => isCommand(args[0]),
   (command, encoding) =>

@@ -1,4 +1,4 @@
-import * as NodeClient from "@effect/platform-node/Http/NodeClient"
+import * as NodeClient from "@effect/platform-node/NodeHttpClient"
 import * as Http from "@effect/platform/HttpClient"
 import * as Schema from "@effect/schema/Schema"
 import * as Context from "effect/Context"
@@ -33,7 +33,7 @@ const makeJsonPlaceholder = Effect.gen(function*(_) {
   } as const
 })
 interface JsonPlaceholder extends Effect.Effect.Success<typeof makeJsonPlaceholder> {}
-const JsonPlaceholder = Context.Tag<JsonPlaceholder>()
+const JsonPlaceholder = Context.GenericTag<JsonPlaceholder>("test/JsonPlaceholder")
 const JsonPlaceholderLive = Layer.provide(
   Layer.effect(JsonPlaceholder, makeJsonPlaceholder),
   NodeClient.layer
@@ -101,7 +101,8 @@ describe("HttpClient", () => {
         client,
         Effect.flatMap((_) => _.text),
         Effect.timeout(1),
-        Effect.optionFromOptional
+        Effect.asSome,
+        Effect.catchTag("TimeoutException", () => Effect.succeedNone)
       )
       expect(response._tag).toEqual("None")
     }).pipe(Effect.provide(NodeClient.layer), Effect.runPromise))

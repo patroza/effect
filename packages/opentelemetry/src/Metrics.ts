@@ -13,7 +13,7 @@ import type { Resource } from "./Resource.js"
  * @since 1.0.0
  * @category producer
  */
-export const makeProducer: Effect.Effect<Resource, never, MetricProducer> = internal.makeProducer
+export const makeProducer: Effect.Effect<MetricProducer, never, Resource> = internal.makeProducer
 
 /**
  * @since 1.0.0
@@ -22,10 +22,10 @@ export const makeProducer: Effect.Effect<Resource, never, MetricProducer> = inte
 export const registerProducer: (
   self: MetricProducer,
   metricReader: LazyArg<MetricReader>
-) => Effect.Effect<Scope.Scope, never, MetricReader> = internal.registerProducer
+) => Effect.Effect<MetricReader, never, Scope.Scope> = internal.registerProducer
 
 /**
  * @since 1.0.0
  * @category layers
  */
-export const layer: (evaluate: LazyArg<MetricReader>) => Layer<Resource, never, never> = internal.layer
+export const layer: (evaluate: LazyArg<MetricReader>) => Layer<never, never, Resource> = internal.layer

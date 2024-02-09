@@ -8,15 +8,29 @@ interface NumberService {
   readonly n: number
 }
 
-const NumberService = Context.Tag<NumberService>()
+const NumberService = Context.GenericTag<NumberService>("NumberService")
 
 interface StringService {
   readonly s: string
 }
 
-const StringService = Context.Tag<StringService>()
+const StringService = Context.GenericTag<StringService>("StringService")
+
+class NumberRepo extends Context.Tag("NumberRepo")<NumberRepo, {
+  readonly numbers: Array<number>
+}>() {
+  static numbers = Effect.serviceConstants(NumberRepo).numbers
+}
 
 describe("Effect", () => {
+  it.effect("class tag", () =>
+    Effect.gen(function*($) {
+      yield* $(
+        Effect.flatMap(NumberRepo.numbers, (_) => Effect.log(`Numbers: ${_}`)).pipe(
+          Effect.provideService(NumberRepo, { numbers: [0, 1, 2] })
+        )
+      )
+    }))
   it.effect("environment - provide is modular", () =>
     pipe(
       Effect.gen(function*($) {
@@ -49,7 +63,7 @@ describe("Effect", () => {
   it.effect("environment - async can use environment", () =>
     Effect.gen(function*($) {
       const result = yield* $(
-        Effect.async<NumberService, never, number>((cb) => cb(Effect.map(NumberService, ({ n }) => n))),
+        Effect.async<number, never, NumberService>((cb) => cb(Effect.map(NumberService, ({ n }) => n))),
         Effect.provide(Context.make(NumberService, { n: 10 }))
       )
       assert.strictEqual(result, 10)
@@ -84,9 +98,9 @@ describe("Effect", () => {
 
   it.effect("serviceFunctions - expose service functions", () => {
     interface Service {
-      foo: (x: string, y: number) => Effect.Effect<never, never, string>
+      foo: (x: string, y: number) => Effect.Effect<string>
     }
-    const Service = Context.Tag<Service>()
+    const Service = Context.GenericTag<Service>("Service")
     const { foo } = Effect.serviceFunctions(Service)
     return pipe(
       Effect.gen(function*(_) {
@@ -103,9 +117,9 @@ describe("Effect", () => {
 
   it.effect("serviceConstants - expose service constants", () => {
     interface Service {
-      baz: Effect.Effect<never, never, string>
+      baz: Effect.Effect<string>
     }
-    const Service = Context.Tag<Service>()
+    const Service = Context.GenericTag<Service>("Service")
     const { baz } = Effect.serviceConstants(Service)
     return pipe(
       Effect.gen(function*(_) {
@@ -122,10 +136,10 @@ describe("Effect", () => {
 
   it.effect("serviceMembers - expose both service functions and constants", () => {
     interface Service {
-      foo: (x: string, y: number) => Effect.Effect<never, never, string>
-      baz: Effect.Effect<never, never, string>
+      foo: (x: string, y: number) => Effect.Effect<string>
+      baz: Effect.Effect<string>
     }
-    const Service = Context.Tag<Service>()
+    const Service = Context.GenericTag<Service>("Service")
     const { constants, functions } = Effect.serviceMembers(Service)
     return pipe(
       Effect.gen(function*(_) {

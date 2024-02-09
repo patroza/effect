@@ -6,7 +6,7 @@ import * as FiberRef from "effect/FiberRef"
 import * as Option from "effect/Option"
 import type * as Stream from "effect/Stream"
 import type * as Http from "node:http"
-import * as NodeStream from "../../Stream.js"
+import * as NodeStream from "../../NodeStream.js"
 
 /** @internal */
 export class IncomingMessageImpl<E> implements IncomingMessage.IncomingMessage<E> {
@@ -28,8 +28,8 @@ export class IncomingMessageImpl<E> implements IncomingMessage.IncomingMessage<E
     return Option.fromNullable(this.remoteAddressOverride ?? this.source.socket.remoteAddress)
   }
 
-  private textEffect: Effect.Effect<never, E, string> | undefined
-  get text(): Effect.Effect<never, E, string> {
+  private textEffect: Effect.Effect<string, E> | undefined
+  get text(): Effect.Effect<string, E> {
     if (this.textEffect) {
       return this.textEffect
     }
@@ -46,14 +46,14 @@ export class IncomingMessageImpl<E> implements IncomingMessage.IncomingMessage<E
     return this.textEffect
   }
 
-  get json(): Effect.Effect<never, E, unknown> {
+  get json(): Effect.Effect<unknown, E> {
     return Effect.tryMap(this.text, {
       try: (_) => _ === "" ? null : JSON.parse(_) as unknown,
       catch: this.onError
     })
   }
 
-  get urlParamsBody(): Effect.Effect<never, E, UrlParams.UrlParams> {
+  get urlParamsBody(): Effect.Effect<UrlParams.UrlParams, E> {
     return Effect.flatMap(this.text, (_) =>
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
@@ -61,14 +61,14 @@ export class IncomingMessageImpl<E> implements IncomingMessage.IncomingMessage<E
       }))
   }
 
-  get stream(): Stream.Stream<never, E, Uint8Array> {
+  get stream(): Stream.Stream<Uint8Array, E> {
     return NodeStream.fromReadable<E, Uint8Array>(
       () => this.source,
       this.onError
     )
   }
 
-  get arrayBuffer(): Effect.Effect<never, E, ArrayBuffer> {
+  get arrayBuffer(): Effect.Effect<ArrayBuffer, E> {
     return Effect.flatMap(
       FiberRef.get(IncomingMessage.maxBodySize),
       (maxBodySize) =>

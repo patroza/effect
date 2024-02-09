@@ -15,7 +15,7 @@ import * as internalBody from "./body.js"
 /** @internal */
 export const TypeId: ServerResponse.TypeId = Symbol.for("@effect/platform/Http/ServerResponse") as ServerResponse.TypeId
 
-class ServerResponseImpl extends Effectable.StructuralClass<never, never, ServerResponse.ServerResponse>
+class ServerResponseImpl extends Effectable.StructuralClass<ServerResponse.ServerResponse>
   implements ServerResponse.ServerResponse
 {
   readonly [TypeId]: ServerResponse.TypeId
@@ -42,7 +42,7 @@ class ServerResponseImpl extends Effectable.StructuralClass<never, never, Server
     }
   }
 
-  commit(): Effect.Effect<never, never, ServerResponse.ServerResponse> {
+  commit(): Effect.Effect<ServerResponse.ServerResponse> {
     return Effect.succeed(this)
   }
 
@@ -95,7 +95,7 @@ export const text = (body: string, options?: ServerResponse.Options.WithContentT
 export const json = (
   body: unknown,
   options?: ServerResponse.Options.WithContent
-): Effect.Effect<never, Body.BodyError, ServerResponse.ServerResponse> =>
+): Effect.Effect<ServerResponse.ServerResponse, Body.BodyError> =>
   Effect.map(internalBody.json(body), (body) =>
     new ServerResponseImpl(
       options?.status ?? 200,
@@ -117,14 +117,14 @@ export const unsafeJson = (
   )
 
 /** @internal */
-export const schemaJson = <R, I, A>(
-  schema: Schema.Schema<R, I, A>
+export const schemaJson = <A, I, R>(
+  schema: Schema.Schema<A, I, R>
 ) => {
   const encode = internalBody.jsonSchema(schema)
   return (
     body: A,
     options?: ServerResponse.Options.WithContent
-  ): Effect.Effect<R, Body.BodyError, ServerResponse.ServerResponse> =>
+  ): Effect.Effect<ServerResponse.ServerResponse, Body.BodyError, R> =>
     Effect.map(encode(body), (body) =>
       new ServerResponseImpl(
         options?.status ?? 200,
@@ -138,7 +138,7 @@ export const schemaJson = <R, I, A>(
 export const file = (
   path: string,
   options?: ServerResponse.Options & FileSystem.StreamOptions
-): Effect.Effect<Platform.Platform, PlatformError.PlatformError, ServerResponse.ServerResponse> =>
+): Effect.Effect<ServerResponse.ServerResponse, PlatformError.PlatformError, Platform.Platform> =>
   Effect.flatMap(
     Platform.Platform,
     (platform) => platform.fileResponse(path, options)
@@ -148,7 +148,7 @@ export const file = (
 export const fileWeb = (
   file: Body.Body.FileLike,
   options?: ServerResponse.Options.WithContent & FileSystem.StreamOptions
-): Effect.Effect<Platform.Platform, never, ServerResponse.ServerResponse> =>
+): Effect.Effect<ServerResponse.ServerResponse, never, Platform.Platform> =>
   Effect.flatMap(
     Platform.Platform,
     (platform) => platform.fileWebResponse(file, options)
@@ -189,7 +189,7 @@ export const formData = (
 
 /** @internal */
 export const stream = (
-  body: Stream.Stream<never, unknown, Uint8Array>,
+  body: Stream.Stream<Uint8Array, unknown>,
   options?: ServerResponse.Options
 ): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
@@ -268,7 +268,7 @@ export const toWeb = (response: ServerResponse.ServerResponse, withoutBody = fal
   if (withoutBody) {
     return new Response(undefined, {
       status: response.status,
-      statusText: response.statusText,
+      statusText: response.statusText as string,
       headers: response.headers
     })
   }
@@ -277,7 +277,7 @@ export const toWeb = (response: ServerResponse.ServerResponse, withoutBody = fal
     case "Empty": {
       return new Response(undefined, {
         status: response.status,
-        statusText: response.statusText,
+        statusText: response.statusText as string,
         headers: response.headers
       })
     }

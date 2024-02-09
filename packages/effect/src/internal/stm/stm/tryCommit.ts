@@ -3,12 +3,12 @@ import * as OpCodes from "../opCodes/tryCommit.js"
 import type * as Journal from "./journal.js"
 
 /** @internal */
-export type TryCommit<E, A> = Done<E, A> | Suspend
+export type TryCommit<A, E = never> = Done<A, E> | Suspend
 
 /** @internal */
-export interface Done<out E, out A> {
+export interface Done<out A, out E> {
   readonly _tag: OpCodes.OP_DONE
-  readonly exit: Exit.Exit<E, A>
+  readonly exit: Exit.Exit<A, E>
 }
 
 /** @internal */
@@ -18,7 +18,7 @@ export interface Suspend {
 }
 
 /** @internal */
-export const done = <E, A>(exit: Exit.Exit<E, A>): TryCommit<E, A> => {
+export const done = <A, E>(exit: Exit.Exit<A, E>): TryCommit<A, E> => {
   return {
     _tag: OpCodes.OP_DONE,
     exit
@@ -26,7 +26,7 @@ export const done = <E, A>(exit: Exit.Exit<E, A>): TryCommit<E, A> => {
 }
 
 /** @internal */
-export const suspend = (journal: Journal.Journal): TryCommit<never, never> => {
+export const suspend = (journal: Journal.Journal): TryCommit<never> => {
   return {
     _tag: OpCodes.OP_SUSPEND,
     journal

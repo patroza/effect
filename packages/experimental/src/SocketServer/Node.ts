@@ -31,7 +31,7 @@ export interface IncomingMessage {
  * @since 1.0.0
  * @category tags
  */
-export const IncomingMessage = Context.Tag<IncomingMessage, Http.IncomingMessage>(
+export const IncomingMessage = Context.GenericTag<IncomingMessage, Http.IncomingMessage>(
   "@effect/experimental/SocketServer/Node/IncomingMessage"
 )
 
@@ -41,13 +41,13 @@ export const IncomingMessage = Context.Tag<IncomingMessage, Http.IncomingMessage
  */
 export const make = (
   options: Net.ServerOpts & Net.ListenOptions
-): Effect.Effect<Scope.Scope, SocketServer.SocketServerError, SocketServer.SocketServer> =>
+): Effect.Effect<SocketServer.SocketServer, SocketServer.SocketServerError, Scope.Scope> =>
   Effect.gen(function*(_) {
     const fiberId = yield* _(Effect.fiberId)
     const semaphore = yield* _(Effect.makeSemaphore(1))
-    let serverDeferred = yield* _(Deferred.make<never, Net.Server>())
+    let serverDeferred = yield* _(Deferred.make<Net.Server>())
 
-    const run = <R, E, _>(handler: (socket: Socket.Socket) => Effect.Effect<R, E, _>) =>
+    const run = <R, E, _>(handler: (socket: Socket.Socket) => Effect.Effect<_, E, R>) =>
       Effect.gen(function*(_) {
         const runtime = yield* _(Effect.runtime<R>())
         const run = Runtime.runFork(runtime)
@@ -130,7 +130,7 @@ export const make = (
  */
 export const layer = (
   options: Net.ServerOpts & Net.ListenOptions
-): Layer.Layer<never, SocketServer.SocketServerError, SocketServer.SocketServer> =>
+): Layer.Layer<SocketServer.SocketServer, SocketServer.SocketServerError> =>
   Layer.scoped(
     SocketServer.SocketServer,
     make(options)
@@ -142,13 +142,13 @@ export const layer = (
  */
 export const makeWebSocket = (
   options: WS.ServerOptions
-): Effect.Effect<Scope.Scope, SocketServer.SocketServerError, SocketServer.SocketServer> =>
+): Effect.Effect<SocketServer.SocketServer, SocketServer.SocketServerError, Scope.Scope> =>
   Effect.gen(function*(_) {
     const fiberId = yield* _(Effect.fiberId)
     const semaphore = yield* _(Effect.makeSemaphore(1))
 
-    let serverDeferred = yield* _(Deferred.make<never, WS.WebSocketServer>())
-    const run = <R, E, _>(handler: (socket: Socket.Socket) => Effect.Effect<R, E, _>) =>
+    let serverDeferred = yield* _(Deferred.make<WS.WebSocketServer>())
+    const run = <R, E, _>(handler: (socket: Socket.Socket) => Effect.Effect<_, E, R>) =>
       Effect.gen(function*(_) {
         const runtime = yield* _(Effect.runtime<R>())
         const run = Runtime.runFork(runtime)
@@ -227,7 +227,7 @@ export const makeWebSocket = (
  */
 export const layerWebSocket = (
   options: WS.ServerOptions
-): Layer.Layer<never, SocketServer.SocketServerError, SocketServer.SocketServer> =>
+): Layer.Layer<SocketServer.SocketServer, SocketServer.SocketServerError> =>
   Layer.scoped(
     SocketServer.SocketServer,
     makeWebSocket(options)

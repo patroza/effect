@@ -2,9 +2,9 @@ import * as CliConfig from "@effect/cli/CliConfig"
 import * as HelpDoc from "@effect/cli/HelpDoc"
 import * as Options from "@effect/cli/Options"
 import * as ValidationError from "@effect/cli/ValidationError"
-import * as FileSystem from "@effect/platform-node/FileSystem"
 import * as NodeContext from "@effect/platform-node/NodeContext"
-import * as Path from "@effect/platform-node/Path"
+import * as FileSystem from "@effect/platform/FileSystem"
+import * as Path from "@effect/platform/Path"
 import * as Schema from "@effect/schema/Schema"
 import { BigDecimal } from "effect"
 import * as Data from "effect/Data"
@@ -25,7 +25,7 @@ const verbose = Options.boolean("verbose", { ifPresent: true })
 const defs = Options.keyValueMap("defs").pipe(Options.withAlias("d"))
 
 const runEffect = <E, A>(
-  self: Effect.Effect<NodeContext.NodeContext, E, A>
+  self: Effect.Effect<A, E, NodeContext.NodeContext>
 ): Promise<A> => Effect.provide(self, NodeContext.layer).pipe(Effect.runPromise)
 
 const process = <A>(
@@ -33,9 +33,9 @@ const process = <A>(
   args: ReadonlyArray<string>,
   config: CliConfig.CliConfig
 ): Effect.Effect<
-  NodeContext.NodeContext,
+  [ReadonlyArray<string>, A],
   ValidationError.ValidationError,
-  [ReadonlyArray<string>, A]
+  NodeContext.NodeContext
 > =>
   Options.processCommandLine(options, args, config).pipe(
     Effect.flatMap(([err, rest, a]) =>

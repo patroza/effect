@@ -39,37 +39,37 @@ export interface Supervisor<out T> extends Supervisor.Variance<T> {
    * supervisor. This value may change over time, reflecting what the supervisor
    * produces as it supervises fibers.
    */
-  readonly value: Effect.Effect<never, never, T>
+  readonly value: Effect.Effect<T>
 
   /**
    * Supervises the start of a `Fiber`.
    */
-  onStart<R, E, A>(
+  onStart<A, E, R>(
     context: Context.Context<R>,
-    effect: Effect.Effect<R, E, A>,
+    effect: Effect.Effect<A, E, R>,
     parent: Option.Option<Fiber.RuntimeFiber<any, any>>,
-    fiber: Fiber.RuntimeFiber<E, A>
+    fiber: Fiber.RuntimeFiber<A, E>
   ): void
 
   /**
    * Supervises the end of a `Fiber`.
    */
-  onEnd<E, A>(value: Exit.Exit<E, A>, fiber: Fiber.RuntimeFiber<E, A>): void
+  onEnd<A, E>(value: Exit.Exit<A, E>, fiber: Fiber.RuntimeFiber<A, E>): void
 
   /**
    * Supervises the execution of an `Effect` by a `Fiber`.
    */
-  onEffect<E, A>(fiber: Fiber.RuntimeFiber<E, A>, effect: Effect.Effect<any, any, any>): void
+  onEffect<A, E>(fiber: Fiber.RuntimeFiber<A, E>, effect: Effect.Effect<any, any, any>): void
 
   /**
    * Supervises the suspension of a computation running within a `Fiber`.
    */
-  onSuspend<E, A>(fiber: Fiber.RuntimeFiber<E, A>): void
+  onSuspend<A, E>(fiber: Fiber.RuntimeFiber<A, E>): void
 
   /**
    * Supervises the resumption of a computation running within a `Fiber`.
    */
-  onResume<E, A>(fiber: Fiber.RuntimeFiber<E, A>): void
+  onResume<A, E>(fiber: Fiber.RuntimeFiber<A, E>): void
 
   /**
    * Maps this supervisor to another one, which has the same effect, but whose
@@ -104,7 +104,7 @@ export declare namespace Supervisor {
  * @since 2.0.0
  * @category context
  */
-export const addSupervisor: <A>(supervisor: Supervisor<A>) => Layer.Layer<never, never, never> = circular.addSupervisor
+export const addSupervisor: <A>(supervisor: Supervisor<A>) => Layer.Layer<never> = circular.addSupervisor
 
 /**
  * Creates a new supervisor that tracks children in a set.
@@ -114,7 +114,7 @@ export const addSupervisor: <A>(supervisor: Supervisor<A>) => Layer.Layer<never,
  */
 export const fibersIn: (
   ref: MutableRef.MutableRef<SortedSet.SortedSet<Fiber.RuntimeFiber<any, any>>>
-) => Effect.Effect<never, never, Supervisor<SortedSet.SortedSet<Fiber.RuntimeFiber<any, any>>>> = internal.fibersIn
+) => Effect.Effect<Supervisor<SortedSet.SortedSet<Fiber.RuntimeFiber<any, any>>>> = internal.fibersIn
 
 /**
  * Creates a new supervisor that constantly yields effect when polled
@@ -122,7 +122,7 @@ export const fibersIn: (
  * @since 2.0.0
  * @category constructors
  */
-export const fromEffect: <A>(effect: Effect.Effect<never, never, A>) => Supervisor<A> = internal.fromEffect
+export const fromEffect: <A>(effect: Effect.Effect<A>) => Supervisor<A> = internal.fromEffect
 
 /**
  * A supervisor that doesn't do anything in response to supervision events.
@@ -138,7 +138,7 @@ export const none: Supervisor<void> = internal.none
  * @since 2.0.0
  * @category constructors
  */
-export const track: Effect.Effect<never, never, Supervisor<Array<Fiber.RuntimeFiber<any, any>>>> = internal.track
+export const track: Effect.Effect<Supervisor<Array<Fiber.RuntimeFiber<any, any>>>> = internal.track
 
 /**
  * Unsafely creates a new supervisor that tracks children in a set.
@@ -156,16 +156,16 @@ export abstract class AbstractSupervisor<T> implements Supervisor<T> {
   /**
    * @since 2.0.0
    */
-  abstract value: Effect.Effect<never, never, T>
+  abstract value: Effect.Effect<T>
 
   /**
    * @since 2.0.0
    */
-  onStart<R, E, A>(
+  onStart<A, E, R>(
     _context: Context.Context<R>,
-    _effect: Effect.Effect<R, E, A>,
+    _effect: Effect.Effect<A, E, R>,
     _parent: Option.Option<Fiber.RuntimeFiber<any, any>>,
-    _fiber: Fiber.RuntimeFiber<E, A>
+    _fiber: Fiber.RuntimeFiber<A, E>
   ): void {
     //
   }
@@ -173,9 +173,9 @@ export abstract class AbstractSupervisor<T> implements Supervisor<T> {
   /**
    * @since 2.0.0
    */
-  onEnd<E, A>(
-    _value: Exit.Exit<E, A>,
-    _fiber: Fiber.RuntimeFiber<E, A>
+  onEnd<A, E>(
+    _value: Exit.Exit<A, E>,
+    _fiber: Fiber.RuntimeFiber<A, E>
   ): void {
     //
   }
@@ -183,8 +183,8 @@ export abstract class AbstractSupervisor<T> implements Supervisor<T> {
   /**
    * @since 2.0.0
    */
-  onEffect<E, A>(
-    _fiber: Fiber.RuntimeFiber<E, A>,
+  onEffect<A, E>(
+    _fiber: Fiber.RuntimeFiber<A, E>,
     _effect: Effect.Effect<any, any, any>
   ): void {
     //
@@ -193,8 +193,8 @@ export abstract class AbstractSupervisor<T> implements Supervisor<T> {
   /**
    * @since 2.0.0
    */
-  onSuspend<E, A>(
-    _fiber: Fiber.RuntimeFiber<E, A>
+  onSuspend<A, E>(
+    _fiber: Fiber.RuntimeFiber<A, E>
   ): void {
     //
   }
@@ -202,8 +202,8 @@ export abstract class AbstractSupervisor<T> implements Supervisor<T> {
   /**
    * @since 2.0.0
    */
-  onResume<E, A>(
-    _fiber: Fiber.RuntimeFiber<E, A>
+  onResume<A, E>(
+    _fiber: Fiber.RuntimeFiber<A, E>
   ): void {
     //
   }
@@ -227,7 +227,7 @@ export abstract class AbstractSupervisor<T> implements Supervisor<T> {
   /**
    * @since 2.0.0
    */
-  onRun<E, A, X>(execution: () => X, _fiber: Fiber.RuntimeFiber<E, A>): X {
+  onRun<E, A, X>(execution: () => X, _fiber: Fiber.RuntimeFiber<A, E>): X {
     return execution()
   }
 

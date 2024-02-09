@@ -1,10 +1,8 @@
-import * as Http from "@effect/platform-bun/HttpClient"
-import { runMain } from "@effect/platform-bun/Runtime"
+import { BunRuntime } from "@effect/platform-bun"
+import * as Http from "@effect/platform/HttpClient"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import * as Schema from "@effect/schema/Schema"
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
+import { Context, Effect, Layer } from "effect"
 
 class Todo extends Schema.Class<Todo>()({
   userId: Schema.number,
@@ -19,9 +17,9 @@ type TodoWithoutId = Schema.Schema.To<typeof TodoWithoutId>
 interface TodoService {
   readonly create: (
     _: TodoWithoutId
-  ) => Effect.Effect<never, Http.error.HttpClientError | Http.body.BodyError | ParseResult.ParseError, Todo>
+  ) => Effect.Effect<Todo, Http.error.HttpClientError | Http.body.BodyError | ParseResult.ParseError>
 }
-const TodoService = Context.Tag<TodoService>()
+const TodoService = Context.GenericTag<TodoService>("@effect/platform-bun/examples/TodoService")
 
 const makeTodoService = Effect.gen(function*(_) {
   const defaultClient = yield* _(Http.client.Client)
@@ -54,5 +52,5 @@ Effect.flatMap(
 ).pipe(
   Effect.tap(Effect.log),
   Effect.provide(TodoServiceLive),
-  runMain
+  BunRuntime.runMain
 )

@@ -54,14 +54,14 @@ describe("Sink", () => {
 
   it.effect("fromPubSub - should publish all elements", () =>
     Effect.gen(function*($) {
-      const deferred1 = yield* $(Deferred.make<never, void>())
-      const deferred2 = yield* $(Deferred.make<never, void>())
+      const deferred1 = yield* $(Deferred.make<void>())
+      const deferred2 = yield* $(Deferred.make<void>())
       const pubsub = yield* $(PubSub.unbounded<number>())
       const fiber = yield* $(
         PubSub.subscribe(pubsub),
         Effect.flatMap((subscription) =>
           pipe(
-            Deferred.succeed<never, void>(deferred1, void 0),
+            Deferred.succeed(deferred1, void 0),
             Effect.zipRight(Deferred.await(deferred2)),
             Effect.zipRight(Queue.takeAll(subscription))
           )
@@ -71,7 +71,7 @@ describe("Sink", () => {
       )
       yield* $(Deferred.await(deferred1))
       yield* $(Stream.make(1, 2, 3), Stream.run(Sink.fromPubSub(pubsub)))
-      yield* $(Deferred.succeed<never, void>(deferred2, void 0))
+      yield* $(Deferred.succeed(deferred2, void 0))
       const result = yield* $(Fiber.join(fiber))
       assert.deepStrictEqual(Array.from(result), [1, 2, 3])
     }))
@@ -93,9 +93,9 @@ class QueueSpy<A> implements Queue.Queue<A> {
   private isShutdownInternal = false
   readonly queue: Queue.BackingQueue<A>
   readonly shutdownFlag: MutableRef.MutableRef<boolean>
-  readonly shutdownHook: Deferred.Deferred<never, void>
+  readonly shutdownHook: Deferred.Deferred<void, never>
   readonly strategy: Queue.Strategy<A>
-  readonly takers: MutableQueue.MutableQueue<Deferred.Deferred<never, A>>
+  readonly takers: MutableQueue.MutableQueue<Deferred.Deferred<A, never>>
 
   constructor(readonly backingQueue: Queue.Queue<A>) {
     this.queue = backingQueue.queue
@@ -125,7 +125,7 @@ class QueueSpy<A> implements Queue.Queue<A> {
     return Queue.capacity(this.backingQueue)
   }
 
-  get size(): Effect.Effect<never, never, number> {
+  get size(): Effect.Effect<number> {
     return Queue.size(this.backingQueue)
   }
 
@@ -133,7 +133,7 @@ class QueueSpy<A> implements Queue.Queue<A> {
     return this.backingQueue.unsafeSize()
   }
 
-  get awaitShutdown(): Effect.Effect<never, never, void> {
+  get awaitShutdown(): Effect.Effect<void> {
     return Queue.awaitShutdown(this.backingQueue)
   }
 
@@ -141,45 +141,45 @@ class QueueSpy<A> implements Queue.Queue<A> {
     return !this.isShutdownInternal
   }
 
-  get isShutdown(): Effect.Effect<never, never, boolean> {
+  get isShutdown(): Effect.Effect<boolean> {
     return Effect.sync(() => this.isShutdownInternal)
   }
 
-  get shutdown(): Effect.Effect<never, never, void> {
+  get shutdown(): Effect.Effect<void> {
     return Effect.sync(() => {
       this.isShutdownInternal = true
     })
   }
 
-  get isFull(): Effect.Effect<never, never, boolean> {
+  get isFull(): Effect.Effect<boolean> {
     return Queue.isFull(this.backingQueue)
   }
 
-  get isEmpty(): Effect.Effect<never, never, boolean> {
+  get isEmpty(): Effect.Effect<boolean> {
     return Queue.isEmpty(this.backingQueue)
   }
 
-  get take(): Effect.Effect<never, never, A> {
+  get take(): Effect.Effect<A> {
     return Queue.take(this.backingQueue)
   }
 
-  get takeAll(): Effect.Effect<never, never, Chunk.Chunk<A>> {
+  get takeAll(): Effect.Effect<Chunk.Chunk<A>> {
     return Queue.takeAll(this.backingQueue)
   }
 
-  takeUpTo(max: number): Effect.Effect<never, never, Chunk.Chunk<A>> {
+  takeUpTo(max: number): Effect.Effect<Chunk.Chunk<A>> {
     return Queue.takeUpTo(this.backingQueue, max)
   }
 
-  takeBetween(min: number, max: number): Effect.Effect<never, never, Chunk.Chunk<A>> {
+  takeBetween(min: number, max: number): Effect.Effect<Chunk.Chunk<A>> {
     return Queue.takeBetween(this.backingQueue, min, max)
   }
 
-  takeN(n: number): Effect.Effect<never, never, Chunk.Chunk<A>> {
+  takeN(n: number): Effect.Effect<Chunk.Chunk<A>> {
     return Queue.takeN(this.backingQueue, n)
   }
 
-  poll(): Effect.Effect<never, never, Option.Option<A>> {
+  poll(): Effect.Effect<Option.Option<A>> {
     return Queue.poll(this.backingQueue)
   }
 }

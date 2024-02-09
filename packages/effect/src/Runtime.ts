@@ -19,17 +19,17 @@ import type { Scope } from "./Scope.js"
  * @since 2.0.0
  * @category models
  */
-export interface AsyncFiberException<out E, out A> {
+export interface AsyncFiberException<out A, out E = never> {
   readonly _tag: "AsyncFiberException"
-  readonly fiber: Fiber.RuntimeFiber<E, A>
+  readonly fiber: Fiber.RuntimeFiber<A, E>
 }
 
 /**
  * @since 2.0.0
  * @category models
  */
-export interface Cancel<out E, out A> {
-  (fiberId?: FiberId.FiberId, options?: RunCallbackOptions<E, A> | undefined): void
+export interface Cancel<out A, out E = never> {
+  (fiberId?: FiberId.FiberId, options?: RunCallbackOptions<A, E> | undefined): void
 }
 
 /**
@@ -71,7 +71,7 @@ export interface RunForkOptions {
  */
 export const runFork: <R>(
   runtime: Runtime<R>
-) => <E, A>(self: Effect.Effect<R, E, A>, options?: RunForkOptions) => Fiber.RuntimeFiber<E, A> = internal.unsafeFork
+) => <A, E>(self: Effect.Effect<A, E, R>, options?: RunForkOptions) => Fiber.RuntimeFiber<A, E> = internal.unsafeFork
 
 /**
  * Executes the effect synchronously returning the exit.
@@ -82,7 +82,7 @@ export const runFork: <R>(
  * @since 2.0.0
  * @category execution
  */
-export const runSyncExit: <R>(runtime: Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>) => Exit.Exit<E, A> =
+export const runSyncExit: <R>(runtime: Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>) => Exit.Exit<A, E> =
   internal.unsafeRunSyncExit
 
 /**
@@ -94,14 +94,14 @@ export const runSyncExit: <R>(runtime: Runtime<R>) => <E, A>(effect: Effect.Effe
  * @since 2.0.0
  * @category execution
  */
-export const runSync: <R>(runtime: Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>) => A = internal.unsafeRunSync
+export const runSync: <R>(runtime: Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>) => A = internal.unsafeRunSync
 
 /**
  * @since 2.0.0
  * @category models
  */
-export interface RunCallbackOptions<E, A> extends RunForkOptions {
-  readonly onExit?: ((exit: Exit.Exit<E, A>) => void) | undefined
+export interface RunCallbackOptions<in A, in E = never> extends RunForkOptions {
+  readonly onExit?: ((exit: Exit.Exit<A, E>) => void) | undefined
 }
 
 /**
@@ -116,10 +116,10 @@ export interface RunCallbackOptions<E, A> extends RunForkOptions {
  */
 export const runCallback: <R>(
   runtime: Runtime<R>
-) => <E, A>(
-  effect: Effect.Effect<R, E, A>,
-  options?: RunCallbackOptions<E, A> | undefined
-) => (fiberId?: FiberId.FiberId | undefined, options?: RunCallbackOptions<E, A> | undefined) => void =
+) => <A, E>(
+  effect: Effect.Effect<A, E, R>,
+  options?: RunCallbackOptions<A, E> | undefined
+) => (fiberId?: FiberId.FiberId | undefined, options?: RunCallbackOptions<A, E> | undefined) => void =
   internal.unsafeRunCallback
 
 /**
@@ -133,7 +133,7 @@ export const runCallback: <R>(
  * @since 2.0.0
  * @category execution
  */
-export const runPromise: <R>(runtime: Runtime<R>) => <E, A>(effect: Effect.Effect<R, E, A>) => Promise<A> =
+export const runPromise: <R>(runtime: Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>) => Promise<A> =
   internal.unsafeRunPromise
 
 /**
@@ -148,7 +148,7 @@ export const runPromise: <R>(runtime: Runtime<R>) => <E, A>(effect: Effect.Effec
  */
 export const runPromiseExit: <R>(
   runtime: Runtime<R>
-) => <E, A>(effect: Effect.Effect<R, E, A>) => Promise<Exit.Exit<E, A>> = internal.unsafeRunPromiseExit
+) => <A, E>(effect: Effect.Effect<A, E, R>) => Promise<Exit.Exit<A, E>> = internal.unsafeRunPromiseExit
 
 /**
  * @since 2.0.0
@@ -267,10 +267,7 @@ export const updateContext: {
  * @example
  * import { Context, Runtime } from "effect"
  *
- * interface Name {
- *   readonly _: unique symbol
- * }
- * const Name = Context.Tag<Name, string>("Name")
+ * class Name extends Context.Tag("Name")<Name, string>() {}
  *
  * const runtime: Runtime.Runtime<Name> = Runtime.defaultRuntime.pipe(
  *   Runtime.provideService(Name, "John")

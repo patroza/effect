@@ -23,16 +23,16 @@ class TSemaphoreImpl implements TSemaphore.TSemaphore {
 }
 
 /** @internal */
-export const make = (permits: number): STM.STM<never, never, TSemaphore.TSemaphore> =>
+export const make = (permits: number): STM.STM<TSemaphore.TSemaphore> =>
   STM.map(tRef.make(permits), (permits) => new TSemaphoreImpl(permits))
 
 /** @internal */
-export const acquire = (self: TSemaphore.TSemaphore): STM.STM<never, never, void> => acquireN(self, 1)
+export const acquire = (self: TSemaphore.TSemaphore): STM.STM<void> => acquireN(self, 1)
 
 /** @internal */
 export const acquireN = dual<
-  (n: number) => (self: TSemaphore.TSemaphore) => STM.STM<never, never, void>,
-  (self: TSemaphore.TSemaphore, n: number) => STM.STM<never, never, void>
+  (n: number) => (self: TSemaphore.TSemaphore) => STM.STM<void>,
+  (self: TSemaphore.TSemaphore, n: number) => STM.STM<void>
 >(2, (self, n) =>
   core.withSTMRuntime((driver) => {
     if (n < 0) {
@@ -50,12 +50,12 @@ export const acquireN = dual<
 export const available = (self: TSemaphore.TSemaphore) => tRef.get(self.permits)
 
 /** @internal */
-export const release = (self: TSemaphore.TSemaphore): STM.STM<never, never, void> => releaseN(self, 1)
+export const release = (self: TSemaphore.TSemaphore): STM.STM<void> => releaseN(self, 1)
 
 /** @internal */
 export const releaseN = dual<
-  (n: number) => (self: TSemaphore.TSemaphore) => STM.STM<never, never, void>,
-  (self: TSemaphore.TSemaphore, n: number) => STM.STM<never, never, void>
+  (n: number) => (self: TSemaphore.TSemaphore) => STM.STM<void>,
+  (self: TSemaphore.TSemaphore, n: number) => STM.STM<void>
 >(2, (self, n) =>
   core.withSTMRuntime((driver) => {
     if (n < 0) {
@@ -67,8 +67,8 @@ export const releaseN = dual<
 
 /** @internal */
 export const withPermit = dual<
-  (semaphore: TSemaphore.TSemaphore) => <R, E, A>(self: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>,
-  <R, E, A>(self: Effect.Effect<R, E, A>, semaphore: TSemaphore.TSemaphore) => Effect.Effect<R, E, A>
+  (semaphore: TSemaphore.TSemaphore) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <A, E, R>(self: Effect.Effect<A, E, R>, semaphore: TSemaphore.TSemaphore) => Effect.Effect<A, E, R>
 >(2, (self, semaphore) => withPermits(self, semaphore, 1))
 
 /** @internal */
@@ -76,12 +76,12 @@ export const withPermits = dual<
   (
     semaphore: TSemaphore.TSemaphore,
     permits: number
-  ) => <R, E, A>(self: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>,
-  <R, E, A>(
-    self: Effect.Effect<R, E, A>,
+  ) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <A, E, R>(
+    self: Effect.Effect<A, E, R>,
     semaphore: TSemaphore.TSemaphore,
     permits: number
-  ) => Effect.Effect<R, E, A>
+  ) => Effect.Effect<A, E, R>
 >(3, (self, semaphore, permits) =>
   Effect.uninterruptibleMask((restore) =>
     Effect.zipRight(
@@ -94,13 +94,13 @@ export const withPermits = dual<
   ))
 
 /** @internal */
-export const withPermitScoped = (self: TSemaphore.TSemaphore): Effect.Effect<Scope.Scope, never, void> =>
+export const withPermitScoped = (self: TSemaphore.TSemaphore): Effect.Effect<void, never, Scope.Scope> =>
   withPermitsScoped(self, 1)
 
 /** @internal */
 export const withPermitsScoped = dual<
-  (permits: number) => (self: TSemaphore.TSemaphore) => Effect.Effect<Scope.Scope, never, void>,
-  (self: TSemaphore.TSemaphore, permits: number) => Effect.Effect<Scope.Scope, never, void>
+  (permits: number) => (self: TSemaphore.TSemaphore) => Effect.Effect<void, never, Scope.Scope>,
+  (self: TSemaphore.TSemaphore, permits: number) => Effect.Effect<void, never, Scope.Scope>
 >(2, (self, permits) =>
   Effect.acquireReleaseInterruptible(
     core.commit(acquireN(self, permits)),

@@ -5,7 +5,6 @@ import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
 import type * as Channel from "effect/Channel"
 import type * as Chunk from "effect/Chunk"
-import type * as Data from "effect/Data"
 import type * as Effect from "effect/Effect"
 import type * as FiberRef from "effect/FiberRef"
 import type * as Option from "effect/Option"
@@ -68,7 +67,7 @@ export interface File extends Part.Proto {
   readonly key: string
   readonly name: string
   readonly contentType: string
-  readonly content: Stream.Stream<never, MultipartError, Uint8Array>
+  readonly content: Stream.Stream<Uint8Array, MultipartError>
 }
 
 /**
@@ -107,7 +106,7 @@ export type ErrorTypeId = typeof ErrorTypeId
  * @since 1.0.0
  * @category errors
  */
-export interface MultipartError extends Data.Case {
+export interface MultipartError {
   readonly [ErrorTypeId]: ErrorTypeId
   readonly _tag: "MultipartError"
   readonly reason: "FileTooLarge" | "FieldTooLarge" | "BodyTooLarge" | "TooManyParts" | "InternalError" | "Parse"
@@ -140,8 +139,8 @@ export const maxParts: FiberRef.FiberRef<Option.Option<number>> = internal.maxPa
  * @category fiber refs
  */
 export const withMaxParts: {
-  (count: Option.Option<number>): <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>
-  <R, E, A>(effect: Effect.Effect<R, E, A>, count: Option.Option<number>): Effect.Effect<R, E, A>
+  (count: Option.Option<number>): <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  <R, E, A>(effect: Effect.Effect<A, E, R>, count: Option.Option<number>): Effect.Effect<A, E, R>
 } = internal.withMaxParts
 
 /**
@@ -155,8 +154,8 @@ export const maxFieldSize: FiberRef.FiberRef<FileSystem.Size> = internal.maxFiel
  * @category fiber refs
  */
 export const withMaxFieldSize: {
-  (size: FileSystem.SizeInput): <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>
-  <R, E, A>(effect: Effect.Effect<R, E, A>, size: FileSystem.SizeInput): Effect.Effect<R, E, A>
+  (size: FileSystem.SizeInput): <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  <R, E, A>(effect: Effect.Effect<A, E, R>, size: FileSystem.SizeInput): Effect.Effect<A, E, R>
 } = internal.withMaxFieldSize
 
 /**
@@ -170,8 +169,8 @@ export const maxFileSize: FiberRef.FiberRef<Option.Option<FileSystem.Size>> = in
  * @category fiber refs
  */
 export const withMaxFileSize: {
-  (size: Option.Option<FileSystem.SizeInput>): <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>
-  <R, E, A>(effect: Effect.Effect<R, E, A>, size: Option.Option<FileSystem.SizeInput>): Effect.Effect<R, E, A>
+  (size: Option.Option<FileSystem.SizeInput>): <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  <R, E, A>(effect: Effect.Effect<A, E, R>, size: Option.Option<FileSystem.SizeInput>): Effect.Effect<A, E, R>
 } = internal.withMaxFileSize
 
 /**
@@ -185,26 +184,25 @@ export const fieldMimeTypes: FiberRef.FiberRef<Chunk.Chunk<string>> = internal.f
  * @category fiber refs
  */
 export const withFieldMimeTypes: {
-  (mimeTypes: ReadonlyArray<string>): <R, E, A>(effect: Effect.Effect<R, E, A>) => Effect.Effect<R, E, A>
-  <R, E, A>(effect: Effect.Effect<R, E, A>, mimeTypes: ReadonlyArray<string>): Effect.Effect<R, E, A>
+  (mimeTypes: ReadonlyArray<string>): <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  <R, E, A>(effect: Effect.Effect<A, E, R>, mimeTypes: ReadonlyArray<string>): Effect.Effect<A, E, R>
 } = internal.withFieldMimeTypes
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const filesSchema: Schema.Schema<never, ReadonlyArray<PersistedFile>, ReadonlyArray<PersistedFile>> =
-  internal.filesSchema
+export const filesSchema: Schema.Schema<ReadonlyArray<PersistedFile>> = internal.filesSchema
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const schemaJson: <R, I, A>(
-  schema: Schema.Schema<R, I, A>
+export const schemaJson: <A, I, R>(
+  schema: Schema.Schema<A, I, R>
 ) => {
-  (field: string): (persisted: Persisted) => Effect.Effect<R, ParseResult.ParseError, A>
-  (persisted: Persisted, field: string): Effect.Effect<R, ParseResult.ParseError, A>
+  (field: string): (persisted: Persisted) => Effect.Effect<A, ParseResult.ParseError, R>
+  (persisted: Persisted, field: string): Effect.Effect<A, ParseResult.ParseError, R>
 } = internal.schemaJson
 
 /**
@@ -212,8 +210,8 @@ export const schemaJson: <R, I, A>(
  * @category schema
  */
 export const schemaPersisted: <R, I extends Persisted, A>(
-  schema: Schema.Schema<R, I, A>
-) => (persisted: Persisted) => Effect.Effect<R, ParseResult.ParseError, A> = internal.schemaPersisted
+  schema: Schema.Schema<A, I, R>
+) => (persisted: Persisted) => Effect.Effect<A, ParseResult.ParseError, R> = internal.schemaPersisted
 
 /**
  * @since 1.0.0
@@ -222,21 +220,20 @@ export const schemaPersisted: <R, I extends Persisted, A>(
 export const makeChannel: <IE>(
   headers: Record<string, string>,
   bufferSize?: number
-) => Channel.Channel<never, IE, Chunk.Chunk<Uint8Array>, unknown, MultipartError | IE, Chunk.Chunk<Part>, unknown> =
+) => Channel.Channel<Chunk.Chunk<Part>, Chunk.Chunk<Uint8Array>, MultipartError | IE, IE, unknown, unknown> =
   internal.makeChannel
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const makeConfig: (headers: Record<string, string>) => Effect.Effect<never, never, Multipasta.BaseConfig> =
-  internal.makeConfig
+export const makeConfig: (headers: Record<string, string>) => Effect.Effect<Multipasta.BaseConfig> = internal.makeConfig
 
 /**
  * @since 1.0.0
  * @category constructors
  */
 export const toPersisted: (
-  stream: Stream.Stream<never, MultipartError, Part>,
-  writeFile?: (path: string, file: File) => Effect.Effect<FileSystem.FileSystem, MultipartError, void>
-) => Effect.Effect<FileSystem.FileSystem | Path.Path | Scope.Scope, MultipartError, Persisted> = internal.toPersisted
+  stream: Stream.Stream<Part, MultipartError>,
+  writeFile?: (path: string, file: File) => Effect.Effect<void, MultipartError, FileSystem.FileSystem>
+) => Effect.Effect<Persisted, MultipartError, FileSystem.FileSystem | Path.Path | Scope.Scope> = internal.toPersisted

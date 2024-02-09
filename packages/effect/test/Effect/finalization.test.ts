@@ -14,13 +14,13 @@ import { assert, describe } from "vitest"
 
 const ExampleError = new Error("Oh noes!")
 
-const asyncExampleError = <A>(): Effect.Effect<never, unknown, A> => {
+const asyncExampleError = <A>(): Effect.Effect<A, unknown> => {
   return Effect.async((cb) => {
     cb(Effect.fail(ExampleError))
   })
 }
 
-const asyncUnit = <E>(): Effect.Effect<never, E, void> => {
+const asyncUnit = <E>(): Effect.Effect<void, E> => {
   return Effect.async((cb) => {
     cb(Effect.unit)
   })
@@ -74,7 +74,7 @@ describe("Effect", () => {
     }))
   it.effect("finalizer errors reported", () =>
     Effect.gen(function*($) {
-      let reported: Exit.Exit<never, number> | undefined
+      let reported: Exit.Exit<number> | undefined
       const result = yield* $(
         pipe(
           Effect.succeed(42),
@@ -210,7 +210,7 @@ describe("Effect", () => {
   it.live("acquireUseRelease regression 1", () =>
     Effect.gen(function*($) {
       const makeLogger = (ref: Ref.Ref<Chunk.Chunk<string>>) => {
-        return (line: string): Effect.Effect<never, never, void> => {
+        return (line: string): Effect.Effect<void> => {
           return Ref.update(ref, Chunk.prepend(line))
         }
       }
@@ -266,8 +266,8 @@ describe("Effect", () => {
   it.live("interrupt waits for finalizer", () =>
     Effect.gen(function*($) {
       const ref = yield* $(Ref.make(false))
-      const deferred1 = yield* $(Deferred.make<never, void>())
-      const deferred2 = yield* $(Deferred.make<never, number>())
+      const deferred1 = yield* $(Deferred.make<void>())
+      const deferred2 = yield* $(Deferred.make<number>())
       const fiber = yield* $(
         pipe(
           Deferred.succeed(deferred1, void 0),
@@ -312,8 +312,8 @@ describe("Effect", () => {
     }))
   it.effect("onExit - ensures that a cleanup function runs when an effect is interrupted", () =>
     Effect.gen(function*($) {
-      const latch1 = yield* $(Deferred.make<never, void>())
-      const latch2 = yield* $(Deferred.make<never, void>())
+      const latch1 = yield* $(Deferred.make<void>())
+      const latch2 = yield* $(Deferred.make<void>())
       const fiber = yield* $(
         pipe(
           Deferred.succeed(latch1, void 0),

@@ -56,7 +56,7 @@ export type BackingPersistenceTypeId = typeof BackingPersistenceTypeId
  */
 export interface BackingPersistence {
   readonly [BackingPersistenceTypeId]: BackingPersistenceTypeId
-  readonly make: (storeId: string) => Effect.Effect<Scope.Scope, never, BackingPersistenceStore>
+  readonly make: (storeId: string) => Effect.Effect<BackingPersistenceStore, never, Scope.Scope>
 }
 
 /**
@@ -64,18 +64,20 @@ export interface BackingPersistence {
  * @category models
  */
 export interface BackingPersistenceStore {
-  readonly get: (key: string) => Effect.Effect<never, PersistenceError, Option.Option<unknown>>
-  readonly getMany: (key: Array<string>) => Effect.Effect<never, PersistenceError, Array<Option.Option<unknown>>>
-  readonly set: (key: string, value: unknown) => Effect.Effect<never, PersistenceError, void>
-  readonly remove: (key: string) => Effect.Effect<never, PersistenceError, void>
+  readonly get: (key: string) => Effect.Effect<Option.Option<unknown>, PersistenceError>
+  readonly getMany: (key: Array<string>) => Effect.Effect<Array<Option.Option<unknown>>, PersistenceError>
+  readonly set: (key: string, value: unknown) => Effect.Effect<void, PersistenceError>
+  readonly remove: (key: string) => Effect.Effect<void, PersistenceError>
 }
 
 /**
  * @since 1.0.0
  * @category tags
  */
-export const BackingPersistence: Context.Tag<BackingPersistence, BackingPersistence> = Context.Tag<BackingPersistence>(
-  BackingPersistenceTypeId
+export const BackingPersistence: Context.Tag<BackingPersistence, BackingPersistence> = Context.GenericTag<
+  BackingPersistence
+>(
+  "@effect/experimental/BackingPersistence"
 )
 
 /**
@@ -96,7 +98,7 @@ export type ResultPersistenceTypeId = typeof ResultPersistenceTypeId
  */
 export interface ResultPersistence {
   readonly [ResultPersistenceTypeId]: ResultPersistenceTypeId
-  readonly make: (storeId: string) => Effect.Effect<Scope.Scope, never, ResultPersistenceStore>
+  readonly make: (storeId: string) => Effect.Effect<ResultPersistenceStore, never, Scope.Scope>
 }
 
 /**
@@ -106,17 +108,17 @@ export interface ResultPersistence {
 export interface ResultPersistenceStore {
   readonly get: <R, IE, E, IA, A>(
     key: ResultPersistence.Key<R, IE, E, IA, A>
-  ) => Effect.Effect<R, PersistenceError, Option.Option<Exit.Exit<E, A>>>
+  ) => Effect.Effect<Option.Option<Exit.Exit<A, E>>, PersistenceError, R>
   readonly getMany: <R, IE, E, IA, A>(
     key: ReadonlyArray<ResultPersistence.Key<R, IE, E, IA, A>>
-  ) => Effect.Effect<R, PersistenceError, Array<Option.Option<Exit.Exit<E, A>>>>
+  ) => Effect.Effect<Array<Option.Option<Exit.Exit<A, E>>>, PersistenceError, R>
   readonly set: <R, IE, E, IA, A>(
     key: ResultPersistence.Key<R, IE, E, IA, A>,
-    value: Exit.Exit<E, A>
-  ) => Effect.Effect<R, PersistenceError, void>
+    value: Exit.Exit<A, E>
+  ) => Effect.Effect<void, PersistenceError, R>
   readonly remove: <R, IE, E, IA, A>(
     key: ResultPersistence.Key<R, IE, E, IA, A>
-  ) => Effect.Effect<never, PersistenceError, void>
+  ) => Effect.Effect<void, PersistenceError>
 }
 
 /**
@@ -137,8 +139,10 @@ export declare namespace ResultPersistence {
  * @since 1.0.0
  * @category tags
  */
-export const ResultPersistence: Context.Tag<ResultPersistence, ResultPersistence> = Context.Tag<ResultPersistence>(
-  ResultPersistenceTypeId
+export const ResultPersistence: Context.Tag<ResultPersistence, ResultPersistence> = Context.GenericTag<
+  ResultPersistence
+>(
+  "@effect/experimental/ResultPersistence"
 )
 
 /**
@@ -166,7 +170,7 @@ export const layerResult = Layer.effect(
           const encode = <R, IE, E, IA, A>(
             method: string,
             key: ResultPersistence.Key<R, IE, E, IA, A>,
-            value: Exit.Exit<E, A>
+            value: Exit.Exit<A, E>
           ) =>
             Effect.mapError(
               Serializable.serializeExit(key, value),
@@ -215,7 +219,7 @@ export const layerResult = Layer.effect(
  * @since 1.0.0
  * @category layers
  */
-export const layerMemory: Layer.Layer<never, never, BackingPersistence> = Layer.succeed(
+export const layerMemory: Layer.Layer<BackingPersistence> = Layer.succeed(
   BackingPersistence,
   BackingPersistence.of({
     [BackingPersistenceTypeId]: BackingPersistenceTypeId,
@@ -236,7 +240,7 @@ export const layerMemory: Layer.Layer<never, never, BackingPersistence> = Layer.
  * @since 1.0.0
  * @category layers
  */
-export const layerKeyValueStore: Layer.Layer<KeyValueStore.KeyValueStore, never, BackingPersistence> = Layer.effect(
+export const layerKeyValueStore: Layer.Layer<BackingPersistence, never, KeyValueStore.KeyValueStore> = Layer.effect(
   BackingPersistence,
   Effect.gen(function*(_) {
     const backing = yield* _(KeyValueStore.KeyValueStore)
@@ -290,7 +294,7 @@ export const layerKeyValueStore: Layer.Layer<KeyValueStore.KeyValueStore, never,
  * @since 1.0.0
  * @category layers
  */
-export const layerResultMemory: Layer.Layer<never, never, ResultPersistence> = layerResult.pipe(
+export const layerResultMemory: Layer.Layer<ResultPersistence> = layerResult.pipe(
   Layer.provide(layerMemory)
 )
 
@@ -298,7 +302,7 @@ export const layerResultMemory: Layer.Layer<never, never, ResultPersistence> = l
  * @since 1.0.0
  * @category layers
  */
-export const layerResultKeyValueStore: Layer.Layer<KeyValueStore.KeyValueStore, never, ResultPersistence> = layerResult
+export const layerResultKeyValueStore: Layer.Layer<ResultPersistence, never, KeyValueStore.KeyValueStore> = layerResult
   .pipe(
     Layer.provide(layerKeyValueStore)
   )

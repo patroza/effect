@@ -1,17 +1,18 @@
-import * as Runner from "@effect/platform-browser/WorkerRunner"
+import * as BrowserRunner from "@effect/platform-browser/BrowserWorkerRunner"
+import * as Runner from "@effect/platform/WorkerRunner"
 import { Context, Effect, Layer, Option, Stream } from "effect"
 import { Person, User, WorkerMessage } from "./schema.js"
 
 interface Name {
   readonly _: unique symbol
 }
-const Name = Context.Tag<Name, string>()
+const Name = Context.GenericTag<Name, string>("Name")
 
 const WorkerLive = Runner.layerSerialized(WorkerMessage, {
   GetPersonById: (req) =>
     Stream.make(
-      new Person({ id: req.id, name: "test" }),
-      new Person({ id: req.id, name: "ing" })
+      new Person({ id: req.id, name: "test", data: new Uint8Array([1, 2, 3]) }),
+      new Person({ id: req.id, name: "ing", data: new Uint8Array([4, 5, 6]) })
     ),
   GetUserById: (req) => Effect.map(Name, (name) => new User({ id: req.id, name })),
   InitialMessage: (req) => Layer.succeed(Name, req.name),
@@ -30,7 +31,7 @@ const WorkerLive = Runner.layerSerialized(WorkerMessage, {
     }).pipe(Effect.withSpan("GetSpan"))
 })
   .pipe(
-    Layer.provide(Runner.layerPlatform)
+    Layer.provide(BrowserRunner.layer)
   )
 
 Effect.runFork(Layer.launch(WorkerLive))
