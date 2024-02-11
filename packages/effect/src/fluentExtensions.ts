@@ -8,6 +8,7 @@ import { Class, CommitPrototype, EffectPrototype, StructuralClass, StructuralCom
 import * as Either from "effect/Either"
 import * as Option from "effect/Option"
 import * as ReadonlyArray from "effect/ReadonlyArray"
+import { dual, isFunction } from "./Function.js"
 
 const toNonEmptyArray = <A>(a: ReadonlyArray<A>) =>
   a.length ? Option.some(a as ReadonlyArray.NonEmptyReadonlyArray<A>) : Option.none()
@@ -118,10 +119,33 @@ const installFluentExtensions = () => {
   //     }
   //   })
 
+  // Somehow this works but don't ask me why.
+  // perhaps it's better just to have `andThen` always go to Effect?
+  const andThen = /*#__PURE__*/ dual(2, (self, f) =>
+    Either.flatMap(self, (a): any => {
+      if (isFunction(f)) {
+        const b = f(a)
+        if (Either.isEither(b)) {
+          return b
+        }
+        if (Effect.isEffect(b)) {
+          return b
+        }
+        return Either.right(b)
+      }
+      if (Either.isEither(f)) {
+        return f
+      }
+      if (Effect.isEffect(f)) {
+        return f
+      }
+      return Either.right(f)
+    }))
+
   const either = Object.getPrototypeOf(Object.getPrototypeOf(Either.left(1)))
   Object.assign(either, {
     andThen(arg: any): any {
-      return Either.andThen(this as any, arg)
+      return andThen(this as any, arg)
     },
     map(arg: any): any {
       return Either.map(this as any, arg)
