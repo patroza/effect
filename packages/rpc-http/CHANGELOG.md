@@ -1,5 +1,48 @@
 # @effect/rpc-http
 
+## 0.26.3
+
+### Patch Changes
+
+- [#2100](https://github.com/Effect-TS/effect/pull/2100) [`ce0c2ef`](https://github.com/Effect-TS/effect/commit/ce0c2efb465096bca866b424a7e373d7a38ceceb) Thanks [@tim-smart](https://github.com/tim-smart)! - add non-streaming handlers and resolvers to rpc
+
+  Instead of streaming back responses, responses are sent back as a single json
+  array.
+
+  You can use the HttpResolver.toHttpAppEffect and HttpResolver.makeEffect apis to
+  opt into the non-streaming transport.
+
+  NOTE: You cannot mix both the streaming and non-streaming transports.
+
+- Updated dependencies [[`6654f5f`](https://github.com/Effect-TS/effect/commit/6654f5f0f6b9d97165ede5e04ca16776e2599328), [`2eb11b4`](https://github.com/Effect-TS/effect/commit/2eb11b47752cedf233ef4c4395d9c4efc9b9e180), [`56c09bd`](https://github.com/Effect-TS/effect/commit/56c09bd369279a6a7785209d172739935818cba6), [`71aa5b1`](https://github.com/Effect-TS/effect/commit/71aa5b1c180dcb8b53aefe232d12a97bd06b5447), [`1700af8`](https://github.com/Effect-TS/effect/commit/1700af8af1131602887da721914c8562b6342393), [`ce0c2ef`](https://github.com/Effect-TS/effect/commit/ce0c2efb465096bca866b424a7e373d7a38ceceb)]:
+  - effect@2.3.2
+  - @effect/rpc@0.27.3
+  - @effect/platform@0.44.3
+  - @effect/schema@0.62.2
+
+## 0.26.2
+
+### Patch Changes
+
+- [#2092](https://github.com/Effect-TS/effect/pull/2092) [`b974658`](https://github.com/Effect-TS/effect/commit/b974658d416fcc6e57c6cd158d63f7c02126814b) Thanks [@tim-smart](https://github.com/tim-smart)! - add rpc Router.provideService and .provideServiceEffect
+
+  with these apis you can provide context to a Rpc or Router to eliminate
+  requirements.
+
+  ```ts
+  import { Rpc, Router } from "@effect/rpc"
+
+  Router.make(
+    Rpc.effect(MyRequest, () => ...)
+  ).pipe(
+    Router.provideServiceEffect(Session, makeSessionEffect)
+  )
+  ```
+
+- Updated dependencies [[`b974658`](https://github.com/Effect-TS/effect/commit/b974658d416fcc6e57c6cd158d63f7c02126814b), [`29739dd`](https://github.com/Effect-TS/effect/commit/29739dde8e6232824d49c4c7f8856de245249c5c), [`b974658`](https://github.com/Effect-TS/effect/commit/b974658d416fcc6e57c6cd158d63f7c02126814b), [`b974658`](https://github.com/Effect-TS/effect/commit/b974658d416fcc6e57c6cd158d63f7c02126814b)]:
+  - @effect/rpc@0.27.2
+  - @effect/platform@0.44.2
+
 ## 0.26.1
 
 ### Patch Changes

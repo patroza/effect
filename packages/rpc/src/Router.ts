@@ -10,7 +10,7 @@ import * as Chunk from "effect/Chunk"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
-import { pipe } from "effect/Function"
+import { dual, pipe } from "effect/Function"
 import { type Pipeable, pipeArguments } from "effect/Pipeable"
 import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
@@ -78,7 +78,23 @@ export declare namespace Router {
    * @category models
    */
   export type Response = [index: number, response: Schema.ExitFrom<any, any> | ReadonlyArray<Schema.ExitFrom<any, any>>]
+
+  /**
+   * @since 1.0.0
+   * @category models
+   */
+  export type ResponseEffect = Schema.ExitFrom<any, any> | ReadonlyArray<Schema.ExitFrom<any, any>>
 }
+
+const fromSet = <Reqs extends Schema.TaggedRequest.Any, R>(
+  rpcs: ReadonlySet<Rpc.Rpc<Reqs, R>>
+): Router<Reqs, R> => ({
+  [TypeId]: TypeId,
+  rpcs,
+  pipe() {
+    return pipeArguments(this, arguments)
+  }
+})
 
 /**
  * @since 1.0.0
@@ -108,14 +124,48 @@ export const make = <Rpcs extends ReadonlyArray<Rpc.Rpc<any, any> | Router<any, 
       rpcSet.add(rpc)
     }
   })
-  return ({
-    [TypeId]: TypeId,
-    rpcs: rpcSet,
-    pipe() {
-      return pipeArguments(this, arguments)
-    }
-  })
+  return fromSet(rpcSet)
 }
+
+/**
+ * @since 1.0.0
+ * @category context
+ */
+export const provideServiceEffect: {
+  <I, S, E, R2>(
+    tag: Context.Tag<I, S>,
+    effect: Effect.Effect<S, E, R2>
+  ): <Reqs extends Schema.TaggedRequest.Any, R>(self: Router<Reqs, R>) => Router<Reqs, Exclude<R, I> | R2>
+  <Reqs extends Schema.TaggedRequest.Any, R, I, S, E, R2>(
+    self: Router<Reqs, R>,
+    tag: Context.Tag<I, S>,
+    effect: Effect.Effect<S, E, R2>
+  ): Router<Reqs, Exclude<R, I> | R2>
+} = dual(3, <Reqs extends Schema.TaggedRequest.Any, R, I, S, E, R2>(
+  self: Router<Reqs, R>,
+  tag: Context.Tag<I, S>,
+  effect: Effect.Effect<S, E, R2>
+): Router<Reqs, Exclude<R, I> | R2> => fromSet(new Set([...self.rpcs].map(Rpc.provideServiceEffect(tag, effect)))))
+
+/**
+ * @since 1.0.0
+ * @category context
+ */
+export const provideService: {
+  <I, S>(
+    tag: Context.Tag<I, S>,
+    service: S
+  ): <Reqs extends Schema.TaggedRequest.Any, R>(self: Router<Reqs, R>) => Router<Reqs, Exclude<R, I>>
+  <Reqs extends Schema.TaggedRequest.Any, R, I, S>(
+    self: Router<Reqs, R>,
+    tag: Context.Tag<I, S>,
+    service: S
+  ): Router<Reqs, Exclude<R, I>>
+} = dual(3, <Reqs extends Schema.TaggedRequest.Any, R, I, S>(
+  self: Router<Reqs, R>,
+  tag: Context.Tag<I, S>,
+  service: S
+): Router<Reqs, Exclude<R, I>> => fromSet(new Set([...self.rpcs].map(Rpc.provideService(tag, service)))))
 
 const EOF = Symbol.for("@effect/rpc/Router/EOF")
 
@@ -232,6 +282,75 @@ export const toHandler = <R extends Router<any, any>>(router: R, options?: {
       ),
       Effect.map(([_, queue]) => Stream.fromChannel(channelFromQueue(queue))),
       Stream.unwrap
+    )
+}
+
+/**
+ * @since 1.0.0
+ * @category combinators
+ */
+export const toHandlerEffect = <R extends Router<any, any>>(router: R, options?: {
+  readonly spanPrefix?: string
+}) => {
+  const spanPrefix = options?.spanPrefix ?? "Rpc.router "
+  const schema: Schema.Schema<any, unknown, readonly [Schema.TaggedRequest.Any, Rpc.Rpc<any, any>]> = Schema
+    .union(
+      ...[...router.rpcs].map((rpc) =>
+        Schema.transform(
+          rpc.schema,
+          Schema.to(Schema.tuple(rpc.schema, Schema.any)),
+          (request) => [request, rpc] as const,
+          ([request]) => request
+        )
+      )
+    )
+  const schemaArray = Schema.array(Rpc.RequestSchema(schema))
+  const decode = Schema.decodeUnknown(schemaArray)
+  const getEncode = withRequestTag((req) => Schema.encode(Serializable.exitSchema(req)))
+  const getEncodeChunk = withRequestTag((req) => Schema.encode(Schema.chunk(Serializable.exitSchema(req))))
+
+  return (u: unknown): Effect.Effect<ReadonlyArray<Router.ResponseEffect>, ParseError, Router.Context<R>> =>
+    Effect.flatMap(
+      decode(u),
+      Effect.forEach((req): Effect.Effect<Router.ResponseEffect, ParseError, any> => {
+        const [request, rpc] = req.request
+        if (rpc._tag === "Effect") {
+          const encode = getEncode(request)
+          return pipe(
+            Effect.exit(rpc.handler(request)),
+            Effect.flatMap(encode),
+            Effect.orDie,
+            Effect.locally(Rpc.currentHeaders, req.headers as any),
+            Effect.withSpan(`${spanPrefix}${request._tag}`, {
+              parent: {
+                _tag: "ExternalSpan",
+                traceId: req.traceId,
+                spanId: req.spanId,
+                sampled: req.sampled,
+                context: Context.empty()
+              }
+            })
+          )
+        }
+        const encode = getEncodeChunk(request)
+        return pipe(
+          rpc.handler(request),
+          Stream.map(Exit.succeed),
+          Stream.catchAllCause((cause) => Stream.succeed(Exit.failCause(cause))),
+          Stream.runCollect,
+          Effect.flatMap(encode),
+          Effect.locally(Rpc.currentHeaders, req.headers as any),
+          Effect.withSpan(`${spanPrefix}${request._tag}`, {
+            parent: {
+              _tag: "ExternalSpan",
+              traceId: req.traceId,
+              spanId: req.spanId,
+              sampled: req.sampled,
+              context: Context.empty()
+            }
+          })
+        )
+      }, { concurrency: "unbounded" })
     )
 }
 
