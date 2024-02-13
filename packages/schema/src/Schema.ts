@@ -5120,7 +5120,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
         selfSchema,
         declaration,
         (input) => new this(input, true),
-        (input) => input
+        identity
       )
       return transformation.ast
     }
