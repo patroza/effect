@@ -1,5 +1,26 @@
 # @effect/platform-browser
 
+## 0.29.7
+
+### Patch Changes
+
+- [#2117](https://github.com/Effect-TS/effect/pull/2117) [`bb09ea3`](https://github.com/Effect-TS/effect/commit/bb09ea3d1ecf408a56562624ed1b2534be115c32) Thanks [@tim-smart](https://github.com/tim-smart)! - add XMLHttpRequest client to @effect/platform-browser
+
+## 0.29.6
+
+### Patch Changes
+
+- Updated dependencies [[`17bda66`](https://github.com/Effect-TS/effect/commit/17bda66431c999a546920c10adb205e6c8bea7d1)]:
+  - effect@2.3.4
+  - @effect/platform@0.44.6
+
+## 0.29.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @effect/platform@0.44.5
+
 ## 0.29.4
 
 ### Patch Changes

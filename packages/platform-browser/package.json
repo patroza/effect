@@ -1,7 +1,7 @@
 {
   "name": "@effect/platform-browser",
   "type": "module",
-  "version": "0.29.4",
+  "version": "0.29.7",
   "license": "MIT",
   "description": "Unified interfaces for common platform-specific services",
   "homepage": "https://effect.website",
@@ -46,7 +46,8 @@
     "@effect/platform": "workspace:^",
     "@effect/schema": "workspace:^",
     "effect": "workspace:^",
-    "happy-dom": "^12.10.3"
+    "happy-dom": "^12.10.3",
+    "mock-xmlhttprequest": "^8.3.0"
   },
   "effect": {
     "generateExports": {
@@ -55,5 +56,8 @@
         "Http/*.ts"
       ]
     }
+  },
+  "dependencies": {
+    "multipasta": "^0.1.21"
   }
 }
