@@ -56,6 +56,12 @@ const installFluentExtensions = () => {
         },
         map(arg: any): any {
           return Effect.map(this as any, arg)
+        },
+        get asUnit(): any {
+          return Effect.asUnit(this as any)
+        },
+        get orDie(): any {
+          return Effect.orDie(this as any)
         }
       })
       // Object.defineProperty(effect, "andThen", {
@@ -91,9 +97,6 @@ const installFluentExtensions = () => {
     },
     getOrElse(arg: () => any): any {
       return Option.getOrElse(this as any, arg)
-    },
-    get asUnit(): any {
-      return Effect.asUnit(this as any)
     }
   })
   // Object.defineProperty(opt, "andThen", {
