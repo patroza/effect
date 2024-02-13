@@ -91,6 +91,9 @@ const installFluentExtensions = () => {
     },
     getOrElse(arg: () => any): any {
       return Option.getOrElse(this as any, arg)
+    },
+    get asUnit(): any {
+      return Effect.asUnit(this as any)
     }
   })
   // Object.defineProperty(opt, "andThen", {
