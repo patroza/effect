@@ -5101,7 +5101,6 @@ const makeClass = <A, I, R, Fields extends StructFields>(
       const toSchema = to(selfSchema)
       const pretty = Pretty.make(toSchema)
       const arb = arbitrary.make(toSchema)
-      const enc = Parser.encodeUnknownSync(toSchema)
       const declaration: Schema<any, any, never> = declare(
         [],
         () => (input, _, ast) =>
@@ -5121,7 +5120,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
         selfSchema,
         declaration,
         (input) => new this(input, true),
-        (input) => enc(input)
+        (input) => input
       )
       return transformation.ast
     }
