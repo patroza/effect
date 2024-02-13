@@ -5101,10 +5101,14 @@ const makeClass = <A, I, R, Fields extends StructFields>(
       const toSchema = to(selfSchema)
       const pretty = Pretty.make(toSchema)
       const arb = arbitrary.make(toSchema)
-      const dec = Parser.decodeUnknownEither(toSchema)
       const enc = Parser.encodeUnknownSync(toSchema)
       const declaration: Schema<any, any, never> = declare(
-        (input): input is any => input instanceof this || dec(input)._tag === "Right",
+        [],
+        () => (input, _, ast) =>
+          input instanceof this
+            ? ParseResult.succeed(input)
+            : ParseResult.fail(ParseResult.type(ast, input)),
+        () => (input) => ParseResult.succeed(input),
         {
           identifier: this.name,
           title: this.name,
