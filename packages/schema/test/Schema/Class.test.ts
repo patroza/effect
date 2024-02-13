@@ -142,7 +142,7 @@ describe("Schema > Class", () => {
     expect(john.name).toEqual("John")
     expect(john.upperName).toEqual("JOHN")
     expect(typeof john.upperName).toEqual("string")
-    expect(() => new Person({ id: 1, name: "" })).toThrow(
+    expect(() => new Person({ id: 1, name: "" }, false)).toThrow(
       new Error(`{ id: number; name: a non empty string }
 └─ ["name"]
    └─ a non empty string

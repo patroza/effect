@@ -4707,7 +4707,7 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
       ] :
       [
         props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
-        disableValidation: true
+        disableValidation?: true | undefined
       ]
   ): A & Omit<Inherited, keyof A> & Proto
 
@@ -4805,7 +4805,7 @@ export const Class = <Self>() =>
 {
   const Class = makeClass(struct(fields), fields, Data.Class)
   return class extends Class {
-    constructor(props: any = {}, disableValidation = false) {
+    constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "make" in v) {
@@ -4933,7 +4933,7 @@ export const TaggedClass = <Self>() =>
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
   const Class = makeClass(struct(fieldsWithTag), fieldsWithTag, Data.Class, { _tag: tag })
   return class extends Class {
-    constructor(props: any = {}, disableValidation = false) {
+    constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "make" in v) {
@@ -4973,7 +4973,7 @@ export const TaggedError = <Self>() =>
     { _tag: tag }
   )
   return class extends Class {
-    constructor(props: any = {}, disableValidation = false) {
+    constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "make" in v) {
@@ -5056,7 +5056,7 @@ export const TaggedRequest = <Self>() =>
     { _tag: tag }
   )
   return class extends Class {
-    constructor(props: any = {}, disableValidation = false) {
+    constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "make" in v) {
@@ -5077,7 +5077,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
   const validator = Parser.validateSync(selfSchema as any)
 
   return class extends Base {
-    constructor(props?: any, disableValidation = false) {
+    constructor(props?: any, disableValidation = true) {
       if (additionalProps !== undefined) {
         props = { ...additionalProps, ...props }
       }
