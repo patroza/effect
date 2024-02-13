@@ -56,6 +56,9 @@ const installFluentExtensions = () => {
         },
         map(arg: any): any {
           return Effect.map(this as any, arg)
+        },
+        flatMap(arg: any): any {
+          return Effect.flatMap(this as any, arg)
         }
       })
       Object.defineProperty(effect, "asUnit", {
@@ -103,8 +106,25 @@ const installFluentExtensions = () => {
     map(arg: any): any {
       return Option.map(this as any, arg)
     },
+    flatMap(arg: any): any {
+      return Option.flatMap(this as any, arg)
+    },
     getOrElse(arg: () => any): any {
       return Option.getOrElse(this as any, arg)
+    }
+  })
+  Object.defineProperty(opt, "asUnit", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return Effect.asUnit(this as any)
+    }
+  })
+  Object.defineProperty(opt, "orDie", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return Effect.orDie(this as any)
     }
   })
   // Object.defineProperty(opt, "andThen", {
@@ -163,6 +183,23 @@ const installFluentExtensions = () => {
     },
     map(arg: any): any {
       return Either.map(this as any, arg)
+    },
+    flatMap(arg: any): any {
+      return Either.flatMap(this as any, arg)
+    }
+  })
+  Object.defineProperty(either, "asUnit", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return Effect.asUnit(this as any)
+    }
+  })
+  Object.defineProperty(either, "orDie", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return Effect.orDie(this as any)
     }
   })
   // Object.defineProperty(either, "andThen", {
