@@ -56,11 +56,19 @@ const installFluentExtensions = () => {
         },
         map(arg: any): any {
           return Effect.map(this as any, arg)
-        },
-        get asUnit(): any {
+        }
+      })
+      Object.defineProperty(effect, "asUnit", {
+        enumerable: false,
+        configurable: true,
+        get() {
           return Effect.asUnit(this as any)
-        },
-        get orDie(): any {
+        }
+      })
+      Object.defineProperty(effect, "orDie", {
+        enumerable: false,
+        configurable: true,
+        get() {
           return Effect.orDie(this as any)
         }
       })
