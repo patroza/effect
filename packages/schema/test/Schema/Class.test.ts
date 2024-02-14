@@ -493,7 +493,7 @@ describe("Schema > Class", () => {
       c: C
     }) {}
 
-    const f = new F({ c: { n: 2, b: 1 } }, false) // passes
+    const f = new F({ c: { n: 2, b: 1 } }, true) // passes
 
     await Util.expectEncodeSuccess(F, f, { n: "2", b: 1 }) // fails. proposal: encode(F)(v, { disableValidation: true })
   })
