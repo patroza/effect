@@ -480,6 +480,24 @@ describe("Schema > Class", () => {
     )
   })
 
+  it("takes substitute on constructor, and encoder", async () => {
+    class C extends S.Class<C>()({
+      n: S.NumberFromString
+    }) {
+      get b() {
+        return 1
+      }
+    }
+
+    class F extends S.Class<F>()({
+      c: C
+    }) {}
+
+    const f = new F({ c: { n: 2, b: 1 } }, false) // passes
+
+    await Util.expectEncodeSuccess(F, f, { n: "2", b: 1 }) // fails. proposal: encode(F)(v, { disableValidation: true })
+  })
+
   it.skip("encode works with struct", async () => {
     assert.doesNotThrow(() => S.encodeSync(Person)({ id: 1, name: "John" } as Person))
     class A extends S.Class<A>()({
