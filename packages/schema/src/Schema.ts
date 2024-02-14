@@ -340,8 +340,8 @@ export const validate = <A, I, R>(
  * @category validation
  * @since 1.0.0
  */
-export const validateEither = <A, I>(
-  schema: Schema<A, I, never>,
+export const validateEither = <A, I, R>(
+  schema: Schema<A, I, R>,
   options?: ParseOptions
 ) => {
   const validateEither = Parser.validateEither(schema, options)
@@ -484,17 +484,16 @@ const getTemplateLiterals = (
 
 const declareConstructor = <
   const P extends ReadonlyArray<Schema<any, any, any>>,
-  R extends Schema.Context<P[number]>,
   I,
   A
 >(
   typeParameters: P,
   decodeUnknown: (
-    ...typeParameters: P
-  ) => (input: unknown, options: ParseOptions, ast: AST.Declaration) => Effect.Effect<A, ParseResult.ParseIssue, R>,
+    ...typeParameters: { readonly [K in keyof P]: Schema<Schema.To<P[K]>, Schema.From<P[K]>, never> }
+  ) => (input: unknown, options: ParseOptions, ast: AST.Declaration) => Effect.Effect<A, ParseResult.ParseIssue, never>,
   encodeUnknown: (
-    ...typeParameters: P
-  ) => (input: unknown, options: ParseOptions, ast: AST.Declaration) => Effect.Effect<I, ParseResult.ParseIssue, R>,
+    ...typeParameters: { readonly [K in keyof P]: Schema<Schema.To<P[K]>, Schema.From<P[K]>, never> }
+  ) => (input: unknown, options: ParseOptions, ast: AST.Declaration) => Effect.Effect<I, ParseResult.ParseIssue, never>,
   annotations?: DeclareAnnotations<P, A>
 ): Schema<A, I, Schema.Context<P[number]>> =>
   make(AST.createDeclaration(
@@ -539,14 +538,22 @@ export const declare: {
     is: (input: unknown) => input is A,
     annotations?: DeclareAnnotations<readonly [], A>
   ): Schema<A>
-  <const P extends ReadonlyArray<Schema<any, any, any>>, R extends Schema.Context<P[number]>, I, A>(
+  <const P extends ReadonlyArray<Schema<any, any, any>>, I, A>(
     typeParameters: P,
     decodeUnknown: (
-      ...typeParameters: P
-    ) => (input: unknown, options: ParseOptions, ast: AST.Declaration) => Effect.Effect<A, ParseResult.ParseIssue, R>,
+      ...typeParameters: { readonly [K in keyof P]: Schema<Schema.To<P[K]>, Schema.From<P[K]>, never> }
+    ) => (
+      input: unknown,
+      options: ParseOptions,
+      ast: AST.Declaration
+    ) => Effect.Effect<A, ParseResult.ParseIssue, never>,
     encodeUnknown: (
-      ...typeParameters: P
-    ) => (input: unknown, options: ParseOptions, ast: AST.Declaration) => Effect.Effect<I, ParseResult.ParseIssue, R>,
+      ...typeParameters: { readonly [K in keyof P]: Schema<Schema.To<P[K]>, Schema.From<P[K]>, never> }
+    ) => (
+      input: unknown,
+      options: ParseOptions,
+      ast: AST.Declaration
+    ) => Effect.Effect<I, ParseResult.ParseIssue, never>,
     annotations?: DeclareAnnotations<{ readonly [K in keyof P]: Schema.To<P[K]> }, A>
   ): Schema<A, I, Schema.Context<P[number]>>
 } = function() {
@@ -713,7 +720,7 @@ export const nullable = <A, I, R>(self: Schema<A, I, R>): Schema<A | null, I | n
  */
 export const orUndefined = <A, I, R>(
   self: Schema<A, I, R>
-): Schema<A | undefined, I | undefined, R> => union(_undefined, self)
+): Schema<A | undefined, I | undefined, R> => make(AST.orUndefined(self.ast))
 
 /**
  * @category combinators
@@ -1330,10 +1337,10 @@ export const pluck: {
   ): Schema<A[K], I, R> => {
     if (options && options.transformation == false) {
       const ps = AST.getPropertyKeyIndexedAccess(schema.ast, key)
-      return make(ps.isOptional ? AST.createUnion([AST.undefinedKeyword, ps.type]) : ps.type)
+      return make(ps.isOptional ? AST.orUndefined(ps.type) : ps.type)
     } else {
       const ps = AST.getPropertyKeyIndexedAccess(to(schema).ast, key)
-      const value = make<A[K], A[K], R>(ps.isOptional ? AST.createUnion([AST.undefinedKeyword, ps.type]) : ps.type)
+      const value = make<A[K], A[K], R>(ps.isOptional ? AST.orUndefined(ps.type) : ps.type)
       return transform(
         schema,
         value,
@@ -1415,9 +1422,18 @@ export const brand =
  * @category combinators
  * @since 1.0.0
  */
-export const partial = <A, I, R>(
-  self: Schema<A, I, R>
-): Schema<Simplify<Partial<A>>, Simplify<Partial<I>>, R> => make(AST.partial(self.ast))
+export const partial: {
+  <A, I, R>(
+    self: Schema<A, I, R>,
+    options: { readonly exact: true }
+  ): Schema<{ [K in keyof A]?: A[K] }, { [K in keyof I]?: I[K] }, R>
+  <A, I, R>(
+    self: Schema<A, I, R>
+  ): Schema<{ [K in keyof A]?: A[K] | undefined }, Simplify<{ [K in keyof I]?: I[K] | undefined }>, R>
+} = <A, I, R>(
+  self: Schema<A, I, R>,
+  options?: { readonly exact: true }
+): Schema<Partial<A>, Partial<I>, R> => make(AST.partial(self.ast, options))
 
 /**
  * @category combinators
@@ -1425,7 +1441,7 @@ export const partial = <A, I, R>(
  */
 export const required = <A, I, R>(
   self: Schema<A, I, R>
-): Schema<Simplify<Required<A>>, Simplify<Required<I>>, R> => make(AST.required(self.ast))
+): Schema<{ [K in keyof A]-?: A[K] }, { [K in keyof I]-?: I[K] }, R> => make(AST.required(self.ast))
 
 /**
  * Creates a new schema with shallow mutability applied to its properties.
@@ -4701,14 +4717,8 @@ type FilterOptionalKeys<A> = Omit<A, _OptionalKeys<A>>
  */
 export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> extends Schema<Self, I, R> {
   new(
-    ...args: [R] extends [never] ? [
-        props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
-        disableValidation?: boolean | undefined
-      ] :
-      [
-        props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
-        disableValidation?: true | undefined
-      ]
+    props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
+    disableValidation?: boolean | undefined
   ): A & Omit<Inherited, keyof A> & Proto
 
   readonly struct: Schema<A, I, R>
@@ -5074,7 +5084,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
   Base: any,
   additionalProps?: any
 ): any => {
-  const validator = Parser.validateSync(selfSchema as any)
+  const validate = Parser.validateSync(selfSchema)
 
   return class extends Base {
     constructor(props?: any, disableValidation = true) {
@@ -5082,7 +5092,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
         props = { ...additionalProps, ...props }
       }
       if (disableValidation !== true) {
-        props = validator(props)
+        props = validate(props)
       }
       super(props, true)
     }
@@ -5099,15 +5109,23 @@ const makeClass = <A, I, R, Fields extends StructFields>(
 
     static get ast() {
       const toSchema = to(selfSchema)
+      const encode = Parser.encodeUnknown(toSchema)
       const pretty = Pretty.make(toSchema)
       const arb = arbitrary.make(toSchema)
       const declaration: Schema<any, any, never> = declare(
         [],
         () => (input, _, ast) =>
+          input instanceof this ? ParseResult.succeed(input) : ParseResult.fail(ParseResult.type(ast, input)),
+        () => (input, _, ast) =>
           input instanceof this
             ? ParseResult.succeed(input)
-            : ParseResult.fail(ParseResult.type(ast, input)),
-        () => (input) => ParseResult.succeed(input),
+            : ParseResult.mapError(
+              ParseResult.map(
+                encode(input),
+                (props) => new this(props, true)
+              ),
+              () => ParseResult.type(ast, input)
+            ),
         {
           identifier: this.name,
           title: this.name,
