@@ -4818,8 +4818,8 @@ export const Class = <Self>() =>
     constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
-        if (p[k] === undefined && "make" in v) {
-          p[k] = v.make()
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
         }
       })
       super(p, disableValidation)
@@ -4833,7 +4833,7 @@ export const Class = <Self>() =>
 export interface ConstructorPropertyDescriptor<To, From = To, R = never>
   extends Schema.Variance<To, From, R>, Pipeable
 {
-  make: () => To
+  __defaultConstructor: () => To
 }
 
 /**
@@ -4866,12 +4866,12 @@ export const withDefaultConstructor: {
     if ("struct" in s) {
       const _s = s as unknown as Class<any, any, any, any, any, any, any>
       const cls = class extends _s {
-        static make = make
+        static __defaultConstructor = make
       }
       Object.defineProperty(cls, "name", { value: _s.name })
       return cls as any
     }
-    return Object.assign(Object.create(s), s, { make })
+    return Object.assign(Object.create(s), s, { __defaultConstructor: make })
   }
 )
 
@@ -4946,8 +4946,8 @@ export const TaggedClass = <Self>() =>
     constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
-        if (p[k] === undefined && "make" in v) {
-          p[k] = v.make()
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
         }
       })
       super(p, disableValidation)
@@ -4986,8 +4986,8 @@ export const TaggedError = <Self>() =>
     constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
-        if (p[k] === undefined && "make" in v) {
-          p[k] = v.make()
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
         }
       })
       super(p, disableValidation)
@@ -5069,8 +5069,8 @@ export const TaggedRequest = <Self>() =>
     constructor(props: any = {}, disableValidation = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
-        if (p[k] === undefined && "make" in v) {
-          p[k] = v.make()
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
         }
       })
       super(p, disableValidation)
