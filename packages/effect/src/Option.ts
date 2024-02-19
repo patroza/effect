@@ -14,7 +14,7 @@ import type { Order } from "./Order.js"
 import * as order from "./Order.js"
 import type { Pipeable } from "./Pipeable.js"
 import type { Predicate, Refinement } from "./Predicate.js"
-import type { Covariant, NoInfer } from "./Types.js"
+import type { Covariant, NoInfer, NotFunction } from "./Types.js"
 import type * as Unify from "./Unify.js"
 import * as Gen from "./Utils.js"
 
@@ -649,11 +649,11 @@ export const andThen: {
   <A, B>(f: (a: A) => Option<B>): (self: Option<A>) => Option<B>
   <B>(f: Option<B>): <A>(self: Option<A>) => Option<B>
   <A, B>(f: (a: NoInfer<A>) => B): (self: Option<A>) => Option<B>
-  <B>(f: B): <A>(self: Option<A>) => [B] extends [(...args: any) => any] ? never : Option<B>
+  <B>(f: NotFunction<B>): <A>(self: Option<A>) => Option<B>
   <A, B>(self: Option<A>, f: (a: NoInfer<A>) => Option<B>): Option<B>
   <A, B>(self: Option<A>, f: Option<B>): Option<B>
   <A, B>(self: Option<A>, f: (a: NoInfer<A>) => B): Option<B>
-  <A, B>(self: Option<A>, f: B): [B] extends [(...args: any) => any] ? never : Option<B>
+  <A, B>(self: Option<A>, f: NotFunction<B>): Option<B>
 } = dual(
   2,
   <A, B>(self: Option<A>, f: (a: A) => Option<B> | Option<B>): Option<B> =>
@@ -661,7 +661,7 @@ export const andThen: {
       const b = isFunction(f) ? f(a) : f
       return isOption(b) ? b : some(b)
     })
-) as any
+)
 
 /**
  * This is `flatMap` + `fromNullable`, useful when working with optional values.

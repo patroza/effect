@@ -53,7 +53,7 @@ import * as Scheduler from "./Scheduler.js"
 import type * as Scope from "./Scope.js"
 import type * as Supervisor from "./Supervisor.js"
 import type * as Tracer from "./Tracer.js"
-import type { Concurrency, Covariant, NoInfer } from "./Types.js"
+import type { Concurrency, Covariant, NoInfer, NotFunction } from "./Types.js"
 import type * as Unify from "./Unify.js"
 
 // -------------------------------------------------------------------------------------
@@ -3604,6 +3604,7 @@ export const flatMap: {
  * @since 2.0.0
  * @category sequencing
  */
+
 export const andThen: {
   <A, X>(
     f: (a: NoInfer<A>) => X
@@ -3613,11 +3614,10 @@ export const andThen: {
     : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
   <X>(
-    f: X
+    f: NotFunction<X>
   ): <A, E, R>(
     self: Effect<A, E, R>
-  ) => [X] extends [(...args: any) => any] ? never :
-    [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
+  ) => [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
     : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
   <A, R, E, X>(
@@ -3628,9 +3628,8 @@ export const andThen: {
     : Effect<X, E, R>
   <A, R, E, X>(
     self: Effect<A, E, R>,
-    f: X
-  ): [X] extends [(...args: any) => any] ? never :
-    [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
+    f: NotFunction<X>
+  ): [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
     : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
 } = core.andThen
@@ -3744,7 +3743,7 @@ export const tap: {
     : [X] extends [Promise<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
     : Effect<A, E, R>
   <X>(
-    f: X
+    f: NotFunction<X>
   ): <A, E, R>(
     self: Effect<A, E, R>
   ) => [X] extends [Effect<infer _A1, infer E1, infer R1>] ? Effect<A, E | E1, R | R1>
@@ -3758,7 +3757,7 @@ export const tap: {
     : Effect<A, E, R>
   <A, E, R, X>(
     self: Effect<A, E, R>,
-    f: X
+    f: NotFunction<X>
   ): [X] extends [Effect<infer _A1, infer E1, infer R1>] ? Effect<A, E | E1, R | R1>
     : [X] extends [Promise<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
     : Effect<A, E, R>
