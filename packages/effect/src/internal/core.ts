@@ -725,7 +725,8 @@ export const andThen: {
     f: X
   ): <A, E, R>(
     self: Effect.Effect<A, E, R>
-  ) => [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
+  ) => [X] extends [(...args: any) => any] ? never :
+    [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
     : [X] extends [Promise<infer A1>] ? Effect.Effect<A1, E | Cause.UnknownException, R>
     : Effect.Effect<X, E, R>
   <A, R, E, X>(
@@ -737,7 +738,8 @@ export const andThen: {
   <A, R, E, X>(
     self: Effect.Effect<A, E, R>,
     f: X
-  ): [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
+  ): [X] extends [(...args: any) => any] ? never :
+    [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
     : [X] extends [Promise<infer A1>] ? Effect.Effect<A1, E | Cause.UnknownException, R>
     : Effect.Effect<X, E, R>
 } = dual(2, (self, f) =>
@@ -751,7 +753,7 @@ export const andThen: {
       })
     }
     return succeed(b)
-  }))
+  })) as any
 
 /* @internal */
 export const step = <A, E, R>(
