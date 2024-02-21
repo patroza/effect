@@ -1,5 +1,29 @@
 # @effect/cli
 
+## 0.33.14
+
+### Patch Changes
+
+- [#2187](https://github.com/Effect-TS/effect/pull/2187) [`e6d36c0`](https://github.com/Effect-TS/effect/commit/e6d36c0813d836f17eabb6a9c7849baffca12dbf) Thanks [@tim-smart](https://github.com/tim-smart)! - update development dependencies
+
+- Updated dependencies [[`5ad2eec`](https://github.com/Effect-TS/effect/commit/5ad2eece0280b6db6a749d25cac1dcf6d33659a9), [`e6d36c0`](https://github.com/Effect-TS/effect/commit/e6d36c0813d836f17eabb6a9c7849baffca12dbf)]:
+  - effect@2.3.8
+  - @effect/schema@0.62.9
+  - @effect/platform@0.45.6
+  - @effect/printer@0.31.8
+  - @effect/printer-ansi@0.32.8
+
+## 0.33.13
+
+### Patch Changes
+
+- [#2175](https://github.com/Effect-TS/effect/pull/2175) [`bbb097b`](https://github.com/Effect-TS/effect/commit/bbb097b767013bd5be0d17162e391d614ff4b23e) Thanks [@IMax153](https://github.com/IMax153)! - Ensure wizard mode does not prompt further for 0 input to variadic arg / option
+
+- [#2175](https://github.com/Effect-TS/effect/pull/2175) [`bbb097b`](https://github.com/Effect-TS/effect/commit/bbb097b767013bd5be0d17162e391d614ff4b23e) Thanks [@IMax153](https://github.com/IMax153)! - Fix the display of CLI wizard mode to show the root command name and not the current executable
+
+- Updated dependencies [[`6daf084`](https://github.com/Effect-TS/effect/commit/6daf0845de008772011db8d7c75b7c37a6b4d334)]:
+  - @effect/platform@0.45.5
+
 ## 0.33.12
 
 ### Patch Changes
