@@ -255,7 +255,7 @@ export const fromIterable = <A>(collection: Iterable<A>): Option<A> => {
  * @category conversions
  * @since 2.0.0
  */
-export const getRight: <E, A>(self: Either<E, A>) => Option<A> = either.getRight
+export const getRight: <R, L>(self: Either<R, L>) => Option<R> = either.getRight
 
 /**
  * Converts a `Either` to an `Option` discarding the value.
@@ -270,7 +270,7 @@ export const getRight: <E, A>(self: Either<E, A>) => Option<A> = either.getRight
  * @category conversions
  * @since 2.0.0
  */
-export const getLeft: <E, A>(self: Either<E, A>) => Option<E> = either.getLeft
+export const getLeft: <R, L>(self: Either<R, L>) => Option<L> = either.getLeft
 
 /**
  * Returns the value of the `Option` if it is `Some`, otherwise returns `onNone`
@@ -395,11 +395,11 @@ export const orElseSome: {
  * @since 2.0.0
  */
 export const orElseEither: {
-  <B>(that: LazyArg<Option<B>>): <A>(self: Option<A>) => Option<Either<A, B>>
-  <A, B>(self: Option<A>, that: LazyArg<Option<B>>): Option<Either<A, B>>
+  <B>(that: LazyArg<Option<B>>): <A>(self: Option<A>) => Option<Either<B, A>>
+  <A, B>(self: Option<A>, that: LazyArg<Option<B>>): Option<Either<B, A>>
 } = dual(
   2,
-  <A, B>(self: Option<A>, that: LazyArg<Option<B>>): Option<Either<A, B>> =>
+  <A, B>(self: Option<A>, that: LazyArg<Option<B>>): Option<Either<B, A>> =>
     isNone(self) ? map(that(), either.right) : map(self, either.left)
 )
 
@@ -607,8 +607,8 @@ export const map: {
  * @since 2.0.0
  */
 export const as: {
-  <B>(b: B): <_>(self: Option<_>) => Option<B>
-} = dual(2, <_, B>(self: Option<_>, b: B): Option<B> => map(self, () => b))
+  <B>(b: B): <X>(self: Option<X>) => Option<B>
+} = dual(2, <X, B>(self: Option<X>, b: B): Option<B> => map(self, () => b))
 
 /**
  * Maps the `Some` value of this `Option` to the `void` constant value.
@@ -724,8 +724,8 @@ export const flatten: <A>(self: Option<Option<A>>) => Option<A> = flatMap(identi
  */
 export const zipRight: {
   <B>(that: Option<B>): <_>(self: Option<_>) => Option<B>
-  <_, B>(self: Option<_>, that: Option<B>): Option<B>
-} = dual(2, <_, B>(self: Option<_>, that: Option<B>): Option<B> => flatMap(self, () => that))
+  <X, B>(self: Option<X>, that: Option<B>): Option<B>
+} = dual(2, <X, B>(self: Option<X>, that: Option<B>): Option<B> => flatMap(self, () => that))
 
 /**
  * @category sequencing
@@ -749,8 +749,8 @@ export const composeK: {
  */
 export const zipLeft: {
   <_>(that: Option<_>): <A>(self: Option<A>) => Option<A>
-  <A, _>(self: Option<A>, that: Option<_>): Option<A>
-} = dual(2, <A, _>(self: Option<A>, that: Option<_>): Option<A> => tap(self, () => that))
+  <A, X>(self: Option<A>, that: Option<X>): Option<A>
+} = dual(2, <A, X>(self: Option<A>, that: Option<X>): Option<A> => tap(self, () => that))
 
 /**
  * Applies the provided function `f` to the value of the `Option` if it is `Some` and returns the original `Option`
@@ -774,9 +774,9 @@ export const zipLeft: {
  * @since 2.0.0
  */
 export const tap: {
-  <A, _>(f: (a: A) => Option<_>): (self: Option<A>) => Option<A>
-  <A, _>(self: Option<A>, f: (a: A) => Option<_>): Option<A>
-} = dual(2, <A, _>(self: Option<A>, f: (a: A) => Option<_>): Option<A> => flatMap(self, (a) => map(f(a), () => a)))
+  <A, X>(f: (a: A) => Option<X>): (self: Option<A>) => Option<A>
+  <A, X>(self: Option<A>, f: (a: A) => Option<X>): Option<A>
+} = dual(2, <A, X>(self: Option<A>, f: (a: A) => Option<X>): Option<A> => flatMap(self, (a) => map(f(a), () => a)))
 
 /**
  * @category combining
@@ -955,11 +955,11 @@ export const toArray = <A>(self: Option<A>): Array<A> => isNone(self) ? [] : [se
  * @since 2.0.0
  */
 export const partitionMap: {
-  <A, B, C>(f: (a: A) => Either<B, C>): (self: Option<A>) => [left: Option<B>, right: Option<C>]
-  <A, B, C>(self: Option<A>, f: (a: A) => Either<B, C>): [left: Option<B>, right: Option<C>]
+  <A, B, C>(f: (a: A) => Either<C, B>): (self: Option<A>) => [left: Option<B>, right: Option<C>]
+  <A, B, C>(self: Option<A>, f: (a: A) => Either<C, B>): [left: Option<B>, right: Option<C>]
 } = dual(2, <A, B, C>(
   self: Option<A>,
-  f: (a: A) => Either<B, C>
+  f: (a: A) => Either<C, B>
 ): [excluded: Option<B>, satisfying: Option<C>] => {
   if (isNone(self)) {
     return [none(), none()]

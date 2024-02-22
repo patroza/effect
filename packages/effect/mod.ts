@@ -2,6 +2,10 @@ import type k from "ast-types/gen/kinds.js"
 import type cs from "jscodeshift"
 
 const enabled = {
+  swapGroupByParams: false,
+  swapChannelStateParams: false,
+  swapScheduleParams: false,
+  swapEitherParams: false,
   swapLayerParams: false,
   swapSTMParams: false,
   swapSTMGenParams: false,
@@ -15,7 +19,8 @@ const enabled = {
   swapResourceParams: false,
   swapTExitParams: false,
   swapChannelParams: false,
-  swapSinkParams: true,
+  swapSinkParams: false,
+  cleanupEither: false,
   cleanupSTM: false,
   cleanupEffect: false,
   cleanupStream: false,
@@ -42,6 +47,7 @@ const cleanupStream = cleanup("Stream")
 const cleanupExit = cleanup("Exit")
 const cleanupSTM = cleanup("STM")
 const cleanupTake = cleanup("Take")
+const cleanupEither = cleanup("Either")
 
 const filter = (ast: cs.ASTPath<cs.TSTypeReference>, nodeName: string) => {
   const name = ast.value.typeName
@@ -91,7 +97,7 @@ const swapParamsEA = (nodeName: string) => (ast: cs.ASTPath<cs.TSTypeReference>)
   ) {
     const params = ast.value.typeParameters.params
     const newParams = [params[1], params[0]]
-    popNever(newParams)
+    // popNever(newParams)
     ast.value.typeParameters.params = newParams
   }
 }
@@ -105,6 +111,25 @@ const swapFiberSetParams = swapParamsEA("FiberSet")
 const swapRequestParams = swapParamsEA("Request")
 const swapResourceParams = swapParamsEA("Resource")
 const swapTExitParams = swapParamsEA("TExit")
+const swapEitherParams = swapParamsEA("Either")
+const swapChannelStateParams = swapParamsEA("ChannelState")
+
+// from: GroupBy<out R, out E, out K, out V>
+// to: GroupBy<out K, out V, out E = never, out R = never>
+const swapGroupByParams = (ast: cs.ASTPath<cs.TSTypeReference>) => {
+  const is = filter(ast, "GroupBy")
+  if (
+    is(ast.value.typeName) &&
+    ast.value.typeParameters &&
+    ast.value.typeParameters.params.length === 4
+  ) {
+    const params = ast.value.typeParameters.params
+    const newParams = [params[2], params[3], params[1], params[0]]
+    popNever(newParams)
+    popNever(newParams)
+    ast.value.typeParameters.params = newParams
+  }
+}
 
 // from: Channel<out Env, in InErr, in InElem, in InDone, out OutErr, out OutElem, out OutDone>
 // to: Channel<OutElem, InElem = unknown, OutErr = never, InErr = unknown, OutDone = void, InDone = unknown, Env = never>
@@ -144,8 +169,31 @@ const swapSTMParams = swapParamsREA("STM")
 const swapSTMGenParams = swapParamsREA("STMGen")
 const swapLayerParams = swapParamsREA("Layer")
 
+// from: Schedule<out Env, in In, out Out>
+// to: Schedule<out Out, in In = unknown, out Env = never>
+const swapScheduleParams = (ast: cs.ASTPath<cs.TSTypeReference>) => {
+  const is = filter(ast, "Schedule")
+  if (
+    is(ast.value.typeName) &&
+    ast.value.typeParameters &&
+    ast.value.typeParameters.params.length === 3
+  ) {
+    const params = ast.value.typeParameters.params
+    const newParams = [params[2], params[1], params[0]]
+    popNever(newParams)
+    popUnknown(newParams)
+    ast.value.typeParameters.params = newParams
+  }
+}
+
 const popNever = (params: Array<k.TSTypeKind>) => {
   if (params.length > 0 && params[params.length - 1].type === "TSNeverKeyword") {
+    params.pop()
+  }
+}
+
+const popUnknown = (params: Array<k.TSTypeKind>) => {
+  if (params.length > 0 && params[params.length - 1].type === "TSUnknownKeyword") {
     params.pop()
   }
 }
@@ -169,6 +217,18 @@ export default function transformer(file: cs.FileInfo, api: cs.API) {
   }
 
   forEveryTypeReference(root, (ast) => {
+    if (enabled.swapGroupByParams) {
+      swapGroupByParams(ast)
+    }
+    if (enabled.swapChannelStateParams) {
+      swapChannelStateParams(ast)
+    }
+    if (enabled.swapScheduleParams) {
+      swapScheduleParams(ast)
+    }
+    if (enabled.swapEitherParams) {
+      swapEitherParams(ast)
+    }
     if (enabled.swapLayerParams) {
       swapLayerParams(ast)
     }
@@ -210,6 +270,9 @@ export default function transformer(file: cs.FileInfo, api: cs.API) {
     }
     if (enabled.swapSinkParams) {
       swapSinkParams(ast)
+    }
+    if (enabled.cleanupEither) {
+      cleanupEither(ast)
     }
     if (enabled.cleanupEffect) {
       cleanupEffect(ast)

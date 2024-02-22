@@ -5,8 +5,8 @@
 import { TaggedError } from "effect/Data"
 import * as Effect from "effect/Effect"
 import * as Either from "effect/Either"
-import { dual } from "effect/Function"
 import type { LazyArg } from "effect/Function"
+import { dual } from "effect/Function"
 import * as Inspectable from "effect/Inspectable"
 import type * as Option from "effect/Option"
 import type * as ReadonlyArray from "effect/ReadonlyArray"
@@ -54,18 +54,18 @@ export const parseError = (issue: ParseIssue): ParseError => new ParseError({ er
  * @category constructors
  * @since 1.0.0
  */
-export const succeed: <A>(a: A) => Either.Either<ParseIssue, A> = Either.right
+export const succeed: <A>(a: A) => Either.Either<A, ParseIssue> = Either.right
 
 /**
  * @category constructors
  * @since 1.0.0
  */
-export const fail: (issue: ParseIssue) => Either.Either<ParseIssue, never> = Either.left
+export const fail: (issue: ParseIssue) => Either.Either<never, ParseIssue> = Either.left
 
 const _try: <A>(options: {
   try: LazyArg<A>
   catch: (e: unknown) => ParseIssue
-}) => Either.Either<ParseIssue, A> = Either.try
+}) => Either.Either<A, ParseIssue> = Either.try
 
 export {
   /**
@@ -74,6 +74,15 @@ export {
    */
   _try as try
 }
+
+/**
+ * @category constructors
+ * @since 1.0.0
+ */
+export const fromOption: {
+  <A>(self: Option.Option<A>, onNone: () => ParseIssue): Either.Either<A, ParseIssue>
+  <A>(onNone: () => ParseIssue): (self: Option.Option<A>) => Either.Either<A, ParseIssue>
+} = Either.fromOption
 
 /**
  * `ParseIssue` is a type that represents the different types of errors that can occur when decoding/encoding a value.
@@ -177,7 +186,7 @@ export const declaration = InternalParser.declaration
  */
 export interface Refinement {
   readonly _tag: "Refinement"
-  readonly ast: AST.Refinement
+  readonly ast: AST.Refinement<AST.AST>
   readonly actual: unknown
   readonly kind: "From" | "Predicate"
   readonly error: ParseIssue

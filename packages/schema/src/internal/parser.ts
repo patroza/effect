@@ -65,7 +65,7 @@ export const mapError: {
 /** @internal */
 export const eitherOrUndefined = <A, E, R>(
   self: Effect.Effect<A, E, R>
-): Either.Either<E, A> | undefined => {
+): Either.Either<A, E> | undefined => {
   const s: any = self
   if (s["_tag"] === "Left" || s["_tag"] === "Right") {
     return s
@@ -81,7 +81,7 @@ export const declaration = (
 
 /** @internal */
 export const refinement = (
-  ast: AST.Refinement,
+  ast: AST.Refinement<AST.AST>,
   actual: unknown,
   kind: "From" | "Predicate",
   error: ParseResult.ParseIssue

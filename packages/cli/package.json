@@ -1,6 +1,6 @@
 {
   "name": "@effect/cli",
-  "version": "0.33.14",
+  "version": "0.34.1",
   "type": "module",
   "license": "MIT",
   "description": "Functional programming in TypeScript",
@@ -26,7 +26,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": true
+    "provenance": false
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",

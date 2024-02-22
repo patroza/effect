@@ -252,7 +252,7 @@ describe("Either", () => {
   })
 
   it("flatMap", () => {
-    const f = Either.flatMap<string, string, number>(flow(S.length, Either.right))
+    const f = Either.flatMap(flow(S.length, Either.right))
     Util.deepStrictEqual(pipe(Either.right("abc"), f), Either.right(3))
     Util.deepStrictEqual(pipe(Either.left("maError"), f), Either.left("maError"))
   })
@@ -285,7 +285,7 @@ describe("Either", () => {
       Either.left("b")
     )
     expect(
-      (Either.left("a") as Either.Either<string, typeof add>).pipe(
+      (Either.left("a") as Either.Either<typeof add, string>).pipe(
         Either.ap(Either.right(1)),
         Either.ap(Either.right(2))
       )
@@ -316,5 +316,52 @@ describe("Either", () => {
     Util.deepStrictEqual(pipe(Either.right(1), Either.orElse(() => Either.left("b"))), Either.right(1))
     Util.deepStrictEqual(pipe(Either.left("a"), Either.orElse(() => Either.right(2))), Either.right(2))
     Util.deepStrictEqual(pipe(Either.left("a"), Either.orElse(() => Either.left("b"))), Either.left("b"))
+  })
+
+  it("Do", () => {
+    Util.deepStrictEqual(Either.Do, Either.right({}))
+  })
+
+  it("bindTo", () => {
+    Util.deepStrictEqual(
+      pipe(
+        Either.right(1),
+        Either.bindTo("a")
+      ),
+      Either.right({ a: 1 })
+    )
+    Util.deepStrictEqual(
+      pipe(
+        Either.left("b"),
+        Either.bindTo("a")
+      ),
+      Either.left("b")
+    )
+  })
+
+  it("bind", () => {
+    Util.deepStrictEqual(
+      pipe(Either.right(1), Either.bindTo("a"), Either.bind("b", ({ a }) => Either.right(a + 1))),
+      Either.right({ a: 1, b: 2 })
+    )
+    Util.deepStrictEqual(
+      pipe(Either.right(1), Either.bindTo("a"), Either.bind("b", () => Either.left("c"))),
+      Either.left("c")
+    )
+    Util.deepStrictEqual(
+      pipe(Either.left("d"), Either.bindTo("a"), Either.bind("b", () => Either.right(2))),
+      Either.left("d")
+    )
+  })
+
+  it("let", () => {
+    Util.deepStrictEqual(
+      pipe(Either.Do, Either.bind("a", () => Either.right(1)), Either.let("b", ({ a }) => a + 1)),
+      Either.right({ a: 1, b: 2 })
+    )
+    Util.deepStrictEqual(
+      pipe(Either.left("d"), Either.bindTo("a"), Either.let("b", () => Either.right(2))),
+      Either.left("d")
+    )
   })
 })

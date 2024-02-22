@@ -17,7 +17,7 @@ import * as O from "./Option.js"
 import * as Order from "./Order.js"
 import type { Predicate, Refinement } from "./Predicate.js"
 import { isBoolean } from "./Predicate.js"
-import * as RR from "./ReadonlyRecord.js"
+import * as ReadonlyRecord from "./ReadonlyRecord.js"
 import * as Tuple from "./Tuple.js"
 import type { NoInfer } from "./Types.js"
 
@@ -128,7 +128,7 @@ export const fromIterable = <A>(collection: Iterable<A>): Array<A> =>
  * @category conversions
  * @since 2.0.0
  */
-export const fromRecord: <K extends string, A>(self: Readonly<Record<K, A>>) => Array<[K, A]> = RR.toEntries
+export const fromRecord: <K extends string, A>(self: Readonly<Record<K, A>>) => Array<[K, A]> = ReadonlyRecord.toEntries
 
 /**
  * @category conversions
@@ -1334,10 +1334,18 @@ export const group: <A>(self: NonEmptyReadonlyArray<A>) => NonEmptyArray<NonEmpt
  * @since 2.0.0
  */
 export const groupBy: {
-  <A>(f: (a: A) => string): (self: Iterable<A>) => Record<string, NonEmptyArray<A>>
-  <A>(self: Iterable<A>, f: (a: A) => string): Record<string, NonEmptyArray<A>>
-} = dual(2, <A>(self: Iterable<A>, f: (a: A) => string): Record<string, NonEmptyArray<A>> => {
-  const out: Record<string, NonEmptyArray<A>> = {}
+  <A, K extends string | symbol>(
+    f: (a: A) => K
+  ): (self: Iterable<A>) => Record<ReadonlyRecord.ReadonlyRecord.NonLiteralKey<K>, NonEmptyArray<A>>
+  <A, K extends string | symbol>(
+    self: Iterable<A>,
+    f: (a: A) => K
+  ): Record<ReadonlyRecord.ReadonlyRecord.NonLiteralKey<K>, NonEmptyArray<A>>
+} = dual(2, <A, K extends string | symbol>(
+  self: Iterable<A>,
+  f: (a: A) => K
+): Record<ReadonlyRecord.ReadonlyRecord.NonLiteralKey<K>, NonEmptyArray<A>> => {
+  const out: Record<string | symbol, NonEmptyArray<A>> = {}
   for (const a of self) {
     const k = f(a)
     if (Object.prototype.hasOwnProperty.call(out, k)) {
@@ -1615,11 +1623,11 @@ export const filterMapWhile: {
  * @since 2.0.0
  */
 export const partitionMap: {
-  <A, B, C>(f: (a: A, i: number) => Either<B, C>): (self: Iterable<A>) => [left: Array<B>, right: Array<C>]
-  <A, B, C>(self: Iterable<A>, f: (a: A, i: number) => Either<B, C>): [left: Array<B>, right: Array<C>]
+  <A, B, C>(f: (a: A, i: number) => Either<C, B>): (self: Iterable<A>) => [left: Array<B>, right: Array<C>]
+  <A, B, C>(self: Iterable<A>, f: (a: A, i: number) => Either<C, B>): [left: Array<B>, right: Array<C>]
 } = dual(
   2,
-  <A, B, C>(self: Iterable<A>, f: (a: A, i: number) => Either<B, C>): [left: Array<B>, right: Array<C>] => {
+  <A, B, C>(self: Iterable<A>, f: (a: A, i: number) => Either<C, B>): [left: Array<B>, right: Array<C>] => {
     const left: Array<B> = []
     const right: Array<C> = []
     const as = fromIterable(self)
@@ -1667,8 +1675,8 @@ export const getSomes: <A>(self: Iterable<Option<A>>) => Array<A> = filterMap(id
  * @category filtering
  * @since 2.0.0
  */
-export const getLefts = <E, A>(self: Iterable<Either<E, A>>): Array<E> => {
-  const out: Array<E> = []
+export const getLefts = <R, L>(self: Iterable<Either<R, L>>): Array<L> => {
+  const out: Array<L> = []
   for (const a of self) {
     if (E.isLeft(a)) {
       out.push(a.left)
@@ -1693,8 +1701,8 @@ export const getLefts = <E, A>(self: Iterable<Either<E, A>>): Array<E> => {
  * @category filtering
  * @since 2.0.0
  */
-export const getRights = <E, A>(self: Iterable<Either<E, A>>): Array<A> => {
-  const out: Array<A> = []
+export const getRights = <R, L>(self: Iterable<Either<R, L>>): Array<R> => {
+  const out: Array<R> = []
   for (const a of self) {
     if (E.isRight(a)) {
       out.push(a.right)
@@ -1766,7 +1774,7 @@ export const partition: {
  * @category filtering
  * @since 2.0.0
  */
-export const separate: <E, A>(self: Iterable<Either<E, A>>) => [Array<E>, Array<A>] = partitionMap(
+export const separate: <R, L>(self: Iterable<Either<R, L>>) => [Array<L>, Array<R>] = partitionMap(
   identity
 )
 
@@ -1847,7 +1855,7 @@ export const flatMapNullable: {
  * @since 2.0.0
  */
 export const liftEither = <A extends Array<unknown>, E, B>(
-  f: (...a: A) => Either<E, B>
+  f: (...a: A) => Either<B, E>
 ) =>
 (...a: A): Array<B> => {
   const e = f(...a)

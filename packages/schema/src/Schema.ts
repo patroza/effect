@@ -36,8 +36,8 @@ import * as arbitrary from "./Arbitrary.js"
 import * as ArrayFormatter from "./ArrayFormatter.js"
 import type { ParseOptions } from "./AST.js"
 import * as AST from "./AST.js"
+import * as _equivalence from "./Equivalence.js"
 import * as Internal from "./internal/ast.js"
-import * as InternalBigInt from "./internal/bigint.js"
 import * as filters from "./internal/filters.js"
 import * as hooks from "./internal/hooks.js"
 import * as InternalSchema from "./internal/schema.js"
@@ -215,7 +215,7 @@ export const encodeUnknownEither = <A, I>(
   options?: ParseOptions
 ) => {
   const encodeUnknownEither = Parser.encodeUnknownEither(schema, options)
-  return (u: unknown, overrideOptions?: ParseOptions): Either.Either<ParseResult.ParseError, I> =>
+  return (u: unknown, overrideOptions?: ParseOptions): Either.Either<I, ParseResult.ParseError> =>
     Either.mapLeft(encodeUnknownEither(u, overrideOptions), ParseResult.parseError)
 }
 
@@ -247,7 +247,7 @@ export const encode: <A, I, R>(
 export const encodeEither: <A, I>(
   schema: Schema<A, I, never>,
   options?: ParseOptions
-) => (a: A, overrideOptions?: ParseOptions) => Either.Either<ParseResult.ParseError, I> = encodeUnknownEither
+) => (a: A, overrideOptions?: ParseOptions) => Either.Either<I, ParseResult.ParseError> = encodeUnknownEither
 
 /**
  * @category encoding
@@ -280,7 +280,7 @@ export const decodeUnknownEither = <A, I>(
   options?: ParseOptions
 ) => {
   const decodeUnknownEither = ParseResult.decodeUnknownEither(schema, options)
-  return (u: unknown, overrideOptions?: ParseOptions): Either.Either<ParseResult.ParseError, A> =>
+  return (u: unknown, overrideOptions?: ParseOptions): Either.Either<A, ParseResult.ParseError> =>
     Either.mapLeft(decodeUnknownEither(u, overrideOptions), ParseResult.parseError)
 }
 
@@ -312,7 +312,7 @@ export const decode: <A, I, R>(
 export const decodeEither: <A, I>(
   schema: Schema<A, I, never>,
   options?: ParseOptions
-) => (i: I, overrideOptions?: ParseOptions) => Either.Either<ParseResult.ParseError, A> = decodeUnknownEither
+) => (i: I, overrideOptions?: ParseOptions) => Either.Either<A, ParseResult.ParseError> = decodeUnknownEither
 
 /**
  * @category decoding
@@ -345,7 +345,7 @@ export const validateEither = <A, I, R>(
   options?: ParseOptions
 ) => {
   const validateEither = Parser.validateEither(schema, options)
-  return (u: unknown, overrideOptions?: ParseOptions): Either.Either<ParseResult.ParseError, A> =>
+  return (u: unknown, overrideOptions?: ParseOptions): Either.Either<A, ParseResult.ParseError> =>
     Either.mapLeft(validateEither(u, overrideOptions), ParseResult.parseError)
 }
 
@@ -517,7 +517,7 @@ const declarePrimitive = <A>(
  * @since 1.0.0
  */
 export interface DeclareAnnotations<P extends ReadonlyArray<any>, A> extends DocAnnotations {
-  readonly message?: AST.MessageAnnotation<A>
+  readonly message?: AST.MessageAnnotation
   readonly typeId?: AST.TypeAnnotation | { id: AST.TypeAnnotation; annotation: unknown }
   readonly arbitrary?: (...arbitraries: { readonly [K in keyof P]: Arbitrary<P[K]> }) => Arbitrary<A>
   readonly pretty?: (...pretties: { readonly [K in keyof P]: Pretty.Pretty<P[K]> }) => Pretty.Pretty<A>
@@ -1931,7 +1931,7 @@ export const annotations = (annotations: AST.Annotations) => <A, I, R>(self: Sch
  * @category annotations
  * @since 1.0.0
  */
-export const message = (message: AST.MessageAnnotation<unknown>) => <A, I, R>(self: Schema<A, I, R>): Schema<A, I, R> =>
+export const message = (message: AST.MessageAnnotation) => <A, I, R>(self: Schema<A, I, R>): Schema<A, I, R> =>
   make(AST.setAnnotation(self.ast, AST.MessageAnnotationId, message))
 
 /**
@@ -2859,24 +2859,7 @@ export const clamp =
 export const NumberFromString: Schema<number, string> = transformOrFail(
   string,
   number,
-  (s, _, ast) => {
-    if (s === "NaN") {
-      return ParseResult.succeed(NaN)
-    }
-    if (s === "Infinity") {
-      return ParseResult.succeed(Infinity)
-    }
-    if (s === "-Infinity") {
-      return ParseResult.succeed(-Infinity)
-    }
-    if (s.trim() === "") {
-      return ParseResult.fail(ParseResult.type(ast, s))
-    }
-    const n = Number(s)
-    return Number.isNaN(n)
-      ? ParseResult.fail(ParseResult.type(ast, s))
-      : ParseResult.succeed(n)
-  },
+  (s, _, ast) => ParseResult.fromOption(N.parse(s), () => ParseResult.type(ast, s)),
   (n) => ParseResult.succeed(String(n))
 ).pipe(identifier("NumberFromString"))
 
@@ -3289,12 +3272,7 @@ export const BigintFromNumber: Schema<bigint, number> = transformOrFail(
       try: () => BigInt(n),
       catch: () => ParseResult.type(ast, n)
     }),
-  (b, _, ast) => {
-    if (b > InternalBigInt.maxSafeInteger || b < InternalBigInt.minSafeInteger) {
-      return ParseResult.fail(ParseResult.type(ast, b))
-    }
-    return ParseResult.succeed(Number(b))
-  }
+  (b, _, ast) => ParseResult.fromOption(BigInt_.toNumber(b), () => ParseResult.type(ast, b))
 ).pipe(identifier("BigintFromNumber"))
 
 /**
@@ -3564,7 +3542,7 @@ export const Uint8ArrayFromSelf: Schema<Uint8Array> = declare(
     identifier: "Uint8ArrayFromSelf",
     pretty: (): Pretty.Pretty<Uint8Array> => (u8arr) => `new Uint8Array(${JSON.stringify(Array.from(u8arr))})`,
     arbitrary: (): Arbitrary<Uint8Array> => (fc) => fc.uint8Array(),
-    equivalence: (): Equivalence.Equivalence<Uint8Array> => ReadonlyArray.getEquivalence(Equivalence.strict()) as any
+    equivalence: (): Equivalence.Equivalence<Uint8Array> => ReadonlyArray.getEquivalence(Equal.equals) as any
   }
 )
 
@@ -3592,7 +3570,7 @@ export {
 
 const makeEncodingTransformation = (
   id: string,
-  decode: (s: string) => Either.Either<Encoding.DecodeException, Uint8Array>,
+  decode: (s: string) => Either.Either<Uint8Array, Encoding.DecodeException>,
   encode: (u: Uint8Array) => string
 ): Schema<Uint8Array, string> =>
   transformOrFail(
@@ -3938,8 +3916,13 @@ export const option = <A, I, R>(
     optionFromSelf(to(value)),
     optionDecode,
     Option.match({
-      onNone: () => ({ _tag: "None" }) as const,
-      onSome: (value) => ({ _tag: "Some", value }) as const
+      onNone: () => (({
+        _tag: "None"
+      }) as const),
+      onSome: (value) => (({
+        _tag: "Some",
+        value
+      }) as const)
     })
   )
 
@@ -4020,13 +4003,13 @@ const eitherFrom = <E, IE, R1, A, IA, R2>(
     description(`EitherFrom<${format(left)}, ${format(right)}>`)
   )
 
-const eitherDecode = <E, A>(input: EitherFrom<E, A>): Either.Either<E, A> =>
+const eitherDecode = <E, A>(input: EitherFrom<E, A>): Either.Either<A, E> =>
   input._tag === "Left" ? Either.left(input.left) : Either.right(input.right)
 
 const eitherArbitrary = <E, A>(
   left: Arbitrary<E>,
   right: Arbitrary<A>
-): Arbitrary<Either.Either<E, A>> => {
+): Arbitrary<Either.Either<A, E>> => {
   const arb = arbitrary.make(eitherFrom(schemaFromArbitrary(left), schemaFromArbitrary(right)))
   return (fc) => arb(fc).map(eitherDecode)
 }
@@ -4034,7 +4017,7 @@ const eitherArbitrary = <E, A>(
 const eitherPretty = <E, A>(
   left: Pretty.Pretty<E>,
   right: Pretty.Pretty<A>
-): Pretty.Pretty<Either.Either<E, A>> =>
+): Pretty.Pretty<Either.Either<A, E>> =>
   Either.match({
     onLeft: (e) => `left(${left(e)})`,
     onRight: (a) => `right(${right(a)})`
@@ -4043,7 +4026,7 @@ const eitherPretty = <E, A>(
 const eitherParse = <RE, E, RA, A>(
   decodeUnknownLeft: ParseResult.DecodeUnknown<E, RE>,
   parseright: ParseResult.DecodeUnknown<A, RA>
-): ParseResult.DeclarationDecodeUnknown<Either.Either<E, A>, RE | RA> =>
+): ParseResult.DeclarationDecodeUnknown<Either.Either<A, E>, RE | RA> =>
 (u, options, ast) =>
   Either.isEither(u) ?
     Either.match(u, {
@@ -4059,7 +4042,7 @@ const eitherParse = <RE, E, RA, A>(
 export const eitherFromSelf = <E, IE, RE, A, IA, RA>({ left, right }: {
   readonly left: Schema<E, IE, RE>
   readonly right: Schema<A, IA, RA>
-}): Schema<Either.Either<E, A>, Either.Either<IE, IA>, RE | RA> => {
+}): Schema<Either.Either<A, E>, Either.Either<IA, IE>, RE | RA> => {
   return declare(
     [left, right],
     (left, right) => eitherParse(ParseResult.decodeUnknown(left), ParseResult.decodeUnknown(right)),
@@ -4073,8 +4056,14 @@ export const eitherFromSelf = <E, IE, RE, A, IA, RA>({ left, right }: {
   )
 }
 
-const makeLeftFrom = <E>(left: E) => ({ _tag: "Left", left }) as const
-const makeRightFrom = <A>(right: A) => ({ _tag: "Right", right }) as const
+const makeLeftFrom = <E>(left: E) => (({
+  _tag: "Left",
+  left
+}) as const)
+const makeRightFrom = <A>(right: A) => (({
+  _tag: "Right",
+  right
+}) as const)
 
 /**
  * @category Either transformations
@@ -4083,7 +4072,7 @@ const makeRightFrom = <A>(right: A) => ({ _tag: "Right", right }) as const
 export const either = <E, IE, R1, A, IA, R2>({ left, right }: {
   readonly left: Schema<E, IE, R1>
   readonly right: Schema<A, IA, R2>
-}): Schema<Either.Either<E, A>, EitherFrom<IE, IA>, R1 | R2> =>
+}): Schema<Either.Either<A, E>, EitherFrom<IE, IA>, R1 | R2> =>
   transform(
     eitherFrom(left, right),
     eitherFromSelf({ left: to(left), right: to(right) }),
@@ -4104,7 +4093,7 @@ export const either = <E, IE, R1, A, IA, R2>({ left, right }: {
 export const eitherFromUnion = <EA, EI, R1, AA, AI, R2>({ left, right }: {
   readonly left: Schema<EA, EI, R1>
   readonly right: Schema<AA, AI, R2>
-}): Schema<Either.Either<EA, AA>, EI | AI, R1 | R2> => {
+}): Schema<Either.Either<AA, EA>, EI | AI, R1 | R2> => {
   const toleft = to(left)
   const toright = to(right)
   const fromLeft = transform(left, leftFrom(toleft), makeLeftFrom, (l) => l.left)
@@ -4677,8 +4666,7 @@ export const dataFromSelf = <
     {
       description: `Data<${format(item)}>`,
       pretty: dataPretty,
-      arbitrary: dataArbitrary,
-      equivalence: () => Equal.equals
+      arbitrary: dataArbitrary
     }
   )
 }
@@ -5112,6 +5100,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
       const encode = Parser.encodeUnknown(toSchema)
       const pretty = Pretty.make(toSchema)
       const arb = arbitrary.make(toSchema)
+      const equivalence = _equivalence.make(toSchema)
       const declaration: Schema<any, any, never> = declare(
         [],
         () => (input, _, ast) =>
@@ -5131,7 +5120,8 @@ const makeClass = <A, I, R, Fields extends StructFields>(
           title: this.name,
           description: `an instance of ${this.name}`,
           pretty: () => (self: any) => `${self.constructor.name}(${pretty(self)})`,
-          arbitrary: () => (fc: any) => arb(fc).map((props: any) => new this(props))
+          arbitrary: () => (fc: any) => arb(fc).map((props: any) => new this(props)),
+          equivalence: () => equivalence as any
         }
       )
       const transformation = transform(
@@ -5265,8 +5255,7 @@ export const FiberIdFromSelf: Schema<FiberId.FiberId> = declare(
   {
     identifier: "FiberIdFromSelf",
     pretty: () => fiberIdPretty,
-    arbitrary: () => fiberIdArbitrary,
-    equivalence: () => Equal.equals
+    arbitrary: () => fiberIdArbitrary
   }
 )
 
@@ -5444,8 +5433,7 @@ export const causeFromSelf = <A, I, R1, R2 = never>({ defect = unknown, error }:
     {
       description: `Cause<${format(error)}>`,
       pretty: causePretty,
-      arbitrary: causeArbitrary,
-      equivalence: () => Equal.equals
+      arbitrary: causeArbitrary
     }
   )
 }
@@ -5621,8 +5609,7 @@ export const exitFromSelf = <E, IE, RE, A, IA, RA, RD = never>({ defect = unknow
     {
       description: `Exit<${format(failure)}, ${format(success)}>`,
       pretty: exitPretty,
-      arbitrary: exitArbitrary,
-      equivalence: () => Equal.equals
+      arbitrary: exitArbitrary
     }
   )
 

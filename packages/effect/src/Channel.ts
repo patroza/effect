@@ -388,14 +388,14 @@ export const concatAllWith: <
  * @category utils
  */
 export const concatMap: {
-  <OutElem, OutElem2, InElem2, OutErr2, InErr2, _, InDone2, Env2>(
-    f: (o: OutElem) => Channel<OutElem2, InElem2, OutErr2, InErr2, _, InDone2, Env2>
+  <OutElem, OutElem2, InElem2, OutErr2, InErr2, X, InDone2, Env2>(
+    f: (o: OutElem) => Channel<OutElem2, InElem2, OutErr2, InErr2, X, InDone2, Env2>
   ): <Env, InErr, InElem, InDone, OutErr, OutDone>(
     self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>
   ) => Channel<OutElem2, InElem & InElem2, OutErr2 | OutErr, InErr & InErr2, unknown, InDone & InDone2, Env2 | Env>
-  <Env, InErr, InElem, InDone, OutErr, OutDone, OutElem, OutElem2, Env2, InErr2, InElem2, InDone2, OutErr2, _>(
+  <Env, InErr, InElem, InDone, OutErr, OutDone, OutElem, OutElem2, Env2, InErr2, InElem2, InDone2, OutErr2, X>(
     self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>,
-    f: (o: OutElem) => Channel<OutElem2, InElem2, OutErr2, InErr2, _, InDone2, Env2>
+    f: (o: OutElem) => Channel<OutElem2, InElem2, OutErr2, InErr2, X, InDone2, Env2>
   ): Channel<OutElem2, InElem & InElem2, OutErr | OutErr2, InErr & InErr2, unknown, InDone & InDone2, Env | Env2>
 } = channel.concatMap
 
@@ -1077,7 +1077,7 @@ export const fromEffect: <A, E, R>(
  * @since 2.0.0
  * @category constructors
  */
-export const fromEither: <E, A>(either: Either.Either<E, A>) => Channel<never, unknown, E, unknown, A, unknown> =
+export const fromEither: <R, L>(either: Either.Either<R, L>) => Channel<never, unknown, L, unknown, R, unknown> =
   channel.fromEither
 
 /**
@@ -1097,7 +1097,7 @@ export const fromInput: <Err, Elem, Done>(
  * @category constructors
  */
 export const fromPubSub: <Done, Err, Elem>(
-  pubsub: PubSub.PubSub<Either.Either<Exit.Exit<Done, Err>, Elem>>
+  pubsub: PubSub.PubSub<Either.Either<Elem, Exit.Exit<Done, Err>>>
 ) => Channel<Elem, unknown, Err, unknown, Done, unknown> = channel.fromPubSub
 
 /**
@@ -1107,7 +1107,7 @@ export const fromPubSub: <Done, Err, Elem>(
  * @category constructors
  */
 export const fromPubSubScoped: <Done, Err, Elem>(
-  pubsub: PubSub.PubSub<Either.Either<Exit.Exit<Done, Err>, Elem>>
+  pubsub: PubSub.PubSub<Either.Either<Elem, Exit.Exit<Done, Err>>>
 ) => Effect.Effect<Channel<Elem, unknown, Err, unknown, Done, unknown>, never, Scope.Scope> = channel.fromPubSubScoped
 
 /**
@@ -1127,7 +1127,7 @@ export const fromOption: <A>(
  * @category constructors
  */
 export const fromQueue: <Done, Err, Elem>(
-  queue: Queue.Dequeue<Either.Either<Exit.Exit<Done, Err>, Elem>>
+  queue: Queue.Dequeue<Either.Either<Elem, Exit.Exit<Done, Err>>>
 ) => Channel<Elem, unknown, Err, unknown, Done, unknown> = channel.fromQueue
 
 /**
@@ -1782,15 +1782,15 @@ export const mapInputContext: {
  * @category context
  */
 export const provideSomeLayer: {
-  <Env2, OutErr2, Env0>(
-    layer: Layer.Layer<Env2, OutErr2, Env0>
+  <R2, OutErr2, Env0>(
+    layer: Layer.Layer<R2, OutErr2, Env0>
   ): <OutElem, InElem, OutErr, InErr, OutDone, InDone, R>(
     self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, R>
-  ) => Channel<OutElem, InElem, OutErr2 | OutErr, InErr, OutDone, InDone, Env0 | Exclude<R, Env2>>
-  <OutElem, InElem, OutErr, InErr, OutDone, InDone, R, Env2, OutErr2, Env0>(
+  ) => Channel<OutElem, InElem, OutErr2 | OutErr, InErr, OutDone, InDone, Env0 | Exclude<R, R2>>
+  <OutElem, InElem, OutErr, InErr, OutDone, InDone, R, R2, OutErr2, Env0>(
     self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, R>,
-    layer: Layer.Layer<Env2, OutErr2, Env0>
-  ): Channel<OutElem, InElem, OutErr | OutErr2, InErr, OutDone, InDone, Env0 | Exclude<R, Env2>>
+    layer: Layer.Layer<R2, OutErr2, Env0>
+  ): Channel<OutElem, InElem, OutErr | OutErr2, InErr, OutDone, InDone, Env0 | Exclude<R, R2>>
 } = channel.provideSomeLayer
 
 /**
@@ -1986,7 +1986,7 @@ export const sync: <OutDone>(
  * @category destructors
  */
 export const toPubSub: <Done, Err, Elem>(
-  pubsub: PubSub.PubSub<Either.Either<Exit.Exit<Done, Err>, Elem>>
+  pubsub: PubSub.PubSub<Either.Either<Elem, Exit.Exit<Done, Err>>>
 ) => Channel<never, Elem, never, Err, unknown, Done> = channel.toPubSub
 
 /**
@@ -2000,7 +2000,7 @@ export const toPubSub: <Done, Err, Elem>(
  */
 export const toPull: <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
   self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>
-) => Effect.Effect<Effect.Effect<Either.Either<OutDone, OutElem>, OutErr, Env>, never, Scope.Scope | Env> =
+) => Effect.Effect<Effect.Effect<Either.Either<OutElem, OutDone>, OutErr, Env>, never, Scope.Scope | Env> =
   channel.toPull
 
 /**
@@ -2010,7 +2010,7 @@ export const toPull: <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
  * @category destructors
  */
 export const toQueue: <Done, Err, Elem>(
-  queue: Queue.Enqueue<Either.Either<Exit.Exit<Done, Err>, Elem>>
+  queue: Queue.Enqueue<Either.Either<Elem, Exit.Exit<Done, Err>>>
 ) => Channel<never, Elem, never, Err, unknown, Done> = channel.toQueue
 
 /** Converts this channel to a `Sink`.

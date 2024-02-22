@@ -1,5 +1,5 @@
 #!/bin/bash
-dirs=(../platform-node-shared/src)
+dirs=(../effect/src ../effect/test)
 for dir in ${dirs[@]};
 do
 echo Refactoring $dir

@@ -2,7 +2,6 @@ import type * as Cause from "../../Cause.js"
 import type * as Deferred from "../../Deferred.js"
 import * as Duration from "../../Duration.js"
 import type * as Effect from "../../Effect.js"
-import * as Either from "../../Either.js"
 import * as Equal from "../../Equal.js"
 import type { Equivalence } from "../../Equivalence.js"
 import * as Exit from "../../Exit.js"
@@ -45,7 +44,7 @@ class Semaphore {
   }
 
   readonly take = (n: number): Effect.Effect<number> =>
-    core.asyncEither<number>((resume) => {
+    core.async<number>((resume) => {
       if (this.free < n) {
         const observer = () => {
           if (this.free < n) {
@@ -56,12 +55,12 @@ class Semaphore {
           resume(core.succeed(n))
         }
         this.waiters.add(observer)
-        return Either.left(core.sync(() => {
+        return core.sync(() => {
           this.waiters.delete(observer)
-        }))
+        })
       }
       this.taken += n
-      return Either.right(core.succeed(n))
+      return resume(core.succeed(n))
     })
 
   readonly updateTaken = (f: (n: number) => number): Effect.Effect<number> =>
@@ -84,7 +83,7 @@ class Semaphore {
 
   readonly releaseAll: Effect.Effect<number> = this.updateTaken((_) => 0)
 
-  readonly withPermits = (n: number) => <R, E, A>(self: Effect.Effect<R, E, A>) =>
+  readonly withPermits = (n: number) => <A, E, R>(self: Effect.Effect<A, E, R>) =>
     core.uninterruptibleMask((restore) =>
       core.flatMap(
         restore(this.take(n)),
@@ -376,14 +375,14 @@ export const raceFirst = dual<
 
 /** @internal */
 export const scheduleForked = dual<
-  <R2, Out>(
-    schedule: Schedule.Schedule<R2, unknown, Out>
+  <Out, R2>(
+    schedule: Schedule.Schedule<Out, unknown, R2>
   ) => <A, E, R>(
     self: Effect.Effect<A, E, R>
   ) => Effect.Effect<Fiber.RuntimeFiber<Out, E>, never, R | R2 | Scope.Scope>,
-  <A, E, R, R2, Out>(
+  <A, E, R, Out, R2>(
     self: Effect.Effect<A, E, R>,
-    schedule: Schedule.Schedule<R2, unknown, Out>
+    schedule: Schedule.Schedule<Out, unknown, R2>
   ) => Effect.Effect<Fiber.RuntimeFiber<Out, E>, never, R | R2 | Scope.Scope>
 >(2, (self, schedule) => pipe(self, _schedule.schedule_Effect(schedule), forkScoped))
 

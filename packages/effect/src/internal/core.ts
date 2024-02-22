@@ -481,22 +481,6 @@ export const async = <A, E = never, R = never>(
   })
 
 /* @internal */
-export const asyncEither = <A, E = never, R = never>(
-  register: (
-    resume: (effect: Effect.Effect<A, E, R>) => void
-  ) => Either.Either<Effect.Effect<void, never, R>, Effect.Effect<A, E, R>>,
-  blockingOn: FiberId.FiberId = FiberId.none
-): Effect.Effect<A, E, R> =>
-  async<A, E, R>((resume) => {
-    const result = register(resume)
-    if (Either.isRight(result)) {
-      resume(result.right)
-    } else {
-      return result.left
-    }
-  }, blockingOn)
-
-/* @internal */
 export const catchAllCause = dual<
   <E, A2, E2, R2>(
     f: (cause: Cause.Cause<E>) => Effect.Effect<A2, E2, R2>
@@ -529,15 +513,6 @@ export const catchAll: {
     f: (e: E) => Effect.Effect<A2, E2, R2>
   ): Effect.Effect<A2 | A, E2, R2 | R> => matchEffect(self, { onFailure: f, onSuccess: succeed })
 )
-
-/**
- * @macro identity
- * @internal
- */
-export const unified = <Args extends ReadonlyArray<any>, Ret extends Effect.Effect<any, any, any>>(
-  f: (...args: Args) => Ret
-) =>
-(...args: Args): Effect.Effect.Unify<Ret> => f(...args)
 
 /* @internal */
 export const catchIf: {
@@ -650,7 +625,7 @@ export const dieMessage = (message: string): Effect.Effect<never> =>
 export const dieSync = (evaluate: LazyArg<unknown>): Effect.Effect<never> => flatMap(sync(evaluate), die)
 
 /* @internal */
-export const either = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<Either.Either<E, A>, never, R> =>
+export const either = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<Either.Either<A, E>, never, R> =>
   matchEffect(self, {
     onFailure: (e) => succeed(Either.left(e)),
     onSuccess: (a) => succeed(Either.right(a))
@@ -728,13 +703,13 @@ export const andThen: {
   ) => [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
     : [X] extends [Promise<infer A1>] ? Effect.Effect<A1, E | Cause.UnknownException, R>
     : Effect.Effect<X, E, R>
-  <A, R, E, X>(
+  <A, E, R, X>(
     self: Effect.Effect<A, E, R>,
     f: (a: NoInfer<A>) => X
   ): [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
     : [X] extends [Promise<infer A1>] ? Effect.Effect<A1, E | Cause.UnknownException, R>
     : Effect.Effect<X, E, R>
-  <A, R, E, X>(
+  <A, E, R, X>(
     self: Effect.Effect<A, E, R>,
     f: NotFunction<X>
   ): [X] extends [Effect.Effect<infer A1, infer E1, infer R1>] ? Effect.Effect<A1, E | E1, R | R1>
@@ -941,7 +916,7 @@ export const if_ = dual<
   (self: boolean | Effect.Effect<unknown, unknown, unknown>, { onFalse, onTrue }: {
     readonly onTrue: Effect.Effect<unknown, unknown, unknown>
     readonly onFalse: Effect.Effect<unknown, unknown, unknown>
-  }) => typeof self === "boolean" ? (self ? onTrue : onFalse) : flatMap(self, unified((b) => (b ? onTrue : onFalse)))
+  }) => typeof self === "boolean" ? (self ? onTrue : onFalse) : flatMap(self, (b) => (b ? onTrue : onFalse))
 )
 
 /* @internal */
@@ -1051,7 +1026,7 @@ export const onError: {
 } = dual(2, <A, E, R, X, R2>(
   self: Effect.Effect<A, E, R>,
   cleanup: (cause: Cause.Cause<E>) => Effect.Effect<X, never, R2>
-): Effect.Effect<A, E, R2 | R> => onExit(self, unified((exit) => exitIsSuccess(exit) ? unit : cleanup(exit.i0))))
+): Effect.Effect<A, E, R2 | R> => onExit(self, (exit) => exitIsSuccess(exit) ? unit : cleanup(exit.i0)))
 
 /* @internal */
 export const onExit: {
@@ -1142,7 +1117,7 @@ export const orDieWith: {
 /* @internal */
 export const partitionMap = <A, A1, A2>(
   elements: Iterable<A>,
-  f: (a: A) => Either.Either<A1, A2>
+  f: (a: A) => Either.Either<A2, A1>
 ): [left: Array<A1>, right: Array<A2>] =>
   ReadonlyArray.fromIterable(elements).reduceRight(
     ([lefts, rights], current) => {
@@ -1462,11 +1437,11 @@ export const zipWith: {
 ): Effect.Effect<B, E | E2, R | R2> => flatMap(self, (a) => map(that, (b) => f(a, b))))
 
 /* @internal */
-export const never: Effect.Effect<never> = asyncEither<never>(() => {
+export const never: Effect.Effect<never> = async<never>(() => {
   const interval = setInterval(() => {
     //
   }, 2 ** 31 - 1)
-  return Either.left(sync(() => clearInterval(interval)))
+  return sync(() => clearInterval(interval))
 })
 
 // -----------------------------------------------------------------------------
@@ -1723,7 +1698,7 @@ const requestResolverVariance = {
 }
 
 /** @internal */
-export class RequestResolverImpl<out R, in A> implements RequestResolver.RequestResolver<A, R> {
+export class RequestResolverImpl<in A, out R> implements RequestResolver.RequestResolver<A, R> {
   readonly [RequestResolverTypeId] = requestResolverVariance
   constructor(
     readonly runAll: (
@@ -1773,7 +1748,7 @@ export const resolverLocally = dual<
   self: FiberRef.FiberRef<A>,
   value: A
 ): RequestResolver.RequestResolver<B, R> =>
-  new RequestResolverImpl<R, B>(
+  new RequestResolverImpl<B, R>(
     (requests) =>
       fiberRefLocally(
         use.runAll(requests),
@@ -2538,7 +2513,7 @@ export const exitForEachEffect: {
 })
 
 /** @internal */
-export const exitFromEither = <E, A>(either: Either.Either<E, A>): Exit.Exit<A, E> => {
+export const exitFromEither = <R, L>(either: Either.Either<R, L>): Exit.Exit<R, L> => {
   switch (either._tag) {
     case "Left":
       return exitFail(either.left)
@@ -2844,18 +2819,18 @@ export const deferredMakeAs = <A, E = never>(fiberId: FiberId.FiberId): Effect.E
 
 /* @internal */
 export const deferredAwait = <A, E>(self: Deferred.Deferred<A, E>): Effect.Effect<A, E> =>
-  asyncEither<A, E>((k) => {
+  async<A, E>((resume) => {
     const state = MutableRef.get(self.state)
     switch (state._tag) {
       case DeferredOpCodes.OP_STATE_DONE: {
-        return Either.right(state.effect)
+        return resume(state.effect)
       }
       case DeferredOpCodes.OP_STATE_PENDING: {
         pipe(
           self.state,
-          MutableRef.set(deferred.pending([k, ...state.joiners]))
+          MutableRef.set(deferred.pending([resume, ...state.joiners]))
         )
-        return Either.left(deferredInterruptJoiner(self, k))
+        return deferredInterruptJoiner(self, resume)
       }
     }
   }, self.blockingOn)

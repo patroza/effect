@@ -1,6 +1,6 @@
 {
   "name": "@effect/experimental",
-  "version": "0.9.16",
+  "version": "0.9.18",
   "type": "module",
   "license": "MIT",
   "description": "Functional programming in TypeScript",
@@ -26,7 +26,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": true
+    "provenance": false
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",

@@ -13,7 +13,7 @@ import * as Queue from "../Queue.js"
 import * as Ref from "../Ref.js"
 import type * as Stream from "../Stream.js"
 import type * as Take from "../Take.js"
-import type { NoInfer } from "../Types.js"
+import type { MergeRecord, NoInfer } from "../Types.js"
 import * as channel from "./channel.js"
 import * as channelExecutor from "./channel/channelExecutor.js"
 import * as core from "./core-stream.js"
@@ -45,14 +45,14 @@ export const isGroupBy = (u: unknown): u is GroupBy.GroupBy<unknown, unknown, un
 
 /** @internal */
 export const evaluate = dual<
-  <K, E, V, R2, E2, A>(
+  <K, V, E, A, E2, R2>(
     f: (key: K, stream: Stream.Stream<V, E>) => Stream.Stream<A, E2, R2>,
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ) => <R>(self: GroupBy.GroupBy<R, E, K, V>) => Stream.Stream<A, E | E2, R2 | R>,
-  <R, K, E, V, R2, E2, A>(
-    self: GroupBy.GroupBy<R, E, K, V>,
+  ) => <R>(self: GroupBy.GroupBy<K, V, E, R>) => Stream.Stream<A, E | E2, R2 | R>,
+  <K, V, E, R, A, E2, R2>(
+    self: GroupBy.GroupBy<K, V, E, R>,
     f: (key: K, stream: Stream.Stream<V, E>) => Stream.Stream<A, E2, R2>,
     options?: {
       readonly bufferSize?: number | undefined
@@ -60,8 +60,8 @@ export const evaluate = dual<
   ) => Stream.Stream<A, E | E2, R2 | R>
 >(
   (args) => isGroupBy(args[0]),
-  <R, K, E, V, R2, E2, A>(
-    self: GroupBy.GroupBy<R, E, K, V>,
+  <K, V, E, R, A, E2, R2>(
+    self: GroupBy.GroupBy<K, V, E, R>,
     f: (key: K, stream: Stream.Stream<V, E>) => Stream.Stream<A, E2, R2>,
     options?: {
       readonly bufferSize?: number | undefined
@@ -76,9 +76,9 @@ export const evaluate = dual<
 
 /** @internal */
 export const filter = dual<
-  <K>(predicate: Predicate<NoInfer<K>>) => <R, E, V>(self: GroupBy.GroupBy<R, E, K, V>) => GroupBy.GroupBy<R, E, K, V>,
-  <R, E, V, K>(self: GroupBy.GroupBy<R, E, K, V>, predicate: Predicate<K>) => GroupBy.GroupBy<R, E, K, V>
->(2, <R, E, V, K>(self: GroupBy.GroupBy<R, E, K, V>, predicate: Predicate<K>): GroupBy.GroupBy<R, E, K, V> =>
+  <K>(predicate: Predicate<NoInfer<K>>) => <V, E, R>(self: GroupBy.GroupBy<K, V, E, R>) => GroupBy.GroupBy<K, V, E, R>,
+  <K, V, E, R>(self: GroupBy.GroupBy<K, V, E, R>, predicate: Predicate<K>) => GroupBy.GroupBy<K, V, E, R>
+>(2, <K, V, E, R>(self: GroupBy.GroupBy<K, V, E, R>, predicate: Predicate<K>): GroupBy.GroupBy<K, V, E, R> =>
   make(
     pipe(
       self.grouped,
@@ -93,9 +93,9 @@ export const filter = dual<
 
 /** @internal */
 export const first = dual<
-  (n: number) => <R, E, K, V>(self: GroupBy.GroupBy<R, E, K, V>) => GroupBy.GroupBy<R, E, K, V>,
-  <R, E, K, V>(self: GroupBy.GroupBy<R, E, K, V>, n: number) => GroupBy.GroupBy<R, E, K, V>
->(2, <R, E, K, V>(self: GroupBy.GroupBy<R, E, K, V>, n: number): GroupBy.GroupBy<R, E, K, V> =>
+  (n: number) => <K, V, E, R>(self: GroupBy.GroupBy<K, V, E, R>) => GroupBy.GroupBy<K, V, E, R>,
+  <K, V, E, R>(self: GroupBy.GroupBy<K, V, E, R>, n: number) => GroupBy.GroupBy<K, V, E, R>
+>(2, <K, V, E, R>(self: GroupBy.GroupBy<K, V, E, R>, n: number): GroupBy.GroupBy<K, V, E, R> =>
   make(
     pipe(
       stream.zipWithIndex(self.grouped),
@@ -112,9 +112,9 @@ export const first = dual<
   ))
 
 /** @internal */
-export const make = <R, E, K, V>(
+export const make = <K, V, E, R>(
   grouped: Stream.Stream<readonly [K, Queue.Dequeue<Take.Take<V, E>>], E, R>
-): GroupBy.GroupBy<R, E, K, V> => ({
+): GroupBy.GroupBy<K, V, E, R> => ({
   [GroupByTypeId]: groupByVariance,
   pipe() {
     return pipeArguments(this, arguments)
@@ -126,28 +126,28 @@ export const make = <R, E, K, V>(
 
 /** @internal */
 export const groupBy = dual<
-  <A, R2, E2, K, V>(
+  <A, K, V, E2, R2>(
     f: (a: A) => Effect.Effect<readonly [K, V], E2, R2>,
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ) => <R, E>(self: Stream.Stream<A, E, R>) => GroupBy.GroupBy<R2 | R, E2 | E, K, V>,
-  <R, E, A, R2, E2, K, V>(
+  ) => <E, R>(self: Stream.Stream<A, E, R>) => GroupBy.GroupBy<K, V, E2 | E, R2 | R>,
+  <A, E, R, K, V, E2, R2>(
     self: Stream.Stream<A, E, R>,
     f: (a: A) => Effect.Effect<readonly [K, V], E2, R2>,
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ) => GroupBy.GroupBy<R2 | R, E2 | E, K, V>
+  ) => GroupBy.GroupBy<K, V, E2 | E, R2 | R>
 >(
   (args) => stream.isStream(args[0]),
-  <R, E, A, R2, E2, K, V>(
+  <A, E, R, K, V, E2, R2>(
     self: Stream.Stream<A, E, R>,
     f: (a: A) => Effect.Effect<readonly [K, V], E2, R2>,
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ): GroupBy.GroupBy<R | R2, E | E2, K, V> =>
+  ): GroupBy.GroupBy<K, V, E | E2, R | R2> =>
     make(
       stream.unwrapScoped(
         Effect.gen(function*($) {
@@ -209,23 +209,23 @@ export const groupBy = dual<
 /** @internal */
 export const mapEffectOptions = dual<
   {
-    <A, R2, E2, A2>(
+    <A, A2, E2, R2>(
       f: (a: A) => Effect.Effect<A2, E2, R2>,
       options?: {
         readonly concurrency?: number | "unbounded" | undefined
         readonly unordered?: boolean | undefined
       }
-    ): <R, E>(self: Stream.Stream<A, E, R>) => Stream.Stream<A2, E2 | E, R2 | R>
-    <A, R2, E2, A2, K>(
+    ): <E, R>(self: Stream.Stream<A, E, R>) => Stream.Stream<A2, E2 | E, R2 | R>
+    <A, A2, E2, R2, K>(
       f: (a: A) => Effect.Effect<A2, E2, R2>,
       options: {
         readonly key: (a: A) => K
         readonly bufferSize?: number | undefined
       }
-    ): <R, E>(self: Stream.Stream<A, E, R>) => Stream.Stream<A2, E2 | E, R2 | R>
+    ): <E, R>(self: Stream.Stream<A, E, R>) => Stream.Stream<A2, E2 | E, R2 | R>
   },
   {
-    <R, E, A, R2, E2, A2>(
+    <A, E, R, A2, E2, R2>(
       self: Stream.Stream<A, E, R>,
       f: (a: A) => Effect.Effect<A2, E2, R2>,
       options?: {
@@ -233,7 +233,7 @@ export const mapEffectOptions = dual<
         readonly unordered?: boolean | undefined
       }
     ): Stream.Stream<A2, E2 | E, R2 | R>
-    <R, E, A, R2, E2, A2, K>(
+    <A, E, R, A2, E2, R2, K>(
       self: Stream.Stream<A, E, R>,
       f: (a: A) => Effect.Effect<A2, E2, R2>,
       options: {
@@ -244,7 +244,7 @@ export const mapEffectOptions = dual<
   }
 >(
   (args) => typeof args[0] !== "function",
-  (<R, E, A, R2, E2, A2, K>(
+  (<A, E, R, A2, E2, R2, K>(
     self: Stream.Stream<A, E, R>,
     f: (a: A) => Effect.Effect<A2, E2, R2>,
     options?: {
@@ -274,19 +274,19 @@ export const mapEffectOptions = dual<
 
 /** @internal */
 export const bindEffect = dual<
-  <N extends string, K, R2, E2, A>(
+  <N extends string, K, A, E2, R2>(
     tag: Exclude<N, keyof K>,
     f: (_: K) => Effect.Effect<A, E2, R2>,
     options?: {
       readonly concurrency?: number | "unbounded" | undefined
       readonly bufferSize?: number | undefined
     }
-  ) => <R, E>(self: Stream.Stream<K, E, R>) => Stream.Stream<
-    Effect.MergeRecord<K, { [k in N]: A }>,
+  ) => <E, R>(self: Stream.Stream<K, E, R>) => Stream.Stream<
+    MergeRecord<K, { [k in N]: A }>,
     E | E2,
     R | R2
   >,
-  <R, E, N extends string, K, R2, E2, A>(
+  <K, E, R, N extends string, A, E2, R2>(
     self: Stream.Stream<K, E, R>,
     tag: Exclude<N, keyof K>,
     f: (_: K) => Effect.Effect<A, E2, R2>,
@@ -295,11 +295,11 @@ export const bindEffect = dual<
       readonly unordered?: boolean | undefined
     }
   ) => Stream.Stream<
-    Effect.MergeRecord<K, { [k in N]: A }>,
+    MergeRecord<K, { [k in N]: A }>,
     E | E2,
     R | R2
   >
->((args) => typeof args[0] !== "string", <R, E, N extends string, K, R2, E2, A>(
+>((args) => typeof args[0] !== "string", <K, E, R, N extends string, A, E2, R2>(
   self: Stream.Stream<K, E, R>,
   tag: Exclude<N, keyof K>,
   f: (_: K) => Effect.Effect<A, E2, R2>,
@@ -311,7 +311,7 @@ export const bindEffect = dual<
   mapEffectOptions(self, (k) =>
     Effect.map(
       f(k),
-      (a): Effect.MergeRecord<K, { [k in N]: A }> => ({ ...k, [tag]: a } as any)
+      (a): MergeRecord<K, { [k in N]: A }> => ({ ...k, [tag]: a } as any)
     ), options))
 
 const mapDequeue = <A, B>(dequeue: Queue.Dequeue<A>, f: (a: A) => B): Queue.Dequeue<B> => new MapDequeue(dequeue, f)
@@ -399,23 +399,23 @@ export const groupByKey = dual<
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ) => <R, E>(self: Stream.Stream<A, E, R>) => GroupBy.GroupBy<R, E, K, A>,
-  <R, E, A, K>(
+  ) => <E, R>(self: Stream.Stream<A, E, R>) => GroupBy.GroupBy<K, A, E, R>,
+  <A, E, R, K>(
     self: Stream.Stream<A, E, R>,
     f: (a: A) => K,
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ) => GroupBy.GroupBy<R, E, K, A>
+  ) => GroupBy.GroupBy<K, A, E, R>
 >(
   (args) => typeof args[0] !== "function",
-  <R, E, A, K>(
+  <A, E, R, K>(
     self: Stream.Stream<A, E, R>,
     f: (a: A) => K,
     options?: {
       readonly bufferSize?: number | undefined
     }
-  ): GroupBy.GroupBy<R, E, K, A> => {
+  ): GroupBy.GroupBy<K, A, E, R> => {
     const loop = (
       map: Map<K, Queue.Queue<Take.Take<A, E>>>,
       outerQueue: Queue.Queue<Take.Take<readonly [K, Queue.Queue<Take.Take<A, E>>], E>>
