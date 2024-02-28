@@ -5097,7 +5097,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
   return class extends Base {
     constructor(props?: any, disableValidation = true) {
       if (additionalProps !== undefined) {
-        props = { ...additionalProps, ...props }
+        props = { ...props, ...additionalProps }
       }
       if (disableValidation !== true) {
         props = validate(props)
