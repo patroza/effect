@@ -67,9 +67,18 @@ const bWithRequest = S.struct({
 ///////////////////
 
 describe("schema just for reference", () => {
-  bench("just a schema", async () => {
+  bench("just a schema, no transform/effect", async () => {
     const bwithoutRequest = S.struct({
       a: S.string,
+      b: S.number
+    })
+
+    await Effect.runPromise(S.decode(S.array(bwithoutRequest))(testItems))
+  })
+
+  bench("basic sync effect transform", async () => {
+    const bwithoutRequest = S.struct({
+      a: S.string.pipe(S.transformOrFail(S.string, (_) => Effect.succeed(_), (_) => Effect.succeed(_))),
       b: S.number
     })
 
@@ -78,15 +87,6 @@ describe("schema just for reference", () => {
 })
 
 describe("schema", () => {
-  bench("just an effect", async () => {
-    const bwithoutRequest = S.struct({
-      a: S.string.pipe(S.transformOrFail(S.string, (_) => Effect.sync(() => _), (_) => Effect.succeed(_))),
-      b: S.number
-    })
-
-    await Effect.runPromise(S.decode(S.array(bwithoutRequest))(testItems))
-  })
-
   bench("without request", async () => {
     const bwithoutRequest = S.struct({
       a: S.string.pipe(S.transformOrFail(a, makeUser, (_) => Effect.succeed(_.id))),
