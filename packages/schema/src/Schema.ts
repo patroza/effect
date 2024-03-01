@@ -1912,6 +1912,7 @@ const toAnnotations = (
   move("arbitrary", hooks.ArbitraryHookId)
   move("pretty", hooks.PrettyHookId)
   move("equivalence", hooks.EquivalenceHookId)
+  move("concurrency", AST.ConcurrencyAnnotationId)
 
   return out
 }
@@ -1926,6 +1927,7 @@ export interface DocAnnotations extends AST.Annotations {
   readonly examples?: AST.ExamplesAnnotation
   readonly default?: AST.DefaultAnnotation
   readonly documentation?: AST.DocumentationAnnotation
+  readonly concurrency?: AST.ConcurrencyAnnotation
 }
 
 /**
@@ -2020,6 +2022,14 @@ export const jsonSchema = (jsonSchema: AST.JSONSchemaAnnotation) => <A, I, R>(se
 export const equivalence =
   <A>(equivalence: Equivalence.Equivalence<A>) => <I, R>(self: Schema<A, I, R>): Schema<A, I, R> =>
     make(AST.setAnnotation(self.ast, hooks.EquivalenceHookId, () => equivalence))
+
+/**
+ * @category annotations
+ * @since 1.0.0
+ */
+export const concurrency =
+  (concurrency: AST.ConcurrencyAnnotation) => <A, I, R>(self: Schema<A, I, R>): Schema<A, I, R> =>
+    make(AST.setAnnotation(self.ast, AST.ConcurrencyAnnotationId, concurrency))
 
 type Rename<A, M> = {
   [
@@ -4126,8 +4136,6 @@ export const eitherFromUnion = <EA, EI, R1, AA, AI, R2>({ left, right }: {
   )
 }
 
-const isMap = (u: unknown): u is Map<unknown, unknown> => u instanceof Map
-
 const readonlyMapArbitrary = <K, V>(
   key: Arbitrary<K>,
   value: Arbitrary<V>
@@ -4159,7 +4167,7 @@ const readonlyMapParse = <R, K, V>(
   decodeUnknown: ParseResult.DecodeUnknown<ReadonlyArray<readonly [K, V]>, R>
 ): ParseResult.DeclarationDecodeUnknown<ReadonlyMap<K, V>, R> =>
 (u, options, ast) =>
-  isMap(u) ?
+  Predicate.isMap(u) ?
     ParseResult.map(decodeUnknown(Array.from(u.entries()), options), (as): ReadonlyMap<K, V> => new Map(as))
     : ParseResult.fail(ParseResult.type(ast, u))
 
@@ -4199,8 +4207,6 @@ export const readonlyMap = <K, IK, RK, V, IV, RV>({ key, value }: {
     (map) => Array.from(map.entries())
   )
 
-const isSet = (u: unknown): u is Set<unknown> => u instanceof Set
-
 const readonlySetArbitrary = <A>(item: Arbitrary<A>): Arbitrary<ReadonlySet<A>> => (fc) =>
   fc.array(item(fc)).map((as) => new Set(as))
 
@@ -4218,7 +4224,7 @@ const readonlySetParse = <R, A>(
   decodeUnknown: ParseResult.DecodeUnknown<ReadonlyArray<A>, R>
 ): ParseResult.DeclarationDecodeUnknown<ReadonlySet<A>, R> =>
 (u, options, ast) =>
-  isSet(u) ?
+  Predicate.isSet(u) ?
     ParseResult.map(decodeUnknown(Array.from(u.values()), options), (as): ReadonlySet<A> => new Set(as))
     : ParseResult.fail(ParseResult.type(ast, u))
 
@@ -4733,9 +4739,9 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
 
   readonly fields: Fields
 
-  readonly extend: <Extended>() => <FieldsB extends StructFields>(
+  readonly extend: <Extended = "Effect.orDie">() => <FieldsB extends StructFields>(
     fields: FieldsB
-  ) => [unknown] extends [Extended] ? MissingSelfGeneric<"Base.extend">
+  ) => [Extended] extends ["Effect.orDie"] ? MissingSelfGeneric<"Base.extend">
     : Class<
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       Simplify<Omit<I, keyof FieldsB> & FromStruct<FieldsB>>,
@@ -4747,7 +4753,7 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
       Proto
     >
 
-  readonly transformOrFail: <Transformed>() => <
+  readonly transformOrFail: <Transformed = "Effect.orDie">() => <
     FieldsB extends StructFields,
     R2,
     R3
@@ -4763,7 +4769,7 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
       options: ParseOptions,
       ast: AST.Transform
     ) => Effect.Effect<A, ParseResult.ParseIssue, R3>
-  ) => [unknown] extends [Transformed] ? MissingSelfGeneric<"Base.transform">
+  ) => [Transformed] extends ["Effect.orDie"] ? MissingSelfGeneric<"Base.transform">
     : Class<
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       I,
@@ -4775,7 +4781,7 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
       Proto
     >
 
-  readonly transformOrFailFrom: <Transformed>() => <
+  readonly transformOrFailFrom: <Transformed = "Effect.orDie">() => <
     FieldsB extends StructFields,
     R2,
     R3
@@ -4791,7 +4797,7 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
       options: ParseOptions,
       ast: AST.Transform
     ) => Effect.Effect<I, ParseResult.ParseIssue, R3>
-  ) => [unknown] extends [Transformed] ? MissingSelfGeneric<"Base.transformFrom">
+  ) => [Transformed] extends ["Effect.orDie"] ? MissingSelfGeneric<"Base.transformFrom">
     : Class<
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       I,
@@ -4808,10 +4814,10 @@ export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> ext
  * @category classes
  * @since 1.0.0
  */
-export const Class = <Self>() =>
+export const Class = <Self = "Effect.orDie">() =>
 <Fields extends StructFields>(
   fields: Fields
-): [unknown] extends [Self] ? MissingSelfGeneric<"Class">
+): [Self] extends ["Effect.orDie"] ? MissingSelfGeneric<"Class">
   : Class<
     Simplify<ToStruct<Fields>>,
     Simplify<FromStruct<Fields>>,
@@ -4934,11 +4940,11 @@ export type ToStructConstructor<Fields extends StructFields> =
  * @category classes
  * @since 1.0.0
  */
-export const TaggedClass = <Self>() =>
+export const TaggedClass = <Self = "Effect.orDie">() =>
 <Tag extends string, Fields extends StructFields>(
   tag: Tag,
   fields: Fields
-): [unknown] extends [Self] ? MissingSelfGeneric<"TaggedClass", `"Tag", `>
+): [Self] extends ["Effect.orDie"] ? MissingSelfGeneric<"TaggedClass", `"Tag", `>
   : Class<
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
@@ -4967,11 +4973,11 @@ export const TaggedClass = <Self>() =>
  * @category classes
  * @since 1.0.0
  */
-export const TaggedError = <Self>() =>
+export const TaggedError = <Self = "Effect.orDie">() =>
 <Tag extends string, Fields extends StructFields>(
   tag: Tag,
   fields: Fields
-): [unknown] extends [Self] ? MissingSelfGeneric<"TaggedError", `"Tag", `>
+): [Self] extends ["Effect.orDie"] ? MissingSelfGeneric<"TaggedError", `"Tag", `>
   : Class<
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
@@ -5031,78 +5037,79 @@ export declare namespace TaggedRequest {
  * @category classes
  * @since 1.0.0
  */
-export const TaggedRequest = <Self>() =>
-<Tag extends string, Fields extends StructFields, EA, EI, ER, AA, AI, AR>(
-  tag: Tag,
-  Failure: Schema<EA, EI, ER>,
-  Success: Schema<AA, AI, AR>,
-  fields: Fields
-): [unknown] extends [Self] ? MissingSelfGeneric<"TaggedRequest", `"Tag", SuccessSchema, FailureSchema, `>
-  : Class<
-    Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
-    Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
-    Schema.Context<Fields[keyof Fields]>,
-    Simplify<ToStructConstructor<Fields>>,
-    Self,
-    Fields,
-    TaggedRequest<
-      Tag,
-      Schema.Context<Fields[keyof Fields]>,
+export const TaggedRequest =
+  <Self = "Effect.orDie">() =>
+  <Tag extends string, Fields extends StructFields, EA, EI, ER, AA, AI, AR>(
+    tag: Tag,
+    Failure: Schema<EA, EI, ER>,
+    Success: Schema<AA, AI, AR>,
+    fields: Fields
+  ): [Self] extends ["Effect.orDie"] ? MissingSelfGeneric<"TaggedRequest", `"Tag", SuccessSchema, FailureSchema, `>
+    : Class<
+      Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
       Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
+      Schema.Context<Fields[keyof Fields]>,
+      Simplify<ToStructConstructor<Fields>>,
       Self,
-      ER | AR,
-      EI,
-      EA,
-      AI,
-      AA
-    >
-  > =>
-{
-  class SerializableRequest extends Request.Class<any, any, { readonly _tag: string }> {
-    get [InternalSerializable.symbol]() {
-      return this.constructor
+      Fields,
+      TaggedRequest<
+        Tag,
+        Schema.Context<Fields[keyof Fields]>,
+        Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
+        Self,
+        ER | AR,
+        EI,
+        EA,
+        AI,
+        AA
+      >
+    > =>
+  {
+    class SerializableRequest extends Request.Class<any, any, { readonly _tag: string }> {
+      get [InternalSerializable.symbol]() {
+        return this.constructor
+      }
+      get [InternalSerializable.symbolResult]() {
+        return { Failure, Success }
+      }
     }
-    get [InternalSerializable.symbolResult]() {
-      return { Failure, Success }
-    }
+    const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
+    const Class = makeClass(
+      struct(fieldsWithTag),
+      fieldsWithTag,
+      SerializableRequest,
+      { _tag: tag }
+    )
+    return class extends Class {
+      constructor(props: any = {}, disableValidation = true) {
+        const p = { ...props }
+        Object.entries(fields).forEach(([k, v]) => {
+          if (p[k] === undefined && "__defaultConstructor" in v) {
+            p[k] = v.__defaultConstructor()
+          }
+        })
+        super(p, disableValidation)
+      }
+    } as any
   }
-  const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-  const Class = makeClass(
-    struct(fieldsWithTag),
-    fieldsWithTag,
-    SerializableRequest,
-    { _tag: tag }
-  )
-  return class extends Class {
-    constructor(props: any = {}, disableValidation = true) {
-      const p = { ...props }
-      Object.entries(fields).forEach(([k, v]) => {
-        if (p[k] === undefined && "__defaultConstructor" in v) {
-          p[k] = v.__defaultConstructor()
-        }
-      })
-      super(p, disableValidation)
-    }
-  } as any
-}
 
 const makeClass = <A, I, R, Fields extends StructFields>(
   selfSchema: Schema<A, I, R>,
   selfFields: Fields,
   Base: any,
-  additionalProps?: any
+  tag?: any
 ): any => {
   const validate = Parser.validateSync(selfSchema)
 
   return class extends Base {
-    constructor(props?: any, disableValidation = true) {
-      if (additionalProps !== undefined) {
-        props = { ...props, ...additionalProps }
+    constructor(props?: any, disableValidation: boolean = true, outer: boolean = true) {
+      if (tag !== undefined) {
+        props = outer ? { ...props, ...tag } : { ...tag, ...props }
       }
       if (disableValidation !== true) {
         props = validate(props)
       }
-      super(props, true)
+      super(props, true, false)
     }
 
     static [TypeId] = InternalSchema.variance
@@ -5163,7 +5170,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
           struct(newFields),
           newFields,
           this,
-          additionalProps
+          "_tag" in fields ? undefined : tag
         )
       }
     }
@@ -5180,7 +5187,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
           ),
           newFields,
           this,
-          additionalProps
+          "_tag" in fields ? undefined : tag
         )
       }
     }
@@ -5197,7 +5204,7 @@ const makeClass = <A, I, R, Fields extends StructFields>(
           ),
           newFields,
           this,
-          additionalProps
+          "_tag" in fields ? undefined : tag
         )
       }
     }
