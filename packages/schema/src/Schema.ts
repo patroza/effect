@@ -4829,14 +4829,14 @@ export const Class = <Self = "Effect.orDie">() =>
 {
   const Class = makeClass(struct(fields), fields, Data.Class)
   return class extends Class {
-    constructor(props: any = {}, disableValidation = true) {
+    constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "__defaultConstructor" in v) {
           p[k] = v.__defaultConstructor()
         }
       })
-      super(p, disableValidation)
+      super(p, disableValidation, outer)
     }
   } as any
 }
@@ -4957,14 +4957,14 @@ export const TaggedClass = <Self = "Effect.orDie">() =>
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
   const Class = makeClass(struct(fieldsWithTag), fieldsWithTag, Data.Class, { _tag: tag })
   return class extends Class {
-    constructor(props: any = {}, disableValidation = true) {
+    constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "__defaultConstructor" in v) {
           p[k] = v.__defaultConstructor()
         }
       })
-      super(p, disableValidation)
+      super(p, disableValidation, outer)
     }
   } as any
 }
@@ -4997,14 +4997,14 @@ export const TaggedError = <Self = "Effect.orDie">() =>
     { _tag: tag }
   )
   return class extends Class {
-    constructor(props: any = {}, disableValidation = true) {
+    constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
         if (p[k] === undefined && "__defaultConstructor" in v) {
           p[k] = v.__defaultConstructor()
         }
       })
-      super(p, disableValidation)
+      super(p, disableValidation, outer)
     }
   } as any
 }
@@ -5081,14 +5081,14 @@ export const TaggedRequest =
       { _tag: tag }
     )
     return class extends Class {
-      constructor(props: any = {}, disableValidation = true) {
+      constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
         const p = { ...props }
         Object.entries(fields).forEach(([k, v]) => {
           if (p[k] === undefined && "__defaultConstructor" in v) {
             p[k] = v.__defaultConstructor()
           }
         })
-        super(p, disableValidation)
+        super(p, disableValidation, outer)
       }
     } as any
   }
