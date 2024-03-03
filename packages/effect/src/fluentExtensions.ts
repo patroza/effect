@@ -64,14 +64,14 @@ const installFluentExtensions = () => {
       Object.defineProperty(effect, "asUnit", {
         enumerable: false,
         configurable: true,
-        get() {
+        value() {
           return Effect.asUnit(this as any)
         }
       })
       Object.defineProperty(effect, "orDie", {
         enumerable: false,
         configurable: true,
-        get() {
+        value() {
           return Effect.orDie(this as any)
         }
       })
@@ -116,14 +116,14 @@ const installFluentExtensions = () => {
   Object.defineProperty(opt, "asUnit", {
     enumerable: false,
     configurable: true,
-    get() {
+    value() {
       return Effect.asUnit(this as any)
     }
   })
   Object.defineProperty(opt, "orDie", {
     enumerable: false,
     configurable: true,
-    get() {
+    value() {
       return Effect.orDie(this as any)
     }
   })
@@ -191,14 +191,14 @@ const installFluentExtensions = () => {
   Object.defineProperty(either, "asUnit", {
     enumerable: false,
     configurable: true,
-    get() {
+    value() {
       return Effect.asUnit(this as any)
     }
   })
   Object.defineProperty(either, "orDie", {
     enumerable: false,
     configurable: true,
-    get() {
+    value() {
       return Effect.orDie(this as any)
     }
   })
@@ -252,7 +252,6 @@ const installFluentExtensions = () => {
   Object.defineProperty(Array.prototype, "toNonEmpty", {
     enumerable: false,
     configurable: true,
-    // TODO: as get() the debugger causes errors
     value() {
       return toNonEmptyArray(this)
     }
