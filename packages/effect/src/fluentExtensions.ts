@@ -252,7 +252,8 @@ const installFluentExtensions = () => {
   Object.defineProperty(Array.prototype, "toNonEmpty", {
     enumerable: false,
     configurable: true,
-    get() {
+    // TODO: as get() the debugger causes errors
+    value() {
       return toNonEmptyArray(this)
     }
   })
