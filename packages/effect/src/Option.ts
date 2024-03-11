@@ -76,6 +76,17 @@ export interface OptionUnify<A extends { [Unify.typeSymbol]?: any }> {
 }
 
 /**
+ * @since 2.0.0
+ */
+export declare namespace Option {
+  /**
+   * @since 2.0.0
+   * @category type-level
+   */
+  export type Value<T extends Option<any>> = [T] extends [Option<infer _A>] ? _A : never
+}
+
+/**
  * @category models
  * @since 2.0.0
  */
@@ -648,11 +659,11 @@ export const flatMap: {
 export const andThen: {
   <A, B>(f: (a: A) => Option<B>): (self: Option<A>) => Option<B>
   <B>(f: Option<B>): <A>(self: Option<A>) => Option<B>
-  <A, B>(f: (a: NoInfer<A>) => B): (self: Option<A>) => Option<B>
+  <A, B>(f: (a: A) => B): (self: Option<A>) => Option<B>
   <B>(f: NotFunction<B>): <A>(self: Option<A>) => Option<B>
-  <A, B>(self: Option<A>, f: (a: NoInfer<A>) => Option<B>): Option<B>
+  <A, B>(self: Option<A>, f: (a: A) => Option<B>): Option<B>
   <A, B>(self: Option<A>, f: Option<B>): Option<B>
-  <A, B>(self: Option<A>, f: (a: NoInfer<A>) => B): Option<B>
+  <A, B>(self: Option<A>, f: (a: A) => B): Option<B>
   <A, B>(self: Option<A>, f: NotFunction<B>): Option<B>
 } = dual(
   2,

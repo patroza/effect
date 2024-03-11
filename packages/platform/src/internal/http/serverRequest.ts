@@ -1,5 +1,6 @@
 import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
+import * as Channel from "effect/Channel"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -14,12 +15,19 @@ import * as Error from "../../Http/ServerError.js"
 import type * as ServerRequest from "../../Http/ServerRequest.js"
 import * as UrlParams from "../../Http/UrlParams.js"
 import type * as Path from "../../Path.js"
+import * as Socket from "../../Socket.js"
 
 /** @internal */
 export const TypeId: ServerRequest.TypeId = Symbol.for("@effect/platform/Http/ServerRequest") as ServerRequest.TypeId
 
 /** @internal */
 export const serverRequestTag = Context.GenericTag<ServerRequest.ServerRequest>("@effect/platform/Http/ServerRequest")
+
+/** @internal */
+export const upgrade = Effect.flatMap(serverRequestTag, (request) => request.upgrade)
+
+/** @internal */
+export const upgradeChannel = <IE = never>() => Channel.unwrap(Effect.map(upgrade, Socket.toChannelWith<IE>()))
 
 /** @internal */
 export const multipartPersisted = Effect.flatMap(serverRequestTag, (request) => request.multipart)
@@ -90,7 +98,7 @@ export const schemaBodyFormJson = <A, I, R>(schema: Schema.Schema<A, I, R>) => {
         if (isMultipart(request)) {
           return Effect.flatMap(
             Effect.mapError(request.multipart, (error) =>
-              Error.RequestError({
+              new Error.RequestError({
                 request,
                 reason: "Decode",
                 error
@@ -150,16 +158,18 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
   get stream(): Stream.Stream<Uint8Array, Error.RequestError> {
     return this.source.body
       ? Stream.fromReadableStream(() => this.source.body as any, (_) =>
-        Error.RequestError({
+        new Error.RequestError({
           request: this,
           reason: "Decode",
           error: _
         }))
-      : Stream.fail(Error.RequestError({
-        request: this,
-        reason: "Decode",
-        error: "can not create stream from empty body"
-      }))
+      : Stream.fail(
+        new Error.RequestError({
+          request: this,
+          reason: "Decode",
+          error: "can not create stream from empty body"
+        })
+      )
   }
 
   private textEffect: Effect.Effect<string, Error.RequestError> | undefined
@@ -171,7 +181,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
       Effect.tryPromise({
         try: () => this.source.text(),
         catch: (error) =>
-          Error.RequestError({
+          new Error.RequestError({
             request: this,
             reason: "Decode",
             error
@@ -185,7 +195,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
     return Effect.tryMap(this.text, {
       try: (_) => JSON.parse(_) as unknown,
       catch: (error) =>
-        Error.RequestError({
+        new Error.RequestError({
           request: this,
           reason: "Decode",
           error
@@ -198,7 +208,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
         catch: (error) =>
-          Error.RequestError({
+          new Error.RequestError({
             request: this,
             reason: "Decode",
             error
@@ -243,7 +253,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
       Effect.tryPromise({
         try: () => this.source.arrayBuffer(),
         catch: (error) =>
-          Error.RequestError({
+          new Error.RequestError({
             request: this,
             reason: "Decode",
             error
@@ -251,5 +261,15 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
       })
     ))
     return this.arrayBufferEffect
+  }
+
+  get upgrade(): Effect.Effect<Socket.Socket, Error.RequestError> {
+    return Effect.fail(
+      new Error.RequestError({
+        request: this,
+        reason: "Decode",
+        error: "Not an upgradeable ServerRequest"
+      })
+    )
   }
 }
