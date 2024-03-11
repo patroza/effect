@@ -229,23 +229,34 @@ const installFluentExtensions = () => {
     .forEach((proto) =>
       Object.defineProperty(proto, "forEachEffect", {
         ...settings,
-        value(arg: () => any) {
-          return Effect.forEach(this, arg)
+        value(...args: [any, ...Array<any>]) {
+          return Effect.forEach(
+            this,
+            ...args
+          )
         }
       })
     )
 
   Object.defineProperty(Array.prototype, "findFirstMap", {
     ...settings,
-    value(arg: () => any) {
-      return ReadonlyArray.findFirst(this, arg)
+    value(...args: [any, ...Array<any>]) {
+      return ReadonlyArray.findFirst(
+        this,
+        // @ts-expect-error
+        ...args
+      )
     }
   })
 
   Object.defineProperty(Array.prototype, "filterMap", {
     ...settings,
-    value(arg: () => any) {
-      return ReadonlyArray.filterMap(this, arg)
+    value(...args: [any, ...Array<any>]) {
+      return ReadonlyArray.filterMap(
+        this,
+        // @ts-expect-error
+        ...args
+      )
     }
   })
 
