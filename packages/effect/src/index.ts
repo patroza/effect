@@ -386,6 +386,11 @@ export * as LogSpan from "./LogSpan.js"
 export * as Logger from "./Logger.js"
 
 /**
+ * @since 2.0.0
+ */
+export * as ManagedRuntime from "./ManagedRuntime.js"
+
+/**
  * @since 1.0.0
  */
 export * as Match from "./Match.js"
@@ -913,3 +918,8 @@ export * as UpstreamPullStrategy from "./UpstreamPullStrategy.js"
  * @since 2.0.0
  */
 export * as Utils from "./Utils.js"
+
+/**
+ * useful in e.g frontend projects that do not use tsplus, but still has the most useful extensions installed.
+ */
+export * as fluentExtensions from "./fluentExtensions.js"

@@ -143,7 +143,7 @@ describe("Schema > Class", () => {
     expect(john.name).toEqual("John")
     expect(john.upperName).toEqual("JOHN")
     expect(typeof john.upperName).toEqual("string")
-    expect(() => new Person({ id: 1, name: "" })).toThrow(
+    expect(() => new Person({ id: 1, name: "" }, false)).toThrow(
       new Error(`{ id: number; name: a non empty string }
 └─ ["name"]
    └─ a non empty string
@@ -580,5 +580,21 @@ describe("Schema > Class", () => {
     expect(eqB(new B({ b: 1, as: [] }), new B({ b: 2, as: [] }))).toBe(false)
     expect(eqB(new B({ b: 1, as: [new A({ a: "a" })] }), new B({ b: 1, as: [new A({ a: "a" })] }))).toBe(true)
     expect(eqB(new B({ b: 1, as: [new A({ a: "a" })] }), new B({ b: 1, as: [new A({ a: "b" })] }))).toBe(false)
+  })
+
+  it("with default constructor values", () => {
+    class Class extends S.Class<Class>()({
+      a: S.withDefaultConstructor(S.number, () => 123),
+      b: S.string
+    }) {}
+    const a = new Class({ b: "hi" })
+    expect(a.a).toBe(123)
+    expect(() => S.decodeUnknownSync(Class)({ b: "hi" })).toThrow(
+      new Error(`({ a: number; b: string } <-> Class)
+└─ From side transformation failure
+   └─ { a: number; b: string }
+      └─ ["a"]
+         └─ is missing`)
+    )
   })
 })

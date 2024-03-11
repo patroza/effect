@@ -23,12 +23,14 @@ import * as HashSet from "effect/HashSet"
 import * as List from "effect/List"
 import * as N from "effect/Number"
 import * as Option from "effect/Option"
+import type * as Order from "effect/Order"
 import type { Pipeable } from "effect/Pipeable"
 import { pipeArguments } from "effect/Pipeable"
 import * as Predicate from "effect/Predicate"
 import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Request from "effect/Request"
 import * as Secret from "effect/Secret"
+import * as SortedSet from "effect/SortedSet"
 import * as S from "effect/String"
 import type { Covariant, Equals, Invariant, Mutable, NoInfer, Simplify } from "effect/Types"
 import type { Arbitrary } from "./Arbitrary.js"
@@ -1138,14 +1140,22 @@ export type StructFields = Record<
   | Schema<never, never, any>
   | PropertySignature<any, boolean, any, boolean, any>
   | PropertySignature<never, boolean, never, boolean, any>
+  | ConstructorPropertyDescriptor<any, any, any> // TODO: variation for PropertySignature too
+  | MapFromPropertyDescriptor<any, any, any, any>
 >
+
+type GetKey<K extends keyof T, T extends StructFields> = T[K] extends MapFromPropertyDescriptor<any, any, any, any> ?
+  T[K]["mapFrom"] :
+  K
 
 /**
  * @since 1.0.0
  */
 export type FromStruct<Fields extends StructFields> =
-  & { readonly [K in Exclude<keyof Fields, FromOptionalKeys<Fields>>]: Schema.From<Fields[K]> }
-  & { readonly [K in FromOptionalKeys<Fields>]?: Schema.From<Fields[K]> }
+  & {
+    readonly [K in Exclude<keyof Fields, FromOptionalKeys<Fields>> as GetKey<K, Fields>]: Schema.From<Fields[K]>
+  }
+  & { readonly [K in FromOptionalKeys<Fields> as GetKey<K, Fields>]?: Schema.From<Fields[K]> }
 
 /**
  * @since 1.0.0
@@ -1166,9 +1176,23 @@ export const struct = <Fields extends StructFields>(
   const pssFrom: Array<AST.PropertySignature> = []
   const pssTo: Array<AST.PropertySignature> = []
   const psTransformations: Array<AST.PropertySignatureTransform> = []
+  const map: Record<PropertyKey, PropertyKey> = {}
+  const map2: Record<PropertyKey, PropertyKey> = {}
   for (let i = 0; i < ownKeys.length; i++) {
     const key = ownKeys[i]
     const field = fields[key] as any
+    if (field.mapFrom) {
+      map[field.mapFrom] = key
+      map2[key] = field.mapFrom
+    }
+  }
+  const ren = Object.keys(map).length
+    ? <S extends Schema<any, any>>(s: S) => make(AST.rename(s.ast, map)) as S
+    : identity
+
+  for (let i = 0; i < ownKeys.length; i++) {
+    const key = map2[ownKeys[i]] ?? ownKeys[i]
+    const field = fields[ownKeys[i]] as any
     if ("propertySignatureAST" in field) {
       const psAst: PropertySignatureAST = field.propertySignatureAST
       const from = psAst.from
@@ -1200,7 +1224,7 @@ export const struct = <Fields extends StructFields>(
     }
   }
   if (ReadonlyArray.isNonEmptyReadonlyArray(psTransformations)) {
-    return make(
+    return ren(make(
       AST.createTransform(
         AST.createTypeLiteral(pssFrom, []),
         AST.createTypeLiteral(pssTo, []),
@@ -1208,9 +1232,9 @@ export const struct = <Fields extends StructFields>(
           psTransformations
         )
       )
-    )
+    ))
   }
-  return make(AST.createTypeLiteral(pss, []))
+  return ren(make(AST.createTypeLiteral(pss, [])))
 }
 
 /**
@@ -1891,6 +1915,7 @@ const toAnnotations = (
   move("pretty", hooks.PrettyHookId)
   move("equivalence", hooks.EquivalenceHookId)
   move("concurrency", AST.ConcurrencyAnnotationId)
+  move("batching", AST.BatchingAnnotationId)
 
   return out
 }
@@ -1906,6 +1931,7 @@ export interface DocAnnotations extends AST.Annotations {
   readonly default?: AST.DefaultAnnotation
   readonly documentation?: AST.DocumentationAnnotation
   readonly concurrency?: AST.ConcurrencyAnnotation
+  readonly batching?: AST.BatchingAnnotation
 }
 
 /**
@@ -2008,6 +2034,13 @@ export const equivalence =
 export const concurrency =
   (concurrency: AST.ConcurrencyAnnotation) => <A, I, R>(self: Schema<A, I, R>): Schema<A, I, R> =>
     make(AST.setAnnotation(self.ast, AST.ConcurrencyAnnotationId, concurrency))
+
+/**
+ * @category annotations
+ * @since 1.0.0
+ */
+export const batching = (batching: AST.BatchingAnnotation) => <A, I, R>(self: Schema<A, I, R>): Schema<A, I, R> =>
+  make(AST.setAnnotation(self.ast, AST.BatchingAnnotationId, batching))
 
 type Rename<A, M> = {
   [
@@ -4238,6 +4271,59 @@ export const readonlySet = <A, I, R>(item: Schema<A, I, R>): Schema<ReadonlySet<
     (set) => Array.from(set)
   )
 
+const sortedSetArbitrary = <A>(item: Arbitrary<A>, ord: Order.Order<A>): Arbitrary<SortedSet.SortedSet<A>> => (fc) =>
+  fc.array(item(fc)).map((as) => SortedSet.fromIterable(as, ord))
+
+const sortedSetPretty = <A>(item: Pretty.Pretty<A>): Pretty.Pretty<SortedSet.SortedSet<A>> => (set) =>
+  `new SortedSet([${Array.from(SortedSet.values(set)).map((a) => item(a)).join(", ")}])`
+
+const sortedSetParse = <R, A>(
+  decodeUnknown: ParseResult.DecodeUnknown<ReadonlyArray<A>, R>,
+  ord: Order.Order<A>
+): ParseResult.DeclarationDecodeUnknown<SortedSet.SortedSet<A>, R> =>
+(u, options, ast) =>
+  SortedSet.isSortedSet(u) ?
+    ParseResult.map(decodeUnknown(Array.from(SortedSet.values(u)), options), (as): SortedSet.SortedSet<A> =>
+      SortedSet.fromIterable(as, ord))
+    : ParseResult.fail(ParseResult.type(ast, u))
+
+/**
+ * @category SortedSet transformations
+ * @since 1.0.0
+ */
+export const sortedSetFromSelf = <A, I, R>(
+  item: Schema<A, I, R>,
+  ordA: Order.Order<A>,
+  ordI: Order.Order<I>
+): Schema<SortedSet.SortedSet<A>, SortedSet.SortedSet<I>, R> => {
+  return declare(
+    [item],
+    (item) => sortedSetParse(ParseResult.decodeUnknown(array(item)), ordA),
+    (item) => sortedSetParse(ParseResult.encodeUnknown(array(item)), ordI),
+    {
+      description: `SortedSet<${format(item)}>`,
+      pretty: sortedSetPretty,
+      arbitrary: (arb) => sortedSetArbitrary(arb, ordA),
+      equivalence: () => SortedSet.getEquivalence<A>()
+    }
+  )
+}
+
+/**
+ * @category SortedSet transformations
+ * @since 1.0.0
+ */
+export const sortedSet = <A, I, R>(
+  item: Schema<A, I, R>,
+  ordA: Order.Order<A>
+) =>
+  transform(
+    array(item),
+    sortedSetFromSelf(to(item), ordA, ordA),
+    (as) => SortedSet.fromIterable(as, ordA),
+    (set) => Array.from(SortedSet.values(set))
+  )
+
 const bigDecimalPretty = (): Pretty.Pretty<BigDecimal.BigDecimal> => (val) =>
   `BigDecimal(${BigDecimal.format(BigDecimal.normalize(val))})`
 
@@ -4697,17 +4783,25 @@ export const data = <
 type MissingSelfGeneric<Usage extends string, Params extends string = ""> =
   `Missing \`Self\` generic - use \`class Self extends ${Usage}<Self>()(${Params}{ ... })\``
 
+type _OptionalKeys<O> = {
+  [K in keyof O]-?: {} extends Pick<O, K> ? K
+    : never
+}[keyof O]
+type FilterOptionalKeys<A> = Omit<A, _OptionalKeys<A>>
+
 /**
  * @category classes
  * @since 1.0.0
  */
-export interface Class<A, I, R, C, Self, Inherited = {}, Proto = {}> extends Schema<Self, I, R> {
+export interface Class<A, I, R, C, Self, Fields, Inherited = {}, Proto = {}> extends Schema<Self, I, R> {
   new(
-    props: Equals<C, {}> extends true ? void | {} : C,
+    props: Equals<C, {}> extends true ? void | {} : Equals<FilterOptionalKeys<C>, {}> extends true ? void | C : C,
     disableValidation?: boolean | undefined
   ): A & Omit<Inherited, keyof A> & Proto
 
   readonly struct: Schema<A, I, R>
+
+  readonly fields: Fields
 
   readonly extend: <Extended = "Effect.orDie">() => <FieldsB extends StructFields>(
     fields: FieldsB
@@ -4716,8 +4810,9 @@ export interface Class<A, I, R, C, Self, Inherited = {}, Proto = {}> extends Sch
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       Simplify<Omit<I, keyof FieldsB> & FromStruct<FieldsB>>,
       R | Schema.Context<FieldsB[keyof FieldsB]>,
-      Simplify<Omit<C, keyof FieldsB> & ToStruct<FieldsB>>,
+      Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Extended,
+      Simplify<Omit<Fields, keyof FieldsB> & FieldsB>,
       Self,
       Proto
     >
@@ -4743,8 +4838,9 @@ export interface Class<A, I, R, C, Self, Inherited = {}, Proto = {}> extends Sch
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       I,
       R | Schema.Context<FieldsB[keyof FieldsB]> | R2 | R3,
-      Simplify<Omit<C, keyof FieldsB> & ToStruct<FieldsB>>,
+      Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Transformed,
+      Simplify<Omit<Fields, keyof FieldsB> & FieldsB>,
       Self,
       Proto
     >
@@ -4770,8 +4866,9 @@ export interface Class<A, I, R, C, Self, Inherited = {}, Proto = {}> extends Sch
       Simplify<Omit<A, keyof FieldsB> & ToStruct<FieldsB>>,
       I,
       R | Schema.Context<FieldsB[keyof FieldsB]> | R2 | R3,
-      Simplify<Omit<C, keyof FieldsB> & ToStruct<FieldsB>>,
+      Simplify<Omit<C, keyof FieldsB> & ToStructConstructor<FieldsB>>,
       Transformed,
+      Simplify<Omit<Fields, keyof FieldsB> & FieldsB>,
       Self,
       Proto
     >
@@ -4789,9 +4886,119 @@ export const Class = <Self = "Effect.orDie">() =>
     Simplify<ToStruct<Fields>>,
     Simplify<FromStruct<Fields>>,
     Schema.Context<Fields[keyof Fields]>,
-    Simplify<ToStruct<Fields>>,
-    Self
-  > => makeClass(struct(fields), fields, Data.Class)
+    Simplify<ToStructConstructor<Fields>>,
+    Self,
+    Fields
+  > =>
+{
+  const Class = makeClass(struct(fields), fields, Data.Class)
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
+        }
+      })
+      super(p, disableValidation, outer)
+    }
+  } as any
+}
+
+/**
+ * @since 1.0.0
+ */
+export interface ConstructorPropertyDescriptor<To, From = To, R = never>
+  extends Schema.Variance<To, From, R>, Pipeable
+{
+  __defaultConstructor: () => To
+}
+
+/**
+ * @since 1.0.0
+ */
+export interface MapFromPropertyDescriptor<To, From = To, R = never, FromKey extends PropertyKey = never>
+  extends Schema.Variance<To, From, R>, Pipeable
+{
+  mapFrom: FromKey
+}
+
+/**
+ * @category classes
+ * @since 1.0.0
+ */
+export const withDefaultConstructor: {
+  <S extends Schema<any, any, any>>(
+    make: () => Schema.To<S>
+  ): (s: S) => S & ConstructorPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>>
+  <S extends Schema<any, any, any>>(
+    s: S,
+    make: () => Schema.To<S>
+  ): S & ConstructorPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>>
+} = dual(
+  2,
+  <S extends Schema<any, any, any>>(
+    s: S,
+    make: () => Schema.To<S>
+  ): S & ConstructorPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>> => {
+    if ("struct" in s) {
+      const _s = s as unknown as Class<any, any, any, any, any, any, any>
+      const cls = class extends _s {
+        static __defaultConstructor = make
+      }
+      Object.defineProperty(cls, "name", { value: _s.name })
+      return cls as any
+    }
+    return Object.assign(Object.create(s), s, { __defaultConstructor: make })
+  }
+)
+
+/**
+ * @category classes
+ * @since 1.0.0
+ */
+export const mapFrom: {
+  <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+    from: FromKey
+  ): (s: S) => S & MapFromPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>, FromKey>
+  <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+    s: S,
+    from: FromKey
+  ): S & MapFromPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>, FromKey>
+} = dual(2, <S extends Schema<any, any, any>, FromKey extends PropertyKey>(
+  s: S,
+  from: FromKey
+): S & MapFromPropertyDescriptor<Schema.To<S>, Schema.From<S>, Schema.Context<S>, FromKey> => {
+  if ("struct" in s) {
+    const _s = s as unknown as Class<any, any, any, any, any, any, any>
+    const cls = class extends _s {
+      static mapFrom = from
+    }
+    Object.defineProperty(cls, "name", { value: _s.name })
+    return cls as any
+  }
+  return Object.assign(Object.create(s), s, { mapFrom: from })
+})
+
+/**
+ * @since 1.0.0
+ */
+export type ToOptionalConstructorKeys<Fields> = {
+  [K in keyof Fields]: Fields[K] extends ConstructorPropertyDescriptor<any, any, any> ? K
+    : never
+}[keyof Fields]
+
+/**
+ * @since 1.0.0
+ */
+export type ToStructConstructor<Fields extends StructFields> =
+  & {
+    readonly [
+      K in Exclude<keyof Fields, ToOptionalKeys<Fields> | ToOptionalConstructorKeys<Fields>>
+    ]: Schema.To<Fields[K]>
+  }
+  & { readonly [K in ToOptionalKeys<Fields>]?: Schema.To<Fields[K]> }
+  & { readonly [K in ToOptionalConstructorKeys<Fields>]?: Schema.To<Fields[K]> }
 
 /**
  * @category classes
@@ -4806,12 +5013,24 @@ export const TaggedClass = <Self = "Effect.orDie">() =>
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
     Schema.Context<Fields[keyof Fields]>,
-    Simplify<ToStruct<Fields>>,
-    Self
+    Simplify<ToStructConstructor<Fields>>,
+    Self,
+    Fields
   > =>
 {
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-  return makeClass(struct(fieldsWithTag), fieldsWithTag, Data.Class, { _tag: tag })
+  const Class = makeClass(struct(fieldsWithTag), fieldsWithTag, Data.Class, { _tag: tag })
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
+        }
+      })
+      super(p, disableValidation, outer)
+    }
+  } as any
 }
 
 /**
@@ -4827,19 +5046,31 @@ export const TaggedError = <Self = "Effect.orDie">() =>
     Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
     Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
     Schema.Context<Fields[keyof Fields]>,
-    Simplify<ToStruct<Fields>>,
+    Simplify<ToStructConstructor<Fields>>,
     Self,
+    Fields,
     {},
     Cause.YieldableError
   > =>
 {
   const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-  return makeClass(
+  const Class = makeClass(
     struct(fieldsWithTag),
     fieldsWithTag,
     Data.Error,
     { _tag: tag }
   )
+  return class extends Class {
+    constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
+      const p = { ...props }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined && "__defaultConstructor" in v) {
+          p[k] = v.__defaultConstructor()
+        }
+      })
+      super(p, disableValidation, outer)
+    }
+  } as any
 }
 
 /**
@@ -4882,8 +5113,9 @@ export const TaggedRequest =
       Simplify<{ readonly _tag: Tag } & ToStruct<Fields>>,
       Simplify<{ readonly _tag: Tag } & FromStruct<Fields>>,
       Schema.Context<Fields[keyof Fields]>,
-      Simplify<ToStruct<Fields>>,
+      Simplify<ToStructConstructor<Fields>>,
       Self,
+      Fields,
       TaggedRequest<
         Tag,
         Schema.Context<Fields[keyof Fields]>,
@@ -4906,24 +5138,35 @@ export const TaggedRequest =
       }
     }
     const fieldsWithTag: StructFields = { ...fields, _tag: literal(tag) }
-    return makeClass(
+    const Class = makeClass(
       struct(fieldsWithTag),
       fieldsWithTag,
       SerializableRequest,
       { _tag: tag }
     )
+    return class extends Class {
+      constructor(props: any = {}, disableValidation = true, outer: boolean = true) {
+        const p = { ...props }
+        Object.entries(fields).forEach(([k, v]) => {
+          if (p[k] === undefined && "__defaultConstructor" in v) {
+            p[k] = v.__defaultConstructor()
+          }
+        })
+        super(p, disableValidation, outer)
+      }
+    } as any
   }
 
-const makeClass = <A, I, R>(
+const makeClass = <A, I, R, Fields extends StructFields>(
   selfSchema: Schema<A, I, R>,
-  selfFields: StructFields,
+  selfFields: Fields,
   Base: any,
   tag?: any
 ): any => {
   const validate = Parser.validateSync(selfSchema)
 
   return class extends Base {
-    constructor(props?: any, disableValidation: boolean = false, outer: boolean = true) {
+    constructor(props?: any, disableValidation: boolean = true, outer: boolean = true) {
       if (tag !== undefined) {
         props = outer ? { ...props, ...tag } : { ...tag, ...props }
       }
@@ -4982,6 +5225,7 @@ const makeClass = <A, I, R>(
     }
 
     static struct = selfSchema
+    static fields = selfFields
 
     static extend() {
       return (fields: StructFields) => {
