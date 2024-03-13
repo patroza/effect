@@ -1428,9 +1428,10 @@ export const propertySignature: {
   <A, I, R>(
     self: Schema<A, I, R>
   ): PropertySignature<PropertySignature.GetToken<false>, A, never, PropertySignature.GetToken<false>, I, false, R>
-  // TODO: instead support a pipeable `withDefault` combinator
+  /** @deprecated use `withDefaultConstructor` */
   <A, I, R>(
     self: Schema<A, I, R>,
+    /** @deprecated use `withDefaultConstructor` */
     options: { default: () => A }
   ): PropertySignature<PropertySignature.GetToken<false>, A, never, PropertySignature.GetToken<false>, I, true, R>
 } = (self, options?: { default: () => any }) =>
@@ -1510,6 +1511,15 @@ export const fromKey: {
       )
   }
 })
+
+/**
+ * @category PropertySignature
+ * @since 1.0.0
+ */
+export const withDefaultConstructor: <A, I, R>(
+  makeDefault: () => NoInfer<A>
+) => (self: Schema<A, I, R>) => PropertySignature<":", A, never, ":", I, true, R> = (makeDefault) => (self) =>
+  new $PropertySignature(new PropertySignatureDeclaration(self.ast, false, true, {}, makeDefault))
 
 /**
  * - `decode`: `none` as argument means: the value is missing in the input
