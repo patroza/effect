@@ -53,11 +53,11 @@ export const make = (
         message(ws, message) {
           ws.data.run(typeof message === "string" ? encoder.encode(message) : message)
         },
-        close(ws, code, reason) {
+        close(ws, code, closeReason) {
           Deferred.unsafeDone(
             ws.data.closeDeferred,
             Socket.defaultCloseCodeIsError(code)
-              ? Exit.fail(new Socket.SocketError({ reason: "Close", error: { code, reason } }))
+              ? Exit.fail(new Socket.SocketCloseError({ reason: "Close", code, closeReason }))
               : Exit.unit
           )
         }
@@ -395,7 +395,12 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
             return
           }
           resume(Effect.map(Deferred.await(deferred), (ws) => {
-            const write = (chunk: Uint8Array) => Effect.sync(() => ws.sendBinary(chunk))
+            const write = (chunk: Uint8Array | Socket.CloseEvent) =>
+              Effect.sync(() =>
+                Socket.isCloseEvent(chunk)
+                  ? ws.close(chunk.code, chunk.reason)
+                  : ws.sendBinary(chunk)
+              )
             const writer = Effect.succeed(write)
             const run = <R, E, _>(
               handler: (_: Uint8Array) => Effect.Effect<_, E, R>
@@ -420,7 +425,7 @@ class ServerRequestImpl implements ServerRequest.ServerRequest {
               )
 
             return Socket.Socket.of({
-              [Socket.SocketTypeId]: Socket.SocketTypeId,
+              [Socket.TypeId]: Socket.TypeId,
               run,
               writer
             })

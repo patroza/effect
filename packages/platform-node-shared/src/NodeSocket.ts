@@ -28,7 +28,6 @@ export interface NetSocket {
 export const NetSocket: Context.Tag<NetSocket, Net.Socket> = Context.GenericTag(
   "@effect/platform-node/NodeSocket/NetSocket"
 )
-
 const EOF = Symbol.for("@effect/experimental/Socket/Node/EOF")
 
 /**
@@ -47,7 +46,7 @@ export const makeNet = (
           resume(Effect.succeed(conn))
         })
         conn.on("error", (error) => {
-          resume(Effect.fail(new Socket.SocketError({ reason: "Open", error })))
+          resume(Effect.fail(new Socket.SocketGenericError({ reason: "Open", error })))
         })
         return Effect.sync(() => {
           conn.destroy()
@@ -71,7 +70,7 @@ export const fromNetSocket = (
   open: Effect.Effect<Net.Socket, Socket.SocketError, Scope.Scope>
 ): Effect.Effect<Socket.Socket> =>
   Effect.gen(function*(_) {
-    const sendQueue = yield* _(Queue.unbounded<Uint8Array | typeof EOF>())
+    const sendQueue = yield* _(Queue.unbounded<Uint8Array | Socket.CloseEvent | typeof EOF>())
 
     const run = <R, E, _>(handler: (_: Uint8Array) => Effect.Effect<_, E, R>) =>
       Effect.gen(function*(_) {
@@ -85,11 +84,13 @@ export const fromNetSocket = (
           Queue.take(sendQueue),
           Effect.tap((chunk) =>
             Effect.async<void, Socket.SocketError, never>((resume) => {
-              if (chunk === EOF) {
+              if (Socket.isCloseEvent(chunk)) {
+                conn.destroy(chunk.code > 1000 ? new Error(`closed with code ${chunk.code}`) : undefined)
+              } else if (chunk === EOF) {
                 conn.end(() => resume(Effect.unit))
               } else {
                 conn.write(chunk, (error) => {
-                  resume(error ? Effect.fail(new Socket.SocketError({ reason: "Write", error })) : Effect.unit)
+                  resume(error ? Effect.fail(new Socket.SocketGenericError({ reason: "Write", error })) : Effect.unit)
                 })
               }
             })
@@ -106,7 +107,17 @@ export const fromNetSocket = (
               resume(Effect.unit)
             })
             conn.on("error", (error) => {
-              resume(Effect.fail(new Socket.SocketError({ reason: "Read", error })))
+              resume(Effect.fail(new Socket.SocketGenericError({ reason: "Read", error })))
+            })
+            conn.on("close", (hadError) => {
+              resume(
+                Effect.fail(
+                  new Socket.SocketCloseError({
+                    reason: "Close",
+                    code: hadError ? 1006 : 1000
+                  })
+                )
+              )
             })
           }),
           Effect.raceFirst(Fiber.join(writeFiber)),
@@ -114,14 +125,14 @@ export const fromNetSocket = (
         )
       }).pipe(Effect.scoped)
 
-    const write = (chunk: Uint8Array) => Queue.offer(sendQueue, chunk)
+    const write = (chunk: Uint8Array | Socket.CloseEvent) => Queue.offer(sendQueue, chunk)
     const writer = Effect.acquireRelease(
       Effect.succeed(write),
       () => Queue.offer(sendQueue, EOF)
     )
 
     return Socket.Socket.of({
-      [Socket.SocketTypeId]: Socket.SocketTypeId,
+      [Socket.TypeId]: Socket.TypeId,
       run,
       writer
     })
@@ -133,7 +144,14 @@ export const fromNetSocket = (
  */
 export const makeNetChannel = <IE = never>(
   options: Net.NetConnectOpts
-): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, Socket.SocketError | IE, IE, void, unknown> =>
+): Channel.Channel<
+  Chunk.Chunk<Uint8Array>,
+  Chunk.Chunk<Uint8Array | Socket.CloseEvent>,
+  Socket.SocketError | IE,
+  IE,
+  void,
+  unknown
+> =>
   Channel.unwrapScoped(
     Effect.map(makeNet(options), Socket.toChannelWith<IE>())
   )

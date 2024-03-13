@@ -24,6 +24,19 @@ import * as Path from "../../Path.js"
 export const TypeId: Multipart.TypeId = Symbol.for("@effect/platform/Http/Multipart") as Multipart.TypeId
 
 /** @internal */
+export const isPart = (u: unknown): u is Multipart.Part => Predicate.hasProperty(u, TypeId)
+
+/** @internal */
+export const isField = (u: unknown): u is Multipart.Field => isPart(u) && u._tag === "Field"
+
+/** @internal */
+export const isFile = (u: unknown): u is Multipart.File => isPart(u) && u._tag === "File"
+
+/** @internal */
+export const isPersistedFile = (u: unknown): u is Multipart.PersistedFile =>
+  Predicate.hasProperty(u, TypeId) && Predicate.isTagged(u, "PersistedFile")
+
+/** @internal */
 export const ErrorTypeId: Multipart.ErrorTypeId = Symbol.for(
   "@effect/platform/Http/Multipart/MultipartError"
 ) as Multipart.ErrorTypeId
@@ -36,10 +49,6 @@ export const MultipartError = (reason: Multipart.MultipartError["reason"], error
     reason,
     error
   })
-
-/** @internal */
-export const isField = (u: unknown): u is Multipart.Field =>
-  Predicate.hasProperty(u, TypeId) && Predicate.isTagged(u, "Field")
 
 /** @internal */
 export const maxParts: FiberRef.FiberRef<Option.Option<number>> = globalValue(
@@ -89,20 +98,15 @@ export const withFieldMimeTypes = dual<
   <R, E, A>(effect: Effect.Effect<A, E, R>, mimeTypes: ReadonlyArray<string>) => Effect.Effect<A, E, R>
 >(2, (effect, mimeTypes) => Effect.locally(effect, fieldMimeTypes, Chunk.fromIterable(mimeTypes)))
 
-const fileSchema: Schema.Schema<Multipart.PersistedFile> = Schema.struct({
-  [TypeId]: Schema.uniqueSymbolFromSelf(TypeId),
-  _tag: Schema.literal("PersistedFile"),
-  key: Schema.string,
-  name: Schema.string,
-  contentType: Schema.string,
-  path: Schema.string
+const fileSchema: Schema.Schema<Multipart.PersistedFile> = Schema.declare(isPersistedFile, {
+  identifier: "PersistedFile"
 })
 
 /** @internal */
 export const filesSchema: Schema.Schema<ReadonlyArray<Multipart.PersistedFile>> = Schema.array(fileSchema)
 
 /** @internal */
-export const schemaPersisted = <R, I extends Multipart.Persisted, A>(
+export const schemaPersisted = <R, I extends Partial<Multipart.Persisted>, A>(
   schema: Schema.Schema<A, I, R>
 ) => {
   const parse = Schema.decodeUnknown(schema)

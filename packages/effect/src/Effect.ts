@@ -1370,7 +1370,7 @@ export const none: <A, E, R>(
  * @category constructors
  */
 export const promise: <A>(
-  evaluate: (signal: AbortSignal) => Promise<A>
+  evaluate: (signal: AbortSignal) => PromiseLike<A>
 ) => Effect<A> = effect.promise
 
 /**
@@ -1834,11 +1834,11 @@ export const tryMap: {
  */
 export const tryMapPromise: {
   <A, B, E1>(
-    options: { readonly try: (a: A, signal: AbortSignal) => Promise<B>; readonly catch: (error: unknown) => E1 }
+    options: { readonly try: (a: A, signal: AbortSignal) => PromiseLike<B>; readonly catch: (error: unknown) => E1 }
   ): <E, R>(self: Effect<A, E, R>) => Effect<B, E1 | E, R>
   <A, E, R, B, E1>(
     self: Effect<A, E, R>,
-    options: { readonly try: (a: A, signal: AbortSignal) => Promise<B>; readonly catch: (error: unknown) => E1 }
+    options: { readonly try: (a: A, signal: AbortSignal) => PromiseLike<B>; readonly catch: (error: unknown) => E1 }
   ): Effect<B, E | E1, R>
 } = effect.tryMapPromise
 
@@ -1854,9 +1854,9 @@ export const tryMapPromise: {
  */
 export const tryPromise: {
   <A, E>(
-    options: { readonly try: (signal: AbortSignal) => Promise<A>; readonly catch: (error: unknown) => E }
+    options: { readonly try: (signal: AbortSignal) => PromiseLike<A>; readonly catch: (error: unknown) => E }
   ): Effect<A, E>
-  <A>(try_: (signal: AbortSignal) => Promise<A>): Effect<A, Cause.UnknownException>
+  <A>(try_: (signal: AbortSignal) => PromiseLike<A>): Effect<A, Cause.UnknownException>
 } = effect.tryPromise
 
 /**
@@ -3555,26 +3555,26 @@ export const andThen: {
   ): <E, R>(
     self: Effect<A, E, R>
   ) => [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
-    : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
   <X>(
     f: NotFunction<X>
   ): <A, E, R>(
     self: Effect<A, E, R>
   ) => [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
-    : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
   <A, E, R, X>(
     self: Effect<A, E, R>,
     f: (a: NoInfer<A>) => X
   ): [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
-    : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
   <A, E, R, X>(
     self: Effect<A, E, R>,
     f: NotFunction<X>
   ): [X] extends [Effect<infer A1, infer E1, infer R1>] ? Effect<A1, E | E1, R | R1>
-    : [X] extends [Promise<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer A1>] ? Effect<A1, E | Cause.UnknownException, R>
     : Effect<X, E, R>
 } = core.andThen
 
@@ -3684,26 +3684,26 @@ export const tap: {
   ): <E, R>(
     self: Effect<A, E, R>
   ) => [X] extends [Effect<infer _A1, infer E1, infer R1>] ? Effect<A, E | E1, R | R1>
-    : [X] extends [Promise<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
     : Effect<A, E, R>
   <X>(
     f: NotFunction<X>
   ): <A, E, R>(
     self: Effect<A, E, R>
   ) => [X] extends [Effect<infer _A1, infer E1, infer R1>] ? Effect<A, E | E1, R | R1>
-    : [X] extends [Promise<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
     : Effect<A, E, R>
   <A, E, R, X>(
     self: Effect<A, E, R>,
     f: (a: NoInfer<A>) => X
   ): [X] extends [Effect<infer _A1, infer E1, infer R1>] ? Effect<A, E | E1, R | R1>
-    : [X] extends [Promise<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
     : Effect<A, E, R>
   <A, E, R, X>(
     self: Effect<A, E, R>,
     f: NotFunction<X>
   ): [X] extends [Effect<infer _A1, infer E1, infer R1>] ? Effect<A, E | E1, R | R1>
-    : [X] extends [Promise<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
+    : [X] extends [PromiseLike<infer _A1>] ? Effect<A, E | Cause.UnknownException, R>
     : Effect<A, E, R>
 } = core.tap
 
@@ -4673,7 +4673,10 @@ export const runCallback: <A, E>(
  * @since 2.0.0
  * @category execution
  */
-export const runPromise: <A, E>(effect: Effect<A, E>) => Promise<A> = _runtime.unsafeRunPromiseEffect
+export const runPromise: <A, E>(
+  effect: Effect<A, E, never>,
+  options?: { readonly signal?: AbortSignal } | undefined
+) => Promise<A> = _runtime.unsafeRunPromiseEffect
 
 /**
  * Runs an `Effect` workflow, returning a `Promise` which resolves with the
@@ -4682,8 +4685,10 @@ export const runPromise: <A, E>(effect: Effect<A, E>) => Promise<A> = _runtime.u
  * @since 2.0.0
  * @category execution
  */
-export const runPromiseExit: <A, E>(effect: Effect<A, E>) => Promise<Exit.Exit<A, E>> =
-  _runtime.unsafeRunPromiseExitEffect
+export const runPromiseExit: <A, E>(
+  effect: Effect<A, E, never>,
+  options?: { readonly signal?: AbortSignal } | undefined
+) => Promise<Exit.Exit<A, E>> = _runtime.unsafeRunPromiseExitEffect
 
 /**
  * @since 2.0.0

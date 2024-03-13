@@ -5,27 +5,30 @@ import * as Cause from "effect/Cause"
 import * as Channel from "effect/Channel"
 import * as Chunk from "effect/Chunk"
 import * as Context from "effect/Context"
-import * as Data from "effect/Data"
+import type { DurationInput } from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import * as FiberSet from "effect/FiberSet"
 import * as Layer from "effect/Layer"
+import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
 import * as Scope from "effect/Scope"
 import type * as AsyncProducer from "effect/SingleProducerAsyncInput"
 import IsoWebSocket from "isomorphic-ws"
+import { RefailError, TypeIdError } from "./Error.js"
 
 /**
  * @since 1.0.0
  * @category type ids
  */
-export const SocketTypeId = Symbol.for("@effect/platform/Socket")
+export const TypeId = Symbol.for("@effect/platform/Socket")
 
 /**
  * @since 1.0.0
  * @category type ids
  */
-export type SocketTypeId = typeof SocketTypeId
+export type TypeId = typeof TypeId
 
 /**
  * @since 1.0.0
@@ -40,26 +43,117 @@ export const Socket: Context.Tag<Socket, Socket> = Context.GenericTag<Socket>(
  * @category models
  */
 export interface Socket {
-  readonly [SocketTypeId]: SocketTypeId
+  readonly [TypeId]: TypeId
   readonly run: <R, E, _>(
     handler: (_: Uint8Array) => Effect.Effect<_, E, R>
   ) => Effect.Effect<void, SocketError | E, R>
-  readonly writer: Effect.Effect<(chunk: Uint8Array) => Effect.Effect<void>, never, Scope.Scope>
+  readonly writer: Effect.Effect<(chunk: Uint8Array | CloseEvent) => Effect.Effect<void>, never, Scope.Scope>
+}
+
+/**
+ * @since 1.0.0
+ * @category type ids
+ */
+export const CloseEventTypeId = Symbol.for("@effect/platform/Socket/CloseEvent")
+
+/**
+ * @since 1.0.0
+ * @category type ids
+ */
+export type CloseEventTypeId = typeof CloseEventTypeId
+
+/**
+ * @since 1.0.0
+ * @category models
+ */
+export class CloseEvent {
+  /**
+   * @since 1.0.0
+   */
+  readonly [CloseEventTypeId]: CloseEventTypeId
+  constructor(readonly code = 1000, readonly reason?: string) {
+    this[CloseEventTypeId] = CloseEventTypeId
+  }
+  /**
+   * @since 1.0.0
+   */
+  toString() {
+    return this.reason ? `${this.code}: ${this.reason}` : `${this.code}`
+  }
+}
+
+/**
+ * @since 1.0.0
+ * @category refinements
+ */
+export const isCloseEvent = (u: unknown): u is CloseEvent => Predicate.hasProperty(u, CloseEventTypeId)
+
+/**
+ * @since 1.0.0
+ * @category type ids
+ */
+export const SocketErrorTypeId = Symbol.for("@effect/platform/Socket/SocketError")
+
+/**
+ * @since 1.0.0
+ * @category type ids
+ */
+export type SocketErrorTypeId = typeof SocketErrorTypeId
+
+/**
+ * @since 1.0.0
+ * @category refinements
+ */
+export const isSocketError = (u: unknown): u is SocketError => Predicate.hasProperty(u, SocketErrorTypeId)
+
+/**
+ * @since 1.0.0
+ * @category errors
+ */
+export type SocketError = SocketGenericError | SocketCloseError
+
+/**
+ * @since 1.0.0
+ * @category errors
+ */
+export class SocketGenericError extends RefailError(SocketErrorTypeId, "SocketError")<{
+  readonly reason: "Write" | "Read" | "Open" | "OpenTimeout"
+}> {
+  get message() {
+    return `${this.reason}: ${super.message}`
+  }
 }
 
 /**
  * @since 1.0.0
  * @category errors
  */
-export class SocketError extends Data.TaggedError("SocketError")<{
-  readonly reason: "Write" | "Read" | "Open" | "Close"
-  readonly error: unknown
+export class SocketCloseError extends TypeIdError(SocketErrorTypeId, "SocketError")<{
+  readonly reason: "Close"
+  readonly code: number
+  readonly closeReason?: string
 }> {
   /**
    * @since 1.0.0
    */
-  toString(): string {
-    return `SocketError: ${this.reason} - ${this.error}`
+  static is(u: unknown): u is SocketCloseError {
+    return isSocketError(u) && u.reason === "Close"
+  }
+
+  /**
+   * @since 1.0.0
+   */
+  static isClean(isClean: (code: number) => boolean) {
+    return function(u: unknown): u is SocketCloseError {
+      return SocketCloseError.is(u) && isClean(u.code)
+    }
+  }
+
+  get message() {
+    if (this.closeReason) {
+      return `${this.reason}: ${this.code}: ${this.closeReason}`
+    }
+    return `${this.reason}: ${this.code}`
   }
 }
 
@@ -69,14 +163,21 @@ export class SocketError extends Data.TaggedError("SocketError")<{
  */
 export const toChannel = <IE>(
   self: Socket
-): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, SocketError | IE, IE, void, unknown> =>
+): Channel.Channel<
+  Chunk.Chunk<Uint8Array>,
+  Chunk.Chunk<Uint8Array | CloseEvent>,
+  SocketError | IE,
+  IE,
+  void,
+  unknown
+> =>
   Channel.unwrap(
     Effect.gen(function*(_) {
       const writeScope = yield* _(Scope.make())
       const write = yield* _(Scope.extend(self.writer, writeScope))
       const exitQueue = yield* _(Queue.unbounded<Exit.Exit<Chunk.Chunk<Uint8Array>, SocketError | IE>>())
 
-      const input: AsyncProducer.AsyncInputProducer<IE, Chunk.Chunk<Uint8Array>, unknown> = {
+      const input: AsyncProducer.AsyncInputProducer<IE, Chunk.Chunk<Uint8Array | CloseEvent>, unknown> = {
         awaitRead: () => Effect.unit,
         emit(chunk) {
           return Effect.catchAllCause(
@@ -123,8 +224,14 @@ export const toChannel = <IE>(
 export const toChannelWith = <IE = never>() =>
 (
   self: Socket
-): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, SocketError | IE, IE, void, unknown> =>
-  toChannel(self)
+): Channel.Channel<
+  Chunk.Chunk<Uint8Array>,
+  Chunk.Chunk<Uint8Array | CloseEvent>,
+  SocketError | IE,
+  IE,
+  void,
+  unknown
+> => toChannel(self)
 
 /**
  * @since 1.0.0
@@ -132,7 +239,7 @@ export const toChannelWith = <IE = never>() =>
  */
 export const makeChannel = <IE = never>(): Channel.Channel<
   Chunk.Chunk<Uint8Array>,
-  Chunk.Chunk<Uint8Array>,
+  Chunk.Chunk<Uint8Array | CloseEvent>,
   SocketError | IE,
   IE,
   void,
@@ -167,6 +274,7 @@ export const WebSocket: Context.Tag<WebSocket, globalThis.WebSocket> = Context.G
  */
 export const makeWebSocket = (url: string | Effect.Effect<string>, options?: {
   readonly closeCodeIsError?: (code: number) => boolean
+  readonly openTimeout?: DurationInput
 }): Effect.Effect<Socket> =>
   fromWebSocket(
     Effect.acquireRelease(
@@ -190,11 +298,12 @@ export const fromWebSocket = (
   acquire: Effect.Effect<globalThis.WebSocket, SocketError, Scope.Scope>,
   options?: {
     readonly closeCodeIsError?: (code: number) => boolean
+    readonly openTimeout?: DurationInput
   }
 ): Effect.Effect<Socket> =>
   Effect.gen(function*(_) {
     const closeCodeIsError = options?.closeCodeIsError ?? defaultCloseCodeIsError
-    const sendQueue = yield* _(Queue.unbounded<Uint8Array>())
+    const sendQueue = yield* _(Queue.unbounded<Uint8Array | CloseEvent>())
 
     const run = <R, E, _>(handler: (_: Uint8Array) => Effect.Effect<_, E, R>) =>
       Effect.gen(function*(_) {
@@ -219,23 +328,38 @@ export const fromWebSocket = (
         }
 
         if (ws.readyState !== IsoWebSocket.OPEN) {
-          yield* _(Effect.async<void, SocketError, never>((resume) => {
-            ws.onopen = () => {
-              resume(Effect.unit)
-            }
-            ws.onerror = (error_) => {
-              resume(Effect.fail(new SocketError({ reason: "Open", error: (error_ as any).message })))
-            }
-          }))
+          yield* _(
+            Effect.async<void, SocketError, never>((resume) => {
+              ws.onopen = () => {
+                resume(Effect.unit)
+              }
+              ws.onerror = (error_) => {
+                resume(Effect.fail(new SocketGenericError({ reason: "Open", error: (error_ as any).message })))
+              }
+            }),
+            Effect.timeoutFail({
+              duration: options?.openTimeout ?? 10000,
+              onTimeout: () => new SocketGenericError({ reason: "OpenTimeout", error: "timeout waiting for \"open\"" })
+            })
+          )
         }
 
-        yield* _(
+        const writeFiber = yield* _(
           Queue.take(sendQueue),
           Effect.tap((chunk) =>
-            Effect.try({
-              try: () => ws.send(chunk),
-              catch: (error) => Effect.fail(new SocketError({ reason: "Write", error: (error as any).message }))
-            })
+            isCloseEvent(chunk) ?
+              Effect.failSync(() => {
+                ws.close(chunk.code, chunk.reason)
+                return new SocketCloseError({
+                  reason: "Close",
+                  code: chunk.code,
+                  closeReason: chunk.reason
+                })
+              }) :
+              Effect.try({
+                try: () => ws.send(chunk),
+                catch: (error) => new SocketGenericError({ reason: "Write", error: (error as any).message })
+              })
           ),
           Effect.forever,
           Effect.fork
@@ -244,25 +368,34 @@ export const fromWebSocket = (
         yield* _(
           Effect.async<void, SocketError, never>((resume) => {
             ws.onclose = (event) => {
-              if (closeCodeIsError(event.code)) {
-                resume(Effect.fail(new SocketError({ reason: "Close", error: event })))
-              } else {
-                resume(Effect.unit)
-              }
+              resume(
+                Effect.fail(
+                  new SocketCloseError({
+                    reason: "Close",
+                    code: event.code,
+                    closeReason: event.reason
+                  })
+                )
+              )
             }
             ws.onerror = (error) => {
-              resume(Effect.fail(new SocketError({ reason: "Read", error: (error as any).message })))
+              resume(Effect.fail(new SocketGenericError({ reason: "Read", error: (error as any).message })))
             }
           }),
-          Effect.raceFirst(FiberSet.join(fiberSet))
+          Effect.raceFirst(FiberSet.join(fiberSet)),
+          Effect.raceFirst(Fiber.join(writeFiber)),
+          Effect.catchIf(
+            SocketCloseError.isClean((_) => !closeCodeIsError(_)),
+            (_) => Effect.unit
+          )
         )
       }).pipe(Effect.scoped)
 
-    const write = (chunk: Uint8Array) => Queue.offer(sendQueue, chunk)
+    const write = (chunk: Uint8Array | CloseEvent) => Queue.offer(sendQueue, chunk)
     const writer = Effect.succeed(write)
 
     return Socket.of({
-      [SocketTypeId]: SocketTypeId,
+      [TypeId]: TypeId,
       run,
       writer
     })
@@ -277,7 +410,14 @@ export const makeWebSocketChannel = <IE = never>(
   options?: {
     readonly closeCodeIsError?: (code: number) => boolean
   }
-): Channel.Channel<Chunk.Chunk<Uint8Array>, Chunk.Chunk<Uint8Array>, SocketError | IE, IE, void, unknown> =>
+): Channel.Channel<
+  Chunk.Chunk<Uint8Array>,
+  Chunk.Chunk<Uint8Array | CloseEvent>,
+  SocketError | IE,
+  IE,
+  void,
+  unknown
+> =>
   Channel.unwrapScoped(
     Effect.map(makeWebSocket(url, options), toChannelWith<IE>())
   )
