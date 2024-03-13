@@ -1025,6 +1025,9 @@ export const optionalElement = <E extends Schema.Any>(self: E): OptionalElement<
 class $OptionalElement<E extends Schema.Any> implements OptionalElement<E> {
   readonly [TypeId]!: Schema.Variance<Schema.Type<E>, Schema.Encoded<E>, Schema.Context<E>>[TypeId]
   constructor(readonly optionalElement: E) {}
+  toString() {
+    return `${this.optionalElement.ast}?`
+  }
 }
 
 /**
@@ -1255,6 +1258,8 @@ export declare namespace PropertySignature {
   export interface Annotations<A> extends Annotations.Doc<A> {}
 }
 
+const formatToken = (isOptional: boolean): string => isOptional ? "\"?:\"" : "\":\""
+
 /**
  * @category PropertySignature
  * @since 1.0.0
@@ -1271,6 +1276,14 @@ export class PropertySignatureDeclaration {
     readonly annotations: AST.Annotations,
     readonly defaultConstructor?: (() => any) | undefined
   ) {}
+  /**
+   * @since 1.0.0
+   */
+  toString() {
+    const token = formatToken(this.isOptional)
+    const type = String(this.type)
+    return `PropertySignature<${token}, ${type}, never, ${token}, ${type}>`
+  }
 }
 
 /**
@@ -1301,6 +1314,16 @@ export class ToPropertySignature implements AST.Annotated {
   ) {}
 }
 
+const formatPropertyKey = (p: PropertyKey | undefined): string => {
+  if (p === undefined) {
+    return "never"
+  }
+  if (Predicate.isString(p)) {
+    return JSON.stringify(p)
+  }
+  return String(p)
+}
+
 /**
  * @category PropertySignature
  * @since 1.0.0
@@ -1316,6 +1339,14 @@ export class PropertySignatureTransformation {
     readonly decode: AST.PropertySignatureTransformation["decode"],
     readonly encode: AST.PropertySignatureTransformation["encode"]
   ) {}
+  /**
+   * @since 1.0.0
+   */
+  toString() {
+    return `PropertySignature<${formatToken(this.to.isOptional)}, ${this.to.type}, ${
+      formatPropertyKey(this.from.fromKey)
+    }, ${formatToken(this.from.isOptional)}, ${this.from.type}>`
+  }
 }
 
 /**
@@ -1417,6 +1448,10 @@ export class $PropertySignature<
     annotations: PropertySignature.Annotations<Type>
   ): PropertySignature<TypeToken, Type, Key, EncodedToken, Encoded, HasDefault, R> {
     return new $PropertySignature(_propertySignatureAnnotations(this.ast, _schema.toASTAnnotations(annotations)))
+  }
+
+  toString() {
+    return String(this.ast)
   }
 }
 
@@ -1795,16 +1830,16 @@ export declare namespace Struct {
   /**
    * @since 1.0.0
    */
-  export type Type<F extends Fields, OptionalKeys extends PropertyKey = TypeTokenKeys<F>> =
-    & { readonly [K in Exclude<keyof F, OptionalKeys>]: Schema.Type<F[K]> }
-    & { readonly [K in OptionalKeys]?: Schema.Type<F[K]> }
+  export type Type<F extends Fields> =
+    & { readonly [K in Exclude<keyof F, TypeTokenKeys<F>>]: Schema.Type<F[K]> }
+    & { readonly [K in TypeTokenKeys<F>]?: Schema.Type<F[K]> }
 
   /**
    * @since 1.0.0
    */
-  export type Encoded<F extends Fields, OptionalKeys extends PropertyKey = EncodedTokenKeys<F>> =
-    & { readonly [K in Exclude<keyof F, OptionalKeys> as Key<F, K>]: Schema.Encoded<F[K]> }
-    & { readonly [K in OptionalKeys as Key<F, K>]?: Schema.Encoded<F[K]> }
+  export type Encoded<F extends Fields> =
+    & { readonly [K in Exclude<keyof F, EncodedTokenKeys<F>> as Key<F, K>]: Schema.Encoded<F[K]> }
+    & { readonly [K in EncodedTokenKeys<F> as Key<F, K>]?: Schema.Encoded<F[K]> }
 
   /**
    * @since 1.0.0
@@ -2178,7 +2213,8 @@ export const pluck: {
 
 const makeBrandSchema = <S extends Schema.AnyNoContext, B extends string | symbol>(
   self: AST.AST,
-  annotations: Annotations.Schema<Schema.Type<S> & Brand.Brand<B>>
+  annotations: Annotations.Schema<Schema.Type<S> & Brand.Brand<B>>,
+  brand: string | symbol
 ): brand<S, B> => {
   const ast = AST.annotations(self, _schema.toASTAnnotations(annotations))
   const _validateEither = validateEither(make(ast))
@@ -2196,8 +2232,9 @@ const makeBrandSchema = <S extends Schema.AnyNoContext, B extends string | symbo
     return pipeArguments(this, arguments)
   }
   refined.annotations = (annotations: Annotations.Schema<Schema.Type<S> & Brand.Brand<B>>) => {
-    return makeBrandSchema(ast, annotations)
+    return makeBrandSchema(ast, annotations, brand)
   }
+  refined.toString = () => `${ast} & Brand<${formatPropertyKey(brand)}>`
   return refined
 }
 
@@ -2242,7 +2279,7 @@ export const brand = <S extends Schema.AnyNoContext, B extends string | symbol>(
   return makeBrandSchema(self.ast, {
     ...annotations,
     [AST.BrandAnnotationId]: brandAnnotation
-  })
+  }, brand)
 }
 
 /**
@@ -6280,8 +6317,6 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
       )
       return transformation.ast
     }
-
-    static struct = schema
 
     static extend<Extended>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, annotations?: Annotations.Schema<Extended>) => {
