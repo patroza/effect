@@ -1556,10 +1556,18 @@ export class PropertySignatureImpl<
  * @category PropertySignature
  * @since 1.0.0
  */
-export const propertySignature = <A, I, R>(
-  self: Schema<A, I, R>
-): PropertySignature<PropertySignature.GetToken<false>, A, never, PropertySignature.GetToken<false>, I, false, R> =>
-  new PropertySignatureImpl(new PropertySignatureDeclaration(self.ast, false, true, {}))
+export const propertySignature: {
+  <A, I, R>(
+    self: Schema<A, I, R>
+  ): PropertySignature<PropertySignature.GetToken<false>, A, never, PropertySignature.GetToken<false>, I, false, R>
+  /** @deprecated use `withDefaultConstructor` */
+  <A, I, R>(
+    self: Schema<A, I, R>,
+    /** @deprecated use `withDefaultConstructor` */
+    options: { default: () => A }
+  ): PropertySignature<PropertySignature.GetToken<false>, A, never, PropertySignature.GetToken<false>, I, true, R>
+} = (self, options?: { default: () => any }) =>
+  new PropertySignatureImpl(new PropertySignatureDeclaration(self.ast, false, true, {}, options?.default)) as any
 
 /**
  * @category PropertySignature
