@@ -6294,7 +6294,7 @@ export interface Class<Self, Fields extends Struct.Fields, A, I, R, C, Inherited
 
   readonly identifier: string
 
-  readonly extend: <Extended = never>(identifier: string) => <newFields extends Struct.Fields>(
+  readonly extend: <Extended = never>(identifier?: string | undefined) => <newFields extends Struct.Fields>(
     fields: newFields,
     annotations?: Annotations.Schema<Extended>
   ) => [Extended] extends [never] ? MissingSelfGeneric<"Base.extend">
@@ -6309,7 +6309,7 @@ export interface Class<Self, Fields extends Struct.Fields, A, I, R, C, Inherited
       Proto
     >
 
-  readonly transformOrFail: <Transformed = never>(identifier: string) => <
+  readonly transformOrFail: <Transformed = never>(identifier?: string | undefined) => <
     newFields extends Struct.Fields,
     R2,
     R3
@@ -6340,7 +6340,7 @@ export interface Class<Self, Fields extends Struct.Fields, A, I, R, C, Inherited
       Proto
     >
 
-  readonly transformOrFailFrom: <Transformed = never>(identifier: string) => <
+  readonly transformOrFailFrom: <Transformed = never>(identifier?: string | undefined) => <
     newFields extends Struct.Fields,
     R2,
     R3
@@ -6376,7 +6376,7 @@ export interface Class<Self, Fields extends Struct.Fields, A, I, R, C, Inherited
  * @category classes
  * @since 1.0.0
  */
-export const Class = <Self = never>(identifier: string) =>
+export const Class = <Self = never>(identifier?: string | undefined) =>
 <Fields extends Struct.Fields>(
   fields: Fields,
   annotations?: Annotations.Schema<Self>
@@ -6552,7 +6552,7 @@ const extendFields = (a: Struct.Fields, b: Struct.Fields): Struct.Fields => {
 
 const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, tag, toStringOverride }: {
   kind: string
-  identifier: string
+  identifier?: string | undefined
   fields: Struct.Fields
   Base: new(...args: ReadonlyArray<any>) => any
   fromSchema?: Schema.Any | undefined
@@ -6560,7 +6560,6 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
   annotations?: Annotations.Schema<any> | undefined
   toStringOverride?: (self: any) => string | undefined
 }): any => {
-  const classSymbol = Symbol.for(`@effect/schema/${kind}/${identifier}`)
   const schema = fromSchema ?? Struct(fields)
   const validate = ParseResult.validateSync(schema)
   const from = option_.match(AST.getTitleAnnotation(schema.ast), {
@@ -6580,6 +6579,8 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
         props = validate(props)
       }
       super(props, true)
+      const classSymbol = (this.constructor as any).classSymbol
+      Object.defineProperty(this, classSymbol, { value: classSymbol })
     }
 
     // ----------------
@@ -6591,7 +6592,8 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
     static get ast() {
       const toSchema = typeSchema(schema)
       const guard = ParseResult.is(toSchema)
-      const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, classSymbol) && guard(u)
+      const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, this.classSymbol) && guard(u)
+      const identifier = this.identifier
       const encode = ParseResult.encodeUnknown(toSchema)
       const declaration: Schema.Any = declare(
         [toSchema],
@@ -6645,9 +6647,9 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
 
     static fields = { ...fields }
 
-    static identifier = identifier
+    static customIdentifier?: string
 
-    static extend<Extended>(identifier: string) {
+    static extend<Extended>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, annotations?: Annotations.Schema<Extended>) => {
         const extendedFields = extendFields(fields, newFields)
         return makeClass({
@@ -6661,7 +6663,7 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
       }
     }
 
-    static transformOrFail<Transformed>(identifier: string) {
+    static transformOrFail<Transformed>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, options: any, annotations?: Annotations.Schema<Transformed>) => {
         const transformedFields: Struct.Fields = extendFields(fields, newFields)
         return makeClass({
@@ -6680,7 +6682,7 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
       }
     }
 
-    static transformOrFailFrom<Transformed>(identifier: string) {
+    static transformOrFailFrom<Transformed>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, options: any, annotations?: Annotations.Schema<Transformed>) => {
         const transformedFields: Struct.Fields = extendFields(fields, newFields)
         return makeClass({
@@ -6703,8 +6705,12 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
     // other
     // ----------------
 
-    get [classSymbol]() {
-      return classSymbol
+    static get identifier() {
+      return identifier || this.customIdentifier || this.name
+    }
+
+    static get classSymbol() {
+      return Symbol.for(`@effect/schema/${kind}/${this.identifier}`)
     }
 
     toString() {
