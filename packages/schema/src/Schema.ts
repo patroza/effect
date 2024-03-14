@@ -6376,8 +6376,15 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
     constructor(props: any = {}, disableValidation = false) {
       const p = { ...props }
       Object.entries(fields).forEach(([k, v]) => {
-        if (p[k] === undefined && v.ast._tag === "PropertySignatureDeclaration" && v.ast.defaultConstructor) {
-          p[k] = v.ast.defaultConstructor()
+        if (p[k] === undefined) {
+          const ast = v.ast._tag === "PropertySignatureDeclaration"
+            ? v.ast
+            : v.ast._tag === "PropertySignatureTransformation"
+            ? v.ast.to
+            : undefined
+          if (ast?.defaultConstructor) {
+            p[k] = ast.defaultConstructor()
+          }
         }
       })
       super(p, disableValidation)

@@ -164,10 +164,11 @@ describe("Schema > Class APIs", () => {
     it("supports defaults", () => {
       class A extends S.Class<A>("A")({
         a: S.string,
-        b: S.propertySignature(S.number, { default: () => 1 })
+        b: S.propertySignature(S.number, { default: () => 1 }),
+        c: S.propertySignature(S.number, { default: () => 1 }).pipe(S.fromKey("d"))
       }) {}
-      expect({ ...new A({ a: "abc" }) }).toStrictEqual({ a: "abc", b: 1 })
-      expect({ ...new A({ a: "abc", b: 2 }) }).toStrictEqual({ a: "abc", b: 2 })
+      expect({ ...new A({ a: "abc" }) }).toStrictEqual({ a: "abc", b: 1, c: 1 })
+      expect({ ...new A({ a: "abc", b: 2, c: 2 }) }).toStrictEqual({ a: "abc", b: 2, c: 2 })
     })
 
     it("should support methods", () => {
