@@ -2,6 +2,8 @@
  * @since 2.0.0
  */
 
+import { patch } from "./fluentExtensions.js"
+
 export {
   /**
    * @since 2.0.0
@@ -967,3 +969,5 @@ export * as Utils from "./Utils.js"
  * useful in e.g frontend projects that do not use tsplus, but still has the most useful extensions installed.
  */
 export * as fluentExtensions from "./fluentExtensions.js"
+
+patch()

@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { pipe } from "effect"
 import * as Cause from "effect/Cause"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -8,7 +7,7 @@ import { Class, CommitPrototype, EffectPrototype, StructuralClass, StructuralCom
 import * as Either from "effect/Either"
 import * as Option from "effect/Option"
 import * as ReadonlyArray from "effect/ReadonlyArray"
-import { dual, isFunction } from "./Function.js"
+import { dual, isFunction, pipe } from "./Function.js"
 
 const toNonEmptyArray = <A>(a: ReadonlyArray<A>) =>
   a.length ? Option.some(a as ReadonlyArray.NonEmptyReadonlyArray<A>) : Option.none()
