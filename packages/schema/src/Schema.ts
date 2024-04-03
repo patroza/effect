@@ -6590,10 +6590,10 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
     static [TypeId] = variance
 
     static get ast() {
+      const identifier = this.identifier
       const toSchema = typeSchema(schema)
       const guard = ParseResult.is(toSchema)
       const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, this.classSymbol) && guard(u)
-      const identifier = this.identifier
       const encode = ParseResult.encodeUnknown(toSchema)
       const declaration: Schema.Any = declare(
         [toSchema],
