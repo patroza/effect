@@ -33,5 +33,13 @@ describe("encodedSchema", () => {
     await Util.expectDecodeUnknownSuccess(schema, "a")
     await Util.expectDecodeUnknownFailure(schema, null, "Expected a string, actual null")
     await Util.expectDecodeUnknownFailure(schema, 1, "Expected a string, actual 1")
+
+    class MySchema extends S.Class<MySchema>("MySchema")({
+      a: S.string.annotations({ identifier: "MyString1" }),
+      b: S.optional(S.string.annotations({ identifier: "MyString2" }), { default: () => "default" }),
+      c: S.number
+    }) {}
+
+    S.decodeUnknownSync(MySchema)({}, { errors: "all" })
   })
 })
