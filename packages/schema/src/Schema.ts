@@ -1649,7 +1649,7 @@ export const fromKey: {
  * @since 1.0.0
  */
 export const withDefaultConstructor: <A, I, R>(
-  makeDefault: () => Types.NoInfer<A>
+  makeDefault: () => NoInfer<A>
 ) => (self: Schema<A, I, R>) => PropertySignature<":", A, never, ":", I, true, R> = (makeDefault) => (self) =>
   new PropertySignatureImpl(new PropertySignatureDeclaration(self.ast, false, true, {}, makeDefault))
 
