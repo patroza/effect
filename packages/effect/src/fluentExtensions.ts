@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { pipe } from "effect"
+import * as Array from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -7,11 +8,9 @@ import * as Effect from "effect/Effect"
 import { Class, CommitPrototype, EffectPrototype, StructuralClass, StructuralCommitPrototype } from "effect/Effectable"
 import * as Either from "effect/Either"
 import * as Option from "effect/Option"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import { dual, isFunction } from "./Function.js"
 
-const toNonEmptyArray = <A>(a: ReadonlyArray<A>) =>
-  a.length ? Option.some(a as ReadonlyArray.NonEmptyReadonlyArray<A>) : Option.none()
+const toNonEmptyArray = <A>(a: Array<A>) => a.length ? Option.some(a as Array.NonEmptyArray<A>) : Option.none()
 
 const settings = {
   enumerable: false,
@@ -30,9 +29,9 @@ const installFluentExtensions = () => {
   // effects
   ;[
     ...[
-      Effect.unit,
+      Effect.void,
       Effect.fail(1),
-      Effect.step(Effect.unit),
+      Effect.step(Effect.void),
       Cause.empty,
       Config.succeed(1),
       Context.GenericTag("random-tag-id-for-fluent-extensions-dont-use-me")
@@ -61,11 +60,11 @@ const installFluentExtensions = () => {
           return Effect.flatMap(this as any, arg)
         }
       })
-      Object.defineProperty(effect, "asUnit", {
+      Object.defineProperty(effect, "asVoid", {
         enumerable: false,
         configurable: true,
         value() {
-          return Effect.asUnit(this as any)
+          return Effect.asVoid(this as any)
         }
       })
       Object.defineProperty(effect, "orDie", {
@@ -113,11 +112,11 @@ const installFluentExtensions = () => {
       return Option.getOrElse(this as any, arg)
     }
   })
-  Object.defineProperty(opt, "asUnit", {
+  Object.defineProperty(opt, "asVoid", {
     enumerable: false,
     configurable: true,
     value() {
-      return Effect.asUnit(this as any)
+      return Effect.asVoid(this as any)
     }
   })
   Object.defineProperty(opt, "orDie", {
@@ -188,11 +187,11 @@ const installFluentExtensions = () => {
       return Either.flatMap(this as any, arg)
     }
   })
-  Object.defineProperty(either, "asUnit", {
+  Object.defineProperty(either, "asVoid", {
     enumerable: false,
     configurable: true,
     value() {
-      return Effect.asUnit(this as any)
+      return Effect.asVoid(this as any)
     }
   })
   Object.defineProperty(either, "orDie", {
@@ -218,14 +217,14 @@ const installFluentExtensions = () => {
   // built-ins
   // pipe on Object seems to interfeir with some libraries like undici
   Object
-    .defineProperty(Array.prototype, "pipe", {
+    .defineProperty(global.Array.prototype, "pipe", {
       ...settings,
       value(...args: [any, ...Array<any>]) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         return pipe(this, ...args as [any])
       }
     })
-  ;[Array.prototype, Map.prototype, Set.prototype]
+  ;[global.Array.prototype, Map.prototype, Set.prototype]
     .forEach((proto) =>
       Object.defineProperty(proto, "forEachEffect", {
         ...settings,
@@ -238,10 +237,10 @@ const installFluentExtensions = () => {
       })
     )
 
-  Object.defineProperty(Array.prototype, "findFirstMap", {
+  Object.defineProperty(global.Array.prototype, "findFirstMap", {
     ...settings,
     value(...args: [any, ...Array<any>]) {
-      return ReadonlyArray.findFirst(
+      return Array.findFirst(
         this,
         // @ts-expect-error
         ...args
@@ -249,10 +248,10 @@ const installFluentExtensions = () => {
     }
   })
 
-  Object.defineProperty(Array.prototype, "filterMap", {
+  Object.defineProperty(global.Array.prototype, "filterMap", {
     ...settings,
     value(...args: [any, ...Array<any>]) {
-      return ReadonlyArray.filterMap(
+      return Array.filterMap(
         this,
         // @ts-expect-error
         ...args
@@ -260,7 +259,7 @@ const installFluentExtensions = () => {
     }
   })
 
-  Object.defineProperty(Array.prototype, "toNonEmpty", {
+  Object.defineProperty(global.Array.prototype, "toNonEmpty", {
     enumerable: false,
     configurable: true,
     value() {
