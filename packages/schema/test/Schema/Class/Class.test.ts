@@ -180,9 +180,9 @@ describe("Class APIs", () => {
 
     it("supports defaults", () => {
       class A extends S.Class<A>("A")({
-        a: S.string,
-        b: S.number.pipe(S.withDefaultConstructor(() => 1)),
-        c: S.number.pipe(S.withDefaultConstructor(() => 1), S.fromKey("d"))
+        a: S.String,
+        b: S.Number.pipe(S.withDefaultConstructor(() => 1)),
+        c: S.Number.pipe(S.withDefaultConstructor(() => 1), S.fromKey("d"))
       }) {}
       expect({ ...new A({ a: "abc" }) }).toStrictEqual({ a: "abc", b: 1, c: 1 })
       expect({ ...new A({ a: "abc", b: 2, c: 2 }) }).toStrictEqual({ a: "abc", b: 2, c: 2 })
