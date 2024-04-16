@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { pipe } from "effect"
-import * as Array from "effect/Array"
+import * as ReadonlyArray from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -10,7 +10,8 @@ import * as Either from "effect/Either"
 import * as Option from "effect/Option"
 import { dual, isFunction } from "./Function.js"
 
-const toNonEmptyArray = <A>(a: Array<A>) => a.length ? Option.some(a as Array.NonEmptyArray<A>) : Option.none()
+const toNonEmptyArray = <A>(a: ReadonlyArray<A>) =>
+  a.length ? Option.some(a as ReadonlyArray.NonEmptyArray<A>) : Option.none()
 
 const settings = {
   enumerable: false,
@@ -217,14 +218,14 @@ const installFluentExtensions = () => {
   // built-ins
   // pipe on Object seems to interfeir with some libraries like undici
   Object
-    .defineProperty(global.Array.prototype, "pipe", {
+    .defineProperty(Array.prototype, "pipe", {
       ...settings,
       value(...args: [any, ...Array<any>]) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         return pipe(this, ...args as [any])
       }
     })
-  ;[global.Array.prototype, Map.prototype, Set.prototype]
+  ;[Array.prototype, Map.prototype, Set.prototype]
     .forEach((proto) =>
       Object.defineProperty(proto, "forEachEffect", {
         ...settings,
@@ -237,10 +238,10 @@ const installFluentExtensions = () => {
       })
     )
 
-  Object.defineProperty(global.Array.prototype, "findFirstMap", {
+  Object.defineProperty(Array.prototype, "findFirstMap", {
     ...settings,
     value(...args: [any, ...Array<any>]) {
-      return Array.findFirst(
+      return ReadonlyArray.findFirst(
         this,
         // @ts-expect-error
         ...args
@@ -248,10 +249,10 @@ const installFluentExtensions = () => {
     }
   })
 
-  Object.defineProperty(global.Array.prototype, "filterMap", {
+  Object.defineProperty(Array.prototype, "filterMap", {
     ...settings,
     value(...args: [any, ...Array<any>]) {
-      return Array.filterMap(
+      return ReadonlyArray.filterMap(
         this,
         // @ts-expect-error
         ...args
@@ -259,7 +260,7 @@ const installFluentExtensions = () => {
     }
   })
 
-  Object.defineProperty(global.Array.prototype, "toNonEmpty", {
+  Object.defineProperty(Array.prototype, "toNonEmpty", {
     enumerable: false,
     configurable: true,
     value() {
