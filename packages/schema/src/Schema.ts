@@ -2040,7 +2040,6 @@ export interface TypeLiteral<
     | IndexSignature.Context<Records>
   >
 {
-  make: (input: Types.Simplify<ToStructConstructor<Fields>>) => Types.Simplify<TypeLiteral.Type<Fields, Records>>
   readonly fields: { readonly [K in keyof Fields]: Fields[K] }
   readonly records: Readonly<Records>
   annotations(
@@ -2152,23 +2151,6 @@ class TypeLiteralImpl<
   ): TypeLiteral<Fields, Records> {
     return new TypeLiteralImpl(this.fields, this.records, AST.annotations(this.ast, toASTAnnotations(annotations)))
   }
-
-  make(props: Types.Simplify<ToStructConstructor<Fields>>): Types.Simplify<TypeLiteral.Type<Fields, Records>> {
-    const p: any = { ...props as any }
-    Object.entries(this.fields).forEach(([k, v]) => {
-      if (p[k] === undefined) {
-        const ast = v.ast._tag === "PropertySignatureDeclaration"
-          ? v.ast
-          : v.ast._tag === "PropertySignatureTransformation"
-          ? v.ast.to
-          : undefined
-        if (ast?.defaultConstructor) {
-          p[k] = ast.defaultConstructor()
-        }
-      }
-    })
-    return p
-  }
 }
 
 /**
@@ -2176,6 +2158,7 @@ class TypeLiteralImpl<
  * @since 1.0.0
  */
 export interface Struct<Fields extends Struct.Fields> extends TypeLiteral<Fields, []> {
+  (props: Types.Simplify<ToStructConstructor<Fields>>): Types.Simplify<TypeLiteral.Type<Fields, []>>
   annotations(annotations: Annotations.Schema<Types.Simplify<Struct.Type<Fields>>>): Struct<Fields>
 }
 
@@ -2192,7 +2175,29 @@ export function Struct<Fields extends Struct.Fields, const Records extends Index
   fields: Fields,
   ...records: Records
 ): TypeLiteral<Fields, Records> {
-  return new TypeLiteralImpl(fields, records)
+
+
+  const t = new TypeLiteralImpl(fields, records)
+  const ret = Object.assign(
+    (props: Types.Simplify<ToStructConstructor<Fields>>): Types.Simplify<TypeLiteral.Type<Fields, Records>> => {
+      const p: any = { ...props as any }
+      Object.entries(fields).forEach(([k, v]) => {
+        if (p[k] === undefined) {
+          const ast = v.ast._tag === "PropertySignatureDeclaration"
+            ? v.ast
+            : v.ast._tag === "PropertySignatureTransformation"
+            ? v.ast.to
+            : undefined
+          if (ast?.defaultConstructor) {
+            p[k] = ast.defaultConstructor()
+          }
+        }
+      })
+      return p
+    },
+    t)
+    Object.setPrototypeOf(ret, Object.getPrototypeOf(t))
+    return ret
 }
 
 /**

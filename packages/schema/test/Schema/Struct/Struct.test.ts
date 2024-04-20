@@ -286,7 +286,7 @@ describe("Struct", () => {
       b: S.Number.pipe(S.withDefaultConstructor(() => 1)),
       c: S.Number.pipe(S.withDefaultConstructor(() => 1), S.fromKey("d"))
     })
-    expect({ ...A.make({ a: "abc" }) }).toStrictEqual({ a: "abc", b: 1, c: 1 })
-    expect({ ...A.make({ a: "abc", b: 2, c: 2 }) }).toStrictEqual({ a: "abc", b: 2, c: 2 })
+    expect({ ...A({ a: "abc" }) }).toStrictEqual({ a: "abc", b: 1, c: 1 })
+    expect({ ...A({ a: "abc", b: 2, c: 2 }) }).toStrictEqual({ a: "abc", b: 2, c: 2 })
   })
 })
