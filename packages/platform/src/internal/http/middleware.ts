@@ -129,6 +129,7 @@ export const tracer = make((httpApp) =>
       (span) => {
         span.attribute("http.request.method", request.method)
         if (url !== undefined) {
+          span.attribute("http.url", url.toString())
           span.attribute("url.full", url.toString())
           span.attribute("url.path", url.pathname)
           const query = url.search.slice(1)
@@ -151,9 +152,11 @@ export const tracer = make((httpApp) =>
           (exit) => {
             if (exit._tag === "Failure") {
               span.attribute("http.response.status_code", ServerError.causeStatusCode(exit.cause))
+              span.attribute("http.status_code", ServerError.causeStatusCode(exit.cause))
             } else {
               const response = exit.value
               span.attribute("http.response.status_code", response.status)
+              span.attribute("http.status_code", response.status)
               const redactedHeaders = Headers.redact(response.headers, redactedHeaderNames)
               for (const name in redactedHeaders) {
                 span.attribute(`http.response.header.${name}`, String(redactedHeaders[name]))
