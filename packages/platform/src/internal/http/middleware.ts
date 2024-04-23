@@ -127,6 +127,7 @@ export const tracer = make((httpApp) =>
       `http.server ${request.method}`,
       { parent: Option.getOrUndefined(TraceContext.fromHeaders(request.headers)), kind: "server" },
       (span) => {
+        span.attribute("http.method", request.method)
         span.attribute("http.request.method", request.method)
         if (url !== undefined) {
           span.attribute("http.url", url.toString())
