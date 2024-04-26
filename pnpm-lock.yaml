@@ -461,6 +461,10 @@ importers:
     publishDirectory: dist
 
   packages/schema:
+    dependencies:
+      fast-check:
+        specifier: ^3.17.2
+        version: 3.18.0
     devDependencies:
       ajv:
         specifier: ^8.12.0
@@ -468,9 +472,6 @@ importers:
       effect:
         specifier: workspace:^
         version: link:../effect/dist
-      fast-check:
-        specifier: ^3.18.0
-        version: 3.18.0
       tinybench:
         specifier: ^2.8.0
         version: 2.8.0
@@ -5878,12 +5879,6 @@ packages:
     resolution: {integrity: sha512-c1PTsA3tYrIsLGkJkzHF+w9F2EyxfXGo4UyJc4pFL++FMjnq0HJS69T3M7d//gKrFKwy429bouPescbjecU+Zw==}
     engines: {node: '>=8'}
 
-  ts-api-utils@1.2.1:
-    resolution: {integrity: sha512-RIYA36cJn2WiH9Hy77hdF9r7oEwxAtB/TS9/S4Qd90Ap4z5FSiin5zEiTL44OII1Y3IIlEvxwxFUVgrHSZ/UpA==}
-    engines: {node: '>=16'}
-    peerDependencies:
-      typescript: '>=4.2.0'
-
   ts-api-utils@1.3.0:
     resolution: {integrity: sha512-UQMIo7pb8WRomKR1/+MFVLTroIvDVtMX3K6OUir8ynLyzB8Jeriont2bTAtmNPa1ekAgN7YPDyf6V+ygrdU+eQ==}
     engines: {node: '>=16'}
@@ -8629,7 +8624,7 @@ snapshots:
       is-glob: 4.0.3
       minimatch: 9.0.3
       semver: 7.6.0
-      ts-api-utils: 1.2.1(typescript@5.4.5)
+      ts-api-utils: 1.3.0(typescript@5.4.5)
     optionalDependencies:
       typescript: 5.4.5
     transitivePeerDependencies:
@@ -12423,10 +12418,6 @@ snapshots:
   tr46@0.0.3: {}
 
   trim-newlines@3.0.1: {}
-
-  ts-api-utils@1.2.1(typescript@5.4.5):
-    dependencies:
-      typescript: 5.4.5
 
   ts-api-utils@1.3.0(typescript@5.4.5):
     dependencies:
