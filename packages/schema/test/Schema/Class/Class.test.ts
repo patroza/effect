@@ -173,6 +173,21 @@ describe("Class APIs", () => {
       )
     })
 
+    it("the constructor should validate the input with filter", () => {
+      class A extends S.Class<A>("A")(
+        { min: S.NonNegative, max: S.NonNegative },
+        (a, _, ast) =>
+          a.min > a.max
+            ? O.some(new ParseResult.Type(ast, "min should be strictly less than max", `${a.min} >= ${a.max}`))
+            : O.none()
+      ) {}
+      expect(() => new A({ min: 3, max: 2 })).toThrow(
+        new Error(`<refinement schema>
+└─ Predicate refinement failure
+   └─ 3 >= 2`)
+      )
+    })
+
     it("the constructor validation can be disabled", () => {
       class A extends S.Class<A>("A")({ a: S.NonEmpty }) {}
       expect(new A({ a: "" }, true).a).toStrictEqual("")
