@@ -165,7 +165,7 @@ describe("Class APIs", () => {
     it("the constructor should validate the input by default", () => {
       class A extends S.Class<A>("A")({ a: S.NonEmpty }) {}
       expect(() => new A({ a: "" })).toThrow(
-        new Error(`{ a: NonEmpty }
+        new Error(`{ readonly a: NonEmpty }
 └─ ["a"]
    └─ NonEmpty
       └─ Predicate refinement failure
@@ -190,6 +190,17 @@ describe("Class APIs", () => {
       expect({ ...new A({}) }).toStrictEqual({ a: "", [b]: 1 })
     })
 
+    it("the constructor should support lazy defaults", () => {
+      let i = 0
+      class A extends S.Class<A>("A")({
+        a: S.propertySignature(S.Number).pipe(S.withConstructorDefault(() => ++i))
+      }) {}
+      expect({ ...new A({}) }).toStrictEqual({ a: 1 })
+      expect({ ...new A({}) }).toStrictEqual({ a: 2 })
+      new A({ a: 10 })
+      expect({ ...new A({}) }).toStrictEqual({ a: 3 })
+    })
+
     it("a Class with no fields should have a void constructor", () => {
       class A extends S.Class<A>("A")({}) {}
       expect({ ...new A() }).toStrictEqual({})
@@ -197,14 +208,13 @@ describe("Class APIs", () => {
       expect({ ...new A({}) }).toStrictEqual({})
     })
 
-    it("supports defaults", () => {
+    it("a Class with all defaulted fields should have a void constructor", () => {
       class A extends S.Class<A>("A")({
-        a: S.String,
-        b: S.Number.pipe(S.withDefaultConstructor(() => 1)),
-        c: S.Number.pipe(S.withDefaultConstructor(() => 1), S.fromKey("d"))
+        a: S.String.pipe(S.propertySignature, S.withConstructorDefault(() => ""))
       }) {}
-      expect({ ...new A({ a: "abc" }) }).toStrictEqual({ a: "abc", b: 1, c: 1 })
-      expect({ ...new A({ a: "abc", b: 2, c: 2 }) }).toStrictEqual({ a: "abc", b: 2, c: 2 })
+      expect({ ...new A() }).toStrictEqual({ a: "" })
+      expect({ ...new A(undefined) }).toStrictEqual({ a: "" })
+      expect({ ...new A({}) }).toStrictEqual({ a: "" })
     })
 
     it("should support methods", () => {
@@ -893,7 +903,7 @@ describe("Class APIs", () => {
           schema,
           null as any,
           `A
-└─ Expected { n: number }, actual null`
+└─ Expected { readonly n: number }, actual null`
         )
       })
     })

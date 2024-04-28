@@ -2181,21 +2181,21 @@ const getDefaultTypeLiteralAST = <
   return new AST.TypeLiteral(pss, iss)
 }
 
-// const getFieldsDefaults = (fields: Struct.Fields): object => {
-//   const out: any = {}
-//   const ownKeys = util_.ownKeys(fields)
-//   for (const key of ownKeys) {
-//     const field = fields[key]
-//     if (isPropertySignature(field)) {
-//       const ast = field.ast
-//       const defaultValue = ast._tag === "PropertySignatureDeclaration" ? ast.defaultValue : ast.to.defaultValue
-//       if (defaultValue !== undefined) {
-//         out[key] = defaultValue()
-//       }
-//     }
-//   }
-//   return out
-// }
+const lazilyMergeDefaults = (fields: Struct.Fields, props: any): { [x: string | symbol]: unknown } => {
+  const out: Record<PropertyKey, unknown> = { ...props }
+  const ownKeys = util_.ownKeys(fields)
+  for (const key of ownKeys) {
+    const field = fields[key]
+    if (props[key] === undefined && isPropertySignature(field)) {
+      const ast = field.ast
+      const defaultValue = ast._tag === "PropertySignatureDeclaration" ? ast.defaultValue : ast.to.defaultValue
+      if (defaultValue !== undefined) {
+        out[key] = defaultValue()
+      }
+    }
+  }
+  return out
+}
 
 const makeTypeLiteralClass = <
   Fields extends Struct.Fields,
@@ -2224,20 +2224,7 @@ const makeTypeLiteralClass = <
     static make(
       props: Types.Simplify<TypeLiteral.Constructor<Fields, Records>>
     ): Types.Simplify<TypeLiteral.Type<Fields, Records>> {
-      const p = { ...(props as any) }
-      Object.entries(fields).forEach(([k, v]) => {
-        if (!(k in p)) {
-          const ast = v.ast._tag === "PropertySignatureDeclaration"
-            ? v.ast
-            : v.ast._tag === "PropertySignatureTransformation"
-            ? v.ast.to
-            : undefined
-          if (ast?.defaultValue) {
-            p[k] = ast.defaultValue()
-          }
-        }
-      })
-      return ParseResult.validateSync(this)(p)
+      return ParseResult.validateSync(this)(lazilyMergeDefaults(fields, props))
     }
   }
 }
@@ -2714,7 +2701,7 @@ export function filter<C extends A, B extends A, A = C>(
 export function filter<A>(
   predicate: Predicate.Predicate<Types.NoInfer<A>>,
   annotations?: Annotations.Filter<Types.NoInfer<A>>
-): <I, R>(self: Schema<A, I, R>) => Schema<A, I, R>
+): <I, R>(self: Schema<A, I, R>) => filter<A, I, R>
 export function filter<A>(
   predicate: Predicate.Predicate<A> | AST.Refinement["filter"],
   annotations?: Annotations.Filter<A>
@@ -6216,12 +6203,9 @@ export const Data = <
 type MissingSelfGeneric<Usage extends string, Params extends string = ""> =
   `Missing \`Self\` generic - use \`class Self extends ${Usage}<Self>()(${Params}{ ... })\``
 
-type _OptionalKeys<O> = {
-  [K in keyof O]-?: {} extends Pick<O, K> ? K
-    : never
-}[keyof O]
-
-type FilterOptionalKeys<A> = Omit<A, _OptionalKeys<A>>
+type RequiredKeys<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K
+}[keyof T]
 
 /**
  * @category api interface
@@ -6229,9 +6213,7 @@ type FilterOptionalKeys<A> = Omit<A, _OptionalKeys<A>>
  */
 export interface Class<Self, Fields extends Struct.Fields, A, I, R, C, Inherited, Proto> extends Schema<Self, I, R> {
   new(
-    props: Types.Equals<C, {}> extends true ? void | {}
-      : Types.Equals<FilterOptionalKeys<C>, {}> extends true ? void | C
-      : C,
+    props: RequiredKeys<C> extends never ? void | {} : C,
     disableValidation?: boolean | undefined
   ): A & Omit<Inherited, keyof A> & Proto
 
@@ -6519,19 +6501,7 @@ const makeClass = ({ Base, annotations, fields, fromSchema, identifier, kind, ta
       props: { [x: string | symbol]: unknown } = {},
       disableValidation: boolean = false
     ) {
-      props = { ...(props as any) }
-      Object.entries(fields).forEach(([k, v]) => {
-        if (!(k in props)) {
-          const ast = v.ast._tag === "PropertySignatureDeclaration"
-            ? v.ast
-            : v.ast._tag === "PropertySignatureTransformation"
-            ? v.ast.to
-            : undefined
-          if (ast?.defaultValue) {
-            props[k] = ast.defaultValue()
-          }
-        }
-      })
+      props = lazilyMergeDefaults(fields, props)
       if (tag !== undefined) {
         props = { ...props, ...tag }
       }

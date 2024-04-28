@@ -32,6 +32,12 @@ hole<S.Schema.Type<typeof S.Never>>()
 // S.annotations
 // ---------------------------------------------
 
+// @ts-expect-error
+S.String.annotations({ a: 1 })
+
+// $ExpectType SchemaClass<string, string, never>
+S.String.annotations({ [Symbol.for("a")]: 1 })
+
 /**
  * @category api interface
  * @since 1.0.0
@@ -1562,6 +1568,13 @@ class VoidClass extends S.Class<VoidClass>("VoidClass")({}) {}
 
 // $ExpectType [props?: void | {}, disableValidation?: boolean | undefined]
 hole<ConstructorParameters<typeof VoidClass>>()
+
+class AllDefaultedFieldClass extends S.Class<AllDefaultedFieldClass>("AllDefaultedFieldClass")({
+  a: S.String.pipe(S.propertySignature, S.withConstructorDefault(() => ""))
+}) {}
+
+// $ExpectType [props?: void | {}, disableValidation?: boolean | undefined]
+hole<ConstructorParameters<typeof AllDefaultedFieldClass>>()
 
 declare const aContext: S.Schema<string, string, "a">
 declare const bContext: S.Schema<number, number, "b">

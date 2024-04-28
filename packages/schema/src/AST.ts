@@ -79,7 +79,12 @@ export const TypeAnnotationId = Symbol.for("@effect/schema/annotation/Type")
  * @category annotations
  * @since 1.0.0
  */
-export type MessageAnnotation = (issue: ParseIssue) => string | Effect<string>
+export type MessageAnnotation = (
+  issue: ParseIssue
+) => string | Effect<string> | {
+  readonly message: string | Effect<string>
+  readonly override: boolean
+}
 
 /**
  * @category annotations
@@ -1303,11 +1308,11 @@ export class TypeLiteral implements Annotated {
 
 const formatTypeLiteral = (ast: TypeLiteral): string => {
   const formattedPropertySignatures = ast.propertySignatures.map((ps) =>
-    String(ps.name) + (ps.isOptional ? "?" : "") + ": " + ps.type
+    (ps.isReadonly ? "readonly " : "") + String(ps.name) + (ps.isOptional ? "?" : "") + ": " + ps.type
   ).join("; ")
   if (ast.indexSignatures.length > 0) {
     const formattedIndexSignatures = ast.indexSignatures.map((is) =>
-      `[x: ${getParameterBase(is.parameter)}]: ${is.type}`
+      (is.isReadonly ? "readonly " : "") + `[x: ${getParameterBase(is.parameter)}]: ${is.type}`
     ).join("; ")
     if (ast.propertySignatures.length > 0) {
       return `{ ${formattedPropertySignatures}; ${formattedIndexSignatures} }`
@@ -1894,7 +1899,7 @@ export const getNumberIndexedAccess = (ast: AST): AST => {
     case "Suspend":
       return getNumberIndexedAccess(ast.f())
   }
-  throw new Error(errors_.getAPIErrorMessage("NumberIndexedAccess", `unsupported schema (${ast})`))
+  throw new Error(errors_.getAPIErrorMessage("getNumberIndexedAccess", `unsupported schema (${ast})`))
 }
 
 /** @internal */
@@ -1919,19 +1924,19 @@ export const getPropertyKeyIndexedAccess = (ast: AST, name: PropertyKey): Proper
               case "TemplateLiteral": {
                 const regex = getTemplateLiteralRegExp(parameterBase)
                 if (regex.test(name)) {
-                  return new PropertySignature(name, is.type, false, false)
+                  return new PropertySignature(name, is.type, false, true)
                 }
                 break
               }
               case "StringKeyword":
-                return new PropertySignature(name, is.type, false, false)
+                return new PropertySignature(name, is.type, false, true)
             }
           }
         } else if (Predicate.isSymbol(name)) {
           for (const is of ast.indexSignatures) {
             const parameterBase = getParameterBase(is.parameter)
             if (isSymbolKeyword(parameterBase)) {
-              return new PropertySignature(name, is.type, false, false)
+              return new PropertySignature(name, is.type, false, true)
             }
           }
         }
@@ -1997,7 +2002,7 @@ export const record = (key: AST, value: AST): {
           propertySignatures.push(new PropertySignature(key.literal, value, false, true))
         } else {
           throw new Error(
-            errors_.getAPIErrorMessage("Record", `unsupported literal (${util_.formatUnknown(key.literal)})`)
+            errors_.getAPIErrorMessage("record", `unsupported literal (${util_.formatUnknown(key.literal)})`)
           )
         }
         break
@@ -2008,7 +2013,7 @@ export const record = (key: AST, value: AST): {
         key.types.forEach(go)
         break
       default:
-        throw new Error(errors_.getAPIErrorMessage("Record", `unsupported key schema (${key})`))
+        throw new Error(errors_.getAPIErrorMessage("record", `unsupported key schema (${key})`))
     }
   }
   go(key)
@@ -2054,7 +2059,7 @@ export const pick = (ast: AST, keys: ReadonlyArray<PropertyKey>): TypeLiteral | 
         if (Option.isSome(annotation)) {
           return pick(annotation.value, keys)
         }
-        throw new Error(errors_.getAPIErrorMessage("Pick", "cannot handle this kind of transformation"))
+        throw new Error(errors_.getAPIErrorMessage("pick", "cannot handle this kind of transformation"))
       }
     }
   }
@@ -2554,7 +2559,7 @@ const _keyof = (ast: AST): Array<AST> => {
     case "Transformation":
       return _keyof(ast.to)
   }
-  throw new Error(errors_.getAPIErrorMessage("KeyOf", `unsupported schema (${ast})`))
+  throw new Error(errors_.getAPIErrorMessage("keyof", `unsupported schema (${ast})`))
 }
 
 /** @internal */
