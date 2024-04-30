@@ -1,10 +1,11 @@
 import * as Effect from "effect/Effect"
+import { Either } from "../../src/index.js"
 import { expect, it } from "../utils/extend.js"
 
-export const effectify: <T extends {}, Errors extends { [k: keyof T]: (e: unknown) => any }>(
+export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unknown) => any }>(
   data: T,
   errors?: Errors
-) => Effectified<T, Errors> = (data, errors) => {
+) => Effectified<T, Errors> = (data, errors = {}) => {
   return Object.entries(data).reduce((acc, [k, v]) => {
     if (typeof v !== "function") {
       acc[k] = Effect.sync(() => data[k])
@@ -15,12 +16,12 @@ export const effectify: <T extends {}, Errors extends { [k: keyof T]: (e: unknow
         const maybePromise = data[k]()
         if (maybePromise instanceof Promise) {
           maybePromise.then((_) => cb(Effect.succeed(_)))
-            .catch((e) => cb(Effect.fail(e)))
+            .catch((e) => cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e)))
         } else {
           cb(Effect.succeed(maybePromise))
         }
       } catch (e) {
-        cb(Effect.fail(e))
+        cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e))
       }
     })
     acc[k] = Object.setPrototypeOf(
@@ -31,12 +32,12 @@ export const effectify: <T extends {}, Errors extends { [k: keyof T]: (e: unknow
               const maybePromise = data[k](...args)
               if (maybePromise instanceof Promise) {
                 maybePromise.then((_) => cb(Effect.succeed(_)))
-                  .catch((e) => cb(Effect.fail(e)))
+                  .catch((e) => cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e)))
               } else {
                 cb(Effect.succeed(maybePromise))
               }
             } catch (e) {
-              cb(Effect.fail(e))
+              cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e))
             }
           }),
         eff
@@ -47,7 +48,7 @@ export const effectify: <T extends {}, Errors extends { [k: keyof T]: (e: unknow
   }, {})
 }
 
-export type Effectified<T, Errors extends { [k: keyof T]: (e: unknown) => any }> = {
+export type Effectified<T, Errors extends { [K in keyof T]?: (e: unknown) => any }> = {
   [P in keyof T]: T[P] extends () => Promise<infer R> ?
     Effect.Effect<R, keyof Errors extends P ? ReturnType<Errors[P]> : unknown> :
     T[P] extends (...args: infer A) => Promise<infer R> ?
@@ -84,6 +85,11 @@ it.effect(
         }
       }
       const svc = effectify(s)
+      const s2 = {
+        a: () => Promise.reject("I failed"),
+        b: () => Promise.reject("I failed")
+      }
+      const svc2 = effectify(s2, { a: (e) => ({ e }) })
 
       expect(yield* svc.doSomething).toBe(undefined)
       expect(result).toEqual(["I did something"])
@@ -91,5 +97,8 @@ it.effect(
       expect(yield* svc.someValue).toBe(1)
       expect(yield* svc.withSomething(1)).toBe("1")
       expect(yield* svc.withSomethingPromise(1)).toBe("1")
+
+      expect(yield* svc2.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed" }))
+      expect(yield* svc2.b.pipe(Effect.either)).toStrictEqual(Either.left("I failed"))
     })
 )
