@@ -5,7 +5,7 @@ import { expect, it } from "../utils/extend.js"
 export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unknown) => any }>(
   data: T,
   errors?: Errors
-) => Effectified<T, Errors> = (data, errors = {}) => {
+) => Effectified<T, Errors> = (data, errors = {} as any) => {
   return Object.entries(data).reduce((acc, [k, v]) => {
     if (typeof v !== "function") {
       acc[k] = Effect.sync(() => data[k])
@@ -45,7 +45,7 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
       eff
     )
     return acc
-  }, {})
+  }, {}) as any
 }
 
 export type Effectified<T, Errors extends { [K in keyof T]?: (e: unknown) => any }> = {
@@ -67,7 +67,7 @@ export interface SomeService {
   doSomething(): void
 }
 
-export class DoSomethingError {}
+export interface DoSomethingError {}
 export type EffectifiedSomeService = Effectified<SomeService, { doSomethingPromise: (e: unknown) => DoSomethingError }>
 
 it.effect(
@@ -76,10 +76,12 @@ it.effect(
     Effect.gen(function*() {
       const result: Array<string> = []
       const s: SomeService = {
-        doSomethingPromise: () => Promise.resolve(),
+        someValue: 1,
         withSomethingPromise: (a) => Promise.resolve(`${a}`),
         withSomething: (a) => `${a}`,
-        someValue: 1,
+        doSomethingPromise: async () => {
+          result.push("I did something promise")
+        },
         doSomething: () => {
           result.push("I did something")
         }
@@ -92,8 +94,9 @@ it.effect(
       const svc2 = effectify(s2, { a: (e) => ({ e }) })
 
       expect(yield* svc.doSomething).toBe(undefined)
-      expect(result).toEqual(["I did something"])
+      expect(result[0]).toEqual("I did something")
       expect(yield* svc.doSomethingPromise).toBe(undefined)
+      expect(result[1]).toEqual("I did something promise")
       expect(yield* svc.someValue).toBe(1)
       expect(yield* svc.withSomething(1)).toBe("1")
       expect(yield* svc.withSomethingPromise(1)).toBe("1")
