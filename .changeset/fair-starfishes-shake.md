@@ -44,6 +44,9 @@ With this update, accessing the type of `PersonSchema` becomes much simpler. You
 
 When dealing with data, creating values that match a specific schema is crucial. To simplify this process, we've introduced **default constructors** for various types of schemas: `Struct`s, `Record`s, `filter`s, and `brand`s. Let's dive into each of them with some examples to understand better how they work.
 
+> [!NOTE]
+> Default constructors associated with a schema `Schema<A, I, R>` are specifically related to the `A` type, not the `I` type.
+
 Example (`Struct`)
 
 ```ts
@@ -127,6 +130,35 @@ When utilizing our default constructors, it's important to grasp the type of val
 
 This differs from the filter example where the return type is simply `number`. The branding offers additional insights about the type, facilitating the identification and manipulation of your data.
 
+Note that default constructors are "unsafe" in the sense that if the input does not conform to the schema, the constructor throws an error containing a description of what is wrong. This is because the goal of default constructors is to provide a quick way to create compliant values (for example, for writing tests or configurations, or in any situation where it is assumed that the input passed to the constructors is valid and the opposite situation is exceptional). To have a "safe" constructor, you can use `Schema.validateEither`:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const MyNumber = Schema.Number.pipe(Schema.between(1, 10))
+
+const ctor = Schema.validateEither(MyNumber)
+
+console.log(ctor(5))
+/*
+{ _id: 'Either', _tag: 'Right', right: 5 }
+*/
+
+console.log(ctor(20))
+/*
+{
+  _id: 'Either',
+  _tag: 'Left',
+  left: {
+    _id: 'ParseError',
+    message: 'a number between 1 and 10\n' +
+      '└─ Predicate refinement failure\n' +
+      '   └─ Expected a number between 1 and 10, actual 20'
+  }
+}
+*/
+```
+
 ### Introduction to Setting Default Values
 
 When constructing objects, it's common to want to assign default values to certain fields to simplify the creation of new instances. Our new `withConstructorDefault` combinator allows you to effortlessly manage the optionality of a field in your default constructor.
@@ -186,6 +218,52 @@ console.log(PersonSchema.make({ name: "name2" })) // { age: 0, timestamp: 171423
 ```
 
 Note how the `timestamp` field varies.
+
+Default values are also "portable", meaning that if you reuse the same property signature in another schema, the default is carried over:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const PersonSchema = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => 0)
+  ),
+  timestamp: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => new Date().getTime())
+  )
+})
+
+const AnotherSchema = Schema.Struct({
+  foo: Schema.String,
+  age: PersonSchema.fields.age
+})
+
+console.log(AnotherSchema.make({ foo: "bar" })) // => { foo: 'bar', age: 0 }
+```
+
+Defaults can also be applied using the `Class` API:
+
+```ts
+import { Schema } from "@effect/schema"
+
+class Person extends Schema.Class<Person>("Person")({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => 0)
+  ),
+  timestamp: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => new Date().getTime())
+  )
+}) {}
+
+console.log(new Person({ name: "name1" })) // Person { age: 0, timestamp: 1714400867208, name: 'name1' }
+console.log(new Person({ name: "name2" })) // Person { age: 0, timestamp: 1714400867215, name: 'name2' }
+```
 
 ## Introducing Schemas as Classes
 
@@ -388,17 +466,226 @@ Error: { outcomes: an array of at least 1 items }
 
 In the previous version, we would have received the message "error_min_length_field" for any decoding error, which is evidently suboptimal and has now been corrected.
 
+## Filter API Interface
+
+We've introduced a new API interface to the `filter` API. This allows you to access the refined schema using the exposed `from` field:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const schema = Schema.Struct({
+  a: Schema.String
+}).pipe(Schema.filter(() => true))
+
+// const aField: typeof Schema.String
+const aField = schema.from.fields.a
+```
+
+## JSON Schema Compiler Refactoring
+
+The JSON Schema compiler has been refactored to be more user-friendly. Now, the `make` API attempts to produce the optimal JSON Schema for the input part of the decoding phase. This means that starting from the most nested schema, it traverses the chain, including each refinement, and stops at the first transformation found.
+
+Let's see an example:
+
+```ts
+import { JSONSchema, Schema } from "@effect/schema"
+
+const schema = Schema.Struct({
+  foo: Schema.String.pipe(Schema.minLength(2)),
+  bar: Schema.optional(Schema.NumberFromString, {
+    default: () => 0
+  })
+})
+
+console.log(JSON.stringify(JSONSchema.make(schema), null, 2))
+```
+
+Now, let's compare the JSON Schemas produced in both the previous and new versions.
+
+### Before
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["bar", "foo"],
+  "properties": {
+    "bar": {
+      "type": "number",
+      "description": "a number",
+      "title": "number"
+    },
+    "foo": {
+      "type": "string",
+      "description": "a string at least 2 character(s) long",
+      "title": "string",
+      "minLength": 2
+    }
+  },
+  "additionalProperties": false,
+  "title": "Struct (Type side)"
+}
+```
+
+As you can see, the JSON Schema produced has:
+
+- a required `foo` field, correctly modeled with a constraint (`"minLength": 2`)
+- a **required numeric `bar` field**
+
+This happens because in the previous version, the `JSONSchema.make` API by default produces a JSON Schema for the `Type` part of the schema. That is:
+
+```ts
+type Type = Schema.Schema.Type<typeof schema>
+/*
+type Type = {
+    readonly foo: string;
+    readonly bar: number;
+}
+*/
+```
+
+However, typically, we are interested in generating a JSON Schema for the input part of the decoding process, i.e., in this case for:
+
+```ts
+type Encoded = Schema.Schema.Encoded<typeof schema>
+/*
+type Encoded = {
+    readonly foo: string;
+    readonly bar?: string | undefined;
+}
+*/
+```
+
+At first glance, a possible solution might be to generate the JSON Schema of `Schema.encodedSchema(schema)`:
+
+```ts
+console.log(
+  JSON.stringify(JSONSchema.make(Schema.encodedSchema(schema)), null, 2)
+)
+```
+
+But here's what the result would be:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["foo"],
+  "properties": {
+    "foo": {
+      "type": "string",
+      "description": "a string",
+      "title": "string"
+    },
+    "bar": {
+      "type": "string",
+      "description": "a string",
+      "title": "string"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+As you can see, we lost the `"minLength": 2` constraint, which is the useful part of precisely defining our schemas using refinements.
+
+### After
+
+Now, let's see what `JSONSchema.make` API produces by default for the same schema:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["foo"],
+  "properties": {
+    "foo": {
+      "type": "string",
+      "description": "a string at least 2 character(s) long",
+      "title": "string",
+      "minLength": 2
+    },
+    "bar": {
+      "type": "string",
+      "description": "a string",
+      "title": "string"
+    }
+  },
+  "additionalProperties": false,
+  "title": "Struct (Encoded side)"
+}
+```
+
+As you can verify, the refinement has been preserved.
+
+## Tagged Class API Improvements
+
+The new combinator `withConstructorDefault` has also allowed us to enhance the `fields` feature exposed by the following APIs:
+
+- `TaggedClass`
+- `TaggedError`
+- `TaggedRequest`
+
+Let's illustrate with an example:
+
+```ts
+import { Schema } from "@effect/schema"
+
+class A extends Schema.TaggedClass<A>("A")("A", {
+  a: Schema.String
+}) {}
+
+/*
+const schema: Schema.Struct<{
+    readonly _tag: Schema.PropertySignature<":", "A", never, ":", "A", true, never>;
+    readonly a: typeof Schema.String;
+}>
+*/
+export const schema = Schema.Struct(A.fields)
+
+// The `_tag` field is optional!
+schema.make({ a: "foo" })
+```
+
 ## Patches
+
+AST
+
+- fix `AST.toString` to honor `readonly` modifiers
+- improve `AST.toString` for refinements
+
+Schema
 
 - return `BrandSchema` from `fromBrand`
 - add `SchemaClass` interface
 - add `AnnotableClass` interface
-- add `filter` API interface
-- fix `AST.toString` to honor `readonly` modifiers
+- `extend`: add support for refinements, closes #2642
+- add `pattern` json schema annotation to `Trimmed`
+- add `parseNumber` number transformation
+- add `TaggedClass` api interface (exposing a `_tag` field)
+- add `TaggedErrorClass` api interface (exposing a `_tag` field)
+- add `TaggedRequestClass` api interface (exposing a `_tag` field)
+- add `pattern` api interface (exposing a `regexp` field)
 
 ## Other Breaking Changes
 
 - move `fast-check` from `peerDependencies` to `dependencies`
+
+JSONSchema
+
+- extend all interfaces with `JsonSchemaAnnotations`
+
+  ```ts
+  export interface JsonSchemaAnnotations {
+    title?: string
+    description?: string
+    default?: unknown
+    examples?: Array<unknown>
+  }
+  ```
+
+Schema
+
 - remove `asBrandSchema` utility
 - change `BrandSchema` interface
 
@@ -417,4 +704,26 @@ In the previous version, we would have received the message "error_min_length_fi
     extends AnnotableClass<BrandSchema<A, I, R>, A, I, R> {
     make(a: Brand.Unbranded<A>): A
   }
+  ```
+
+  Previously, you could directly use the `Brand.Constructor`, but now you need to use its `make` constructor:
+
+  Before
+
+  ```ts
+  import { Schema } from "@effect/schema"
+
+  const UserId = Schema.Number.pipe(Schema.brand("UserId"))
+
+  console.log(UserId(1)) // 1
+  ```
+
+  Now
+
+  ```ts
+  import { Schema } from "@effect/schema"
+
+  const UserId = Schema.Number.pipe(Schema.brand("UserId"))
+
+  console.log(UserId.make(1)) // 1
   ```

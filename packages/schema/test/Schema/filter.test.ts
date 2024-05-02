@@ -2,8 +2,9 @@ import * as AST from "@effect/schema/AST"
 import * as ParseResult from "@effect/schema/ParseResult"
 import * as S from "@effect/schema/Schema"
 import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
+import { describe, it } from "vitest"
 
 describe("filter", () => {
   it("annotation options", () => {
@@ -53,7 +54,7 @@ describe("filter", () => {
     await Util.expectDecodeUnknownFailure(
       schema,
       { a: "a", b: "b" },
-      `<refinement schema>
+      `{ { readonly a: string; readonly b: string } | filter }
 └─ Predicate refinement failure
    └─ b should be equal to a's value ("a")`
     )

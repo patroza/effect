@@ -5,12 +5,13 @@ import * as Pretty from "@effect/schema/Pretty"
 import * as S from "@effect/schema/Schema"
 import * as Serializable from "@effect/schema/Serializable"
 import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
 import { Context, Effect, Exit, pipe, Struct } from "effect"
 import * as Data from "effect/Data"
 import * as Equal from "effect/Equal"
 import * as O from "effect/Option"
 import * as Request from "effect/Request"
-import { assert, describe, expect, it } from "vitest"
+import { assert, describe, it } from "vitest"
 
 const expectFields = (f1: S.Struct.Fields, f2: S.Struct.Fields) => {
   expect(Reflect.ownKeys(f1).sort()).toStrictEqual(Reflect.ownKeys(f2).sort())
@@ -251,9 +252,13 @@ describe("Class APIs", () => {
     })
 
     it("should support annotations when declaring the Class", () => {
-      class A extends S.Class<A>("A")({
-        a: S.String
-      }, { title: "X" }) {}
+      class A extends S.Class<A>("A")(
+        {
+          a: S.String
+        },
+        undefined,
+        { title: "X" }
+      ) {}
       expect((A.ast as AST.Transformation).to.annotations[AST.TitleAnnotationId]).toEqual("X")
     })
 
@@ -350,7 +355,7 @@ describe("Class APIs", () => {
         c: S.Boolean
       }) {}
       expectFields(D.fields, {
-        _tag: S.Literal("D"),
+        _tag: S.getClassTag("D"),
         a: S.String,
         b: S.String,
         c: S.Boolean
@@ -402,9 +407,11 @@ describe("Class APIs", () => {
       expect({ ...new TA({ a: "a" }) }).toStrictEqual({ _tag: "TA", a: "a" })
     })
 
-    it("should expose the fields", () => {
+    it("should expose the fields and the tag", () => {
       class TA extends S.TaggedClass<TA>()("TA", { a: S.String }) {}
-      expectFields(TA.fields, { _tag: S.Literal("TA"), a: S.String })
+      expectFields(TA.fields, { _tag: S.getClassTag("TA"), a: S.String })
+      expect(S.Struct(TA.fields).make({ a: "a" })).toStrictEqual({ _tag: "TA", a: "a" })
+      expect(TA._tag).toBe("TA")
     })
 
     it("should expose the identifier", () => {
@@ -431,18 +438,9 @@ describe("Class APIs", () => {
 
     it("a custom _tag field should be not allowed", () => {
       expect(() => {
-        // @ts-expect-error
         class _TA extends S.TaggedClass<_TA>()("TA", { _tag: S.Literal("X"), a: S.String }) {}
         console.log(_TA)
       }).toThrow(new Error(`Duplicate property signature "_tag"`))
-    })
-
-    it("should expose the fields", async () => {
-      class TA extends S.TaggedClass<TA>()("TA", { a: S.String }) {}
-      expectFields(TA.fields, {
-        _tag: S.Literal("TA"),
-        a: S.String
-      })
     })
 
     it("decoding", async () => {
@@ -494,7 +492,7 @@ describe("Class APIs", () => {
         ...TA.fields
       }) {}
       expectFields(B.fields, {
-        _tag: S.Literal("TA"),
+        _tag: S.getClassTag("TA"),
         a: S.String,
         b: S.Number
       })
@@ -508,11 +506,20 @@ describe("Class APIs", () => {
         ...pipe(TA.fields, Struct.omit("_tag"))
       }) {}
       expectFields(TB.fields, {
-        _tag: S.Literal("TB"),
+        _tag: S.getClassTag("TB"),
         a: S.String,
         b: S.Number
       })
       expect({ ...new TB({ a: "a", b: 1 }) }).toStrictEqual({ _tag: "TB", a: "a", b: 1 })
+    })
+  })
+
+  describe("TaggedError", () => {
+    it("should expose the fields and the tag", () => {
+      class TE extends S.TaggedError<TE>()("TE", { a: S.String }) {}
+      expectFields(TE.fields, { _tag: S.getClassTag("TE"), a: S.String })
+      expect(S.Struct(TE.fields).make({ a: "a" })).toStrictEqual({ _tag: "TE", a: "a" })
+      expect(TE._tag).toBe("TE")
     })
   })
 
@@ -727,7 +734,7 @@ describe("Class APIs", () => {
 
     const err = new MyError({ id: 1 })
 
-    expect(String(err)).include(`MyError: bad id: 1`)
+    expect(String(err).includes(`MyError: bad id: 1`)).toBe(true)
     expect(String(err)).toContain("Class.test.ts:")
     expect(err.stack).toContain("Class.test.ts:")
     expect(err._tag).toEqual("MyError")
@@ -735,14 +742,15 @@ describe("Class APIs", () => {
   })
 
   describe("TaggedRequest", () => {
-    it("should expose the fields", () => {
+    it("should expose the fields and the tag", () => {
       class TRA extends S.TaggedRequest<TRA>()("TRA", S.String, S.Number, {
         id: S.Number
       }) {}
       expectFields(TRA.fields, {
-        _tag: S.Literal("TRA"),
+        _tag: S.getClassTag("TRA"),
         id: S.Number
       })
+      expect(TRA._tag).toBe("TRA")
     })
 
     it("should expose the identifier", () => {

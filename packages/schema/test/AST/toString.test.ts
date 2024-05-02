@@ -1,5 +1,6 @@
 import * as S from "@effect/schema/Schema"
-import { describe, expect, it } from "vitest"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
 describe("toString", () => {
   it("Struct (immutable)", () => {
@@ -19,6 +20,12 @@ describe("toString", () => {
   it("Record (mutable)", () => {
     expect(S.mutable(S.Record(S.String, S.Number)).ast.toString()).toBe(
       `{ [x: string]: number }`
+    )
+  })
+
+  it("Refinement", () => {
+    expect(S.String.pipe(S.filter(() => true)).ast.toString()).toBe(
+      `{ string | filter }`
     )
   })
 })

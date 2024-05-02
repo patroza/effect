@@ -237,19 +237,23 @@ const Person = S.Struct({
 
 ### Type
 
-After you've defined a `Schema<A, I, R>`, you can extract the inferred type `A` that represents the data described by the schema using the `Schema.Type` utility.
+Once you've defined a `Schema<A, I, R>`, you can extract the inferred type `A`, which represents the data described by the schema, in two ways:
 
-For instance you can extract the inferred type of a `Person` object as demonstrated below:
+- Using the `Schema.Type` utility.
+- Using the `Type` field defined on your schema.
+
+For example, you can extract the inferred type of a `Person` object as demonstrated below:
 
 ```ts
-import * as S from "@effect/schema/Schema"
+import { Schema } from "@effect/schema"
 
-const Person = S.Struct({
-  name: S.String,
-  age: S.NumberFromString
+const Person = Schema.Struct({
+  name: Schema.String,
+  age: Schema.NumberFromString
 })
 
-interface Person extends S.Schema.Type<typeof Person> {}
+// 1. Using the Schema.Type utility
+type Person = Schema.Schema.Type<typeof Person>
 /*
 Equivalent to:
 interface Person {
@@ -257,12 +261,15 @@ interface Person {
   readonly age: number;
 }
 */
+
+// 2. Using the `Type` field
+type Person2 = typeof Person.Type
 ```
 
-Alternatively, you can define the `Person` type using the `type` keyword:
+Alternatively, you can define the `Person` type using the `interface` keyword:
 
 ```ts
-type Person = S.Schema.Type<typeof Person>
+interface Person extends Schema.Schema.Type<typeof Person> {}
 /*
 Equivalent to:
 type Person {
@@ -276,23 +283,27 @@ Both approaches yield the same result, but using an interface provides benefits 
 
 ### Encoded
 
-In cases where in a `Schema<A, I>` the `I` type differs from the `A` type, you can also extract the inferred `I` type using the `Schema.Encoded` utility.
+In cases where in a `Schema<A, I>` the `I` type differs from the `A` type, you can also extract the inferred `I` type using the `Schema.Encoded` utility (or the `Encoded` field defined on your schema).
 
 ```ts
-import * as S from "@effect/schema/Schema"
+import { Schema } from "@effect/schema"
 
-const Person = S.Struct({
-  name: S.String,
-  age: S.NumberFromString
+const Person = Schema.Struct({
+  name: Schema.String,
+  age: Schema.NumberFromString
 })
 
-type PersonEncoded = S.Schema.Encoded<typeof Person>
+// 1. Using the Schema.Encoded utility
+type PersonEncoded = Schema.Schema.Encoded<typeof Person>
 /*
 type PersonEncoded = {
     readonly name: string;
     readonly age: string;
 }
 */
+
+// 2. Using the `Encoded` field
+type PersonEncoded2 = typeof Person.Encoded
 ```
 
 ### Context
@@ -1004,12 +1015,11 @@ console.log(Pretty.make(schema)(1)) // my format: 1
 The `make` function from the `@effect/schema/JSONSchema` module enables you to create a JSON Schema based on a defined schema:
 
 ```ts
-import * as JSONSchema from "@effect/schema/JSONSchema"
-import * as S from "@effect/schema/Schema"
+import { JSONSchema, Schema } from "@effect/schema"
 
-const Person = S.Struct({
-  name: S.String,
-  age: S.Number
+const Person = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number
 })
 
 const jsonSchema = JSONSchema.make(Person)
@@ -1021,19 +1031,20 @@ Output:
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "required": [
-    "name",
-    "age"
+    "age",
+    "name"
   ],
   "properties": {
-    "name": {
-      "type": "string",
-      "description": "a string",
-      "title": "string"
-    },
     "age": {
       "type": "number",
       "description": "a number",
       "title": "number"
+    },
+    "name": {
+      "type": "string",
+      "description": "a non empty string",
+      "title": "NonEmpty",
+      "minLength": 1
     }
   },
   "additionalProperties": false
@@ -1041,19 +1052,64 @@ Output:
 */
 ```
 
-In this example, we have created a schema for a "Person" with a name (a string) and an age (a number). We then use the `JSONSchema.make` function to generate the corresponding JSON Schema.
+In this example, we have created a schema for a "Person" with a name (a non-empty string) and an age (a number). We then use the `JSONSchema.make` function to generate the corresponding JSON Schema.
+
+Note that `JSONSchema.make` attempts to produce the optimal JSON Schema for the input part of the decoding phase. This means that starting from the most nested schema, it traverses the chain, including each refinement, and stops at the first transformation found.
+
+For instance, if we modify the schema of the `age` field:
+
+```ts
+import { JSONSchema, Schema } from "@effect/schema"
+
+const Person = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    // refinement, will be included in the generated JSON Schema
+    Schema.int(),
+    // transformation, will be excluded in the generated JSON Schema
+    Schema.clamp(1, 10)
+  )
+})
+
+const jsonSchema = JSONSchema.make(Person)
+
+console.log(JSON.stringify(jsonSchema, null, 2))
+```
+
+We can see that the new JSON Schema generated for the `age` field is of type `"integer"`, retaining the useful refinement (being an integer) and excluding the transformation (clamping between `1` and `10`):
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "age"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "a non empty string",
+      "title": "NonEmpty",
+      "minLength": 1
+    },
+    "age": {
+      "type": "integer",
+      "description": "an integer",
+      "title": "integer"
+    }
+  },
+  "additionalProperties": false
+}
+```
 
 ### Identifier Annotations
 
 You can enhance your schemas with `identifier` annotations. If you do, your schema will be included within a "definitions" object property on the root and referenced from there:
 
 ```ts
-import * as JSONSchema from "@effect/schema/JSONSchema"
-import * as S from "@effect/schema/Schema"
+import { JSONSchema, Schema } from "@effect/schema"
 
-const Name = S.String.annotations({ identifier: "Name" })
-const Age = S.Number.annotations({ identifier: "Age" })
-const Person = S.Struct({
+const Name = Schema.String.annotations({ identifier: "Name" })
+const Age = Schema.Number.annotations({ identifier: "Age" })
+const Person = Schema.Struct({
   name: Name,
   age: Age
 })
@@ -1097,22 +1153,88 @@ Output:
 
 This technique helps organize your JSON Schema by creating separate definitions for each identifier annotated schema, making it more readable and maintainable.
 
+### Standard JSON Schema Annotations
+
+Standard JSON Schema annotations such as `title`, `description`, `default`, and `Examples` are supported:
+
+```ts
+import { JSONSchema, Schema } from "@effect/schema"
+
+const schema = Schema.Struct({
+  foo: Schema.optional(
+    Schema.String.annotations({
+      description: "an optional string field",
+      title: "foo",
+      examples: ["a", "b"]
+    }).pipe(Schema.compose(Schema.Trim)),
+    {
+      default: () => ""
+    }
+  ).annotations({ description: "a required, trimmed string field" })
+})
+
+// Generate a JSON Schema for the input part
+console.log(JSON.stringify(JSONSchema.make(schema), null, 2))
+/*
+Output:
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "foo": {
+      "type": "string",
+      "description": "an optional string field",
+      "title": "foo",
+      "examples": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "title": "Struct (Encoded side)"
+}
+*/
+
+// Generate a JSON Schema for the output part
+console.log(JSON.stringify(JSONSchema.make(Schema.typeSchema(schema)), null, 2))
+/*
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "foo"
+  ],
+  "properties": {
+    "foo": {
+      "type": "string",
+      "description": "a required string field",
+      "title": "Trimmed",
+      "pattern": "^.*[a-zA-Z0-9]+.*$"
+    }
+  },
+  "additionalProperties": false,
+  "title": "Struct (Type side)"
+}
+*/
+```
+
 ### Recursive and Mutually Recursive Schemas
 
 Recursive and mutually recursive schemas are supported, but in these cases, identifier annotations are **required**:
 
 ```ts
-import * as JSONSchema from "@effect/schema/JSONSchema"
-import * as S from "@effect/schema/Schema"
+import { JSONSchema, Schema } from "@effect/schema"
 
 interface Category {
   readonly name: string
   readonly categories: ReadonlyArray<Category>
 }
 
-const schema: S.Schema<Category> = S.Struct({
-  name: S.String,
-  categories: S.Array(S.suspend(() => schema))
+const schema: Schema.Schema<Category> = Schema.Struct({
+  name: Schema.String,
+  categories: Schema.Array(Schema.suspend(() => schema))
 }).annotations({ identifier: "Category" })
 
 const jsonSchema = JSONSchema.make(schema)
@@ -1154,42 +1276,78 @@ In the example above, we define a schema for a "Category" that can contain a "na
 
 This ensures that the JSON Schema properly handles the recursive structure and creates distinct definitions for each annotated schema, improving readability and maintainability.
 
-### JSON Schema Annotations
+### Custom JSON Schema Annotations
 
 When defining a **refinement** (e.g., through the `filter` function), you can attach a JSON Schema annotation to your schema containing a JSON Schema "fragment" related to this particular refinement. This fragment will be used to generate the corresponding JSON Schema. Note that if the schema consists of more than one refinement, the corresponding annotations will be merged.
 
 ```ts
-import * as JSONSchema from "@effect/schema/JSONSchema"
-import * as S from "@effect/schema/Schema"
+import { JSONSchema, Schema } from "@effect/schema"
 
 // Simulate one or more refinements
-const Positive = S.Number.pipe(
-  S.filter((n) => n > 0, {
+const Positive = Schema.Number.pipe(
+  Schema.filter((n) => n > 0, {
     jsonSchema: { minimum: 0 }
   })
 )
 
 const schema = Positive.pipe(
-  S.filter((n) => n <= 10, {
+  Schema.filter((n) => n <= 10, {
     jsonSchema: { maximum: 10 }
   })
 )
 
-console.log(JSONSchema.make(schema))
+const jsonSchema = JSONSchema.make(schema)
+
+console.log(JSON.stringify(jsonSchema, null, 2))
 /*
 Output:
 {
-  '$schema': 'http://json-schema.org/draft-07/schema#',
-  type: 'number',
-  description: 'a number',
-  title: 'number',
-  minimum: 0,
-  maximum: 10
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "number",
+  "description": "a number",
+  "title": "number",
+  "minimum": 0,
+  "maximum": 10
 }
 */
 ```
 
-As seen in the example, the JSON Schema annotations are merged with the base JSON Schema from `S.Number`. This approach helps handle multiple refinements while maintaining clarity in your code.
+For all other types of schema that are not refinements, the content of the annotation is used and overrides anything the system would have generated by default:
+
+```ts
+import { JSONSchema, Schema } from "@effect/schema"
+
+const schema = Schema.Struct({ foo: Schema.String }).annotations({
+  jsonSchema: { type: "object" }
+})
+
+const jsonSchema = JSONSchema.make(schema)
+
+console.log(JSON.stringify(jsonSchema, null, 2))
+/*
+Output
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object"
+}
+the default would be:
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "foo"
+  ],
+  "properties": {
+    "foo": {
+      "type": "string",
+      "description": "a string",
+      "title": "string"
+    }
+  },
+  "additionalProperties": false
+}
+*/
+```
 
 ## Generating Equivalences
 
@@ -1744,6 +1902,21 @@ Error: <refinement schema>
 
 > [!WARNING]
 > Please note that the use of filters do not alter the type of the `Schema`. They only serve to add additional constraints to the parsing process. If you intend to modify the `Type`, consider using [Branded types](#branded-types).
+
+### Exposed Values
+
+You can access the base schema for which the filter has been defined:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const LongString = Schema.String.pipe(Schema.filter((s) => s.length >= 10))
+
+// const From: typeof Schema.String
+const From = LongString.from
+```
+
+In this example, you're able to access the original schema (`Schema.String`) for which the filter (`LongString`) has been defined. The `from` property provides access to this base schema.
 
 ### String Filters
 
@@ -4004,6 +4177,33 @@ console.log(decode(0)) // 0
 console.log(decode(3)) // 1
 ```
 
+### parseNumber
+
+Transforms a `string` into a `number` by parsing the string using the `parse` function of the `effect/Number` module.
+
+It returns an error if the value can't be converted (for example when non-numeric characters are provided).
+
+The following special string values are supported: "NaN", "Infinity", "-Infinity".
+
+```ts
+import { Schema } from "@effect/schema"
+
+const schema = Schema.String.pipe(Schema.parseNumber)
+
+const decode = Schema.decodeUnknownSync(schema)
+
+console.log(decode("1")) // 1
+console.log(decode("Infinity")) // Infinity
+console.log(decode("NaN")) // NaN
+console.log(decode("-"))
+/*
+throws
+Error: (string <-> number)
+└─ Transformation process failure
+   └─ Expected (string <-> number), actual "-"
+*/
+```
+
 ## Boolean Transformations
 
 ### Not
@@ -4799,6 +4999,301 @@ const encode = S.encodeSync(schema)
 
 console.log(decode(SortedSet.frOmIterable(Str.Order)(["1", "2", "3"]))) // { _id: 'SortedSet', values: [ 1, 2, 3 ] }
 console.log(encode(SortedSet.frOmIterable(N.Order)([1, 2, 3]))) // { _id: 'SortedSet', values: [ '1', '2', '3' ] }
+```
+
+# Default Constructors
+
+When dealing with data, creating values that match a specific schema is crucial. To simplify this process, we've introduced **default constructors** for various types of schemas: `Struct`s, `Record`s, `filter`s, and `brand`s. Let's dive into each of them with some examples to understand better how they work.
+
+> [!NOTE]
+> Default constructors associated with a schema `Schema<A, I, R>` are specifically related to the `A` type, not the `I` type.
+
+Example (`Struct`)
+
+```ts
+import { Schema } from "@effect/schema"
+
+const Struct = Schema.Struct({
+  name: Schema.NonEmpty
+})
+
+Struct.make({ name: "a" }) // ok
+Struct.make({ name: "" })
+/*
+throws
+Error: { name: NonEmpty }
+└─ ["name"]
+   └─ NonEmpty
+      └─ Predicate refinement failure
+         └─ Expected NonEmpty (a non empty string), actual ""
+*/
+```
+
+Example (`Record`)
+
+```ts
+import { Schema } from "@effect/schema"
+
+const Record = Schema.Record(Schema.String, Schema.NonEmpty)
+
+Record.make({ a: "a", b: "b" }) // ok
+Record.make({ a: "a", b: "" })
+/*
+throws
+Error: { [x: string]: NonEmpty }
+└─ ["b"]
+   └─ NonEmpty
+      └─ Predicate refinement failure
+         └─ Expected NonEmpty (a non empty string), actual ""
+*/
+```
+
+Example (`filter`)
+
+```ts
+import { Schema } from "@effect/schema"
+
+const MyNumber = Schema.Number.pipe(Schema.between(1, 10))
+
+// const n: number
+const n = MyNumber.make(5) // ok
+MyNumber.make(20)
+/*
+throws
+Error: a number between 1 and 10
+└─ Predicate refinement failure
+  └─ Expected a number between 1 and 10, actual 20
+*/
+```
+
+Example (`brand`)
+
+```ts
+import { Schema } from "@effect/schema"
+
+const BrandedNumberSchema = Schema.Number.pipe(
+  Schema.between(1, 10),
+  Schema.brand("MyNumber")
+)
+
+// const n: number & Brand<"MyNumber">
+const n = BrandedNumberSchema.make(5) // ok
+BrandedNumberSchema.make(20)
+/*
+throws
+Error: a number between 1 and 10
+└─ Predicate refinement failure
+  └─ Expected a number between 1 and 10, actual 20
+*/
+```
+
+When utilizing our default constructors, it's important to grasp the type of value they generate. In the `BrandedNumberSchema` example, the return type of the constructor is `number & Brand<"MyNumber">`, indicating that the resulting value is a number with the added branding "MyNumber".
+
+This differs from the filter example where the return type is simply `number`. The branding offers additional insights about the type, facilitating the identification and manipulation of your data.
+
+Note that default constructors are "unsafe" in the sense that if the input does not conform to the schema, the constructor throws an error containing a description of what is wrong. This is because the goal of default constructors is to provide a quick way to create compliant values (for example, for writing tests or configurations, or in any situation where it is assumed that the input passed to the constructors is valid and the opposite situation is exceptional). To have a "safe" constructor, you can use `Schema.validateEither`:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const MyNumber = Schema.Number.pipe(Schema.between(1, 10))
+
+const ctor = Schema.validateEither(MyNumber)
+
+console.log(ctor(5))
+/*
+{ _id: 'Either', _tag: 'Right', right: 5 }
+*/
+
+console.log(ctor(20))
+/*
+{
+  _id: 'Either',
+  _tag: 'Left',
+  left: {
+    _id: 'ParseError',
+    message: 'a number between 1 and 10\n' +
+      '└─ Predicate refinement failure\n' +
+      '   └─ Expected a number between 1 and 10, actual 20'
+  }
+}
+*/
+```
+
+## Introduction to Setting Default Values
+
+When constructing objects, it's common to want to assign default values to certain fields to simplify the creation of new instances. Our new `withConstructorDefault` combinator allows you to effortlessly manage the optionality of a field in your default constructor.
+
+Example Without Default
+
+```ts
+import { Schema } from "@effect/schema"
+
+const PersonSchema = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number
+})
+
+// Both name and age are required
+PersonSchema.make({ name: "John", age: 30 })
+```
+
+Example With Default
+
+```ts
+import { Schema } from "@effect/schema"
+
+const PersonSchema = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => 0)
+  )
+})
+
+// The age field is optional and defaults to 0
+console.log(PersonSchema.make({ name: "John" })) // Output: { age: 0, name: 'John' }
+```
+
+In the second example, notice how the `age` field is now optional and defaults to `0` when not provided.
+
+Defaults are **lazily evaluated**, meaning that a new instance of the default is generated every time the constructor is called:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const PersonSchema = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => 0)
+  ),
+  timestamp: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => new Date().getTime())
+  )
+})
+
+console.log(PersonSchema.make({ name: "name1" })) // { age: 0, timestamp: 1714232909221, name: 'name1' }
+console.log(PersonSchema.make({ name: "name2" })) // { age: 0, timestamp: 1714232909227, name: 'name2' }
+```
+
+Note how the `timestamp` field varies.
+
+Default values are also "portable", meaning that if you reuse the same property signature in another schema, the default is carried over:
+
+```ts
+import { Schema } from "@effect/schema"
+
+const PersonSchema = Schema.Struct({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => 0)
+  ),
+  timestamp: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => new Date().getTime())
+  )
+})
+
+const AnotherSchema = Schema.Struct({
+  foo: Schema.String,
+  age: PersonSchema.fields.age
+})
+
+console.log(AnotherSchema.make({ foo: "bar" })) // => { foo: 'bar', age: 0 }
+```
+
+Defaults can also be applied using the `Class` API:
+
+```ts
+import { Schema } from "@effect/schema"
+
+class Person extends Schema.Class<Person>("Person")({
+  name: Schema.NonEmpty,
+  age: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => 0)
+  ),
+  timestamp: Schema.Number.pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => new Date().getTime())
+  )
+}) {}
+
+console.log(new Person({ name: "name1" })) // Person { age: 0, timestamp: 1714400867208, name: 'name1' }
+console.log(new Person({ name: "name2" })) // Person { age: 0, timestamp: 1714400867215, name: 'name2' }
+```
+
+# Introducing Schemas as Classes
+
+We've introduced a new method for defining schemas using classes. This approach provides opaque schema types, offering a clearer representation. Let's look at how you can define and use schemas as classes.
+
+```ts
+import { Schema } from "@effect/schema"
+
+class Person extends Schema.Struct({
+  name: Schema.String
+}) {}
+
+class Group extends Schema.Struct({
+  person: Person
+}) {}
+
+// const MyUnion: S.Union<[typeof Person, typeof Group]>
+export const MyUnion = Schema.Union(Person, Group)
+```
+
+Notice how the inferred type for `MyUnion` now refers only to the class types, removing the detailed structure, which can sometimes be overwhelming to comprehend. Compare this with the previous method of defining schemas (the old method **still works** if you prefer it!)
+
+```ts
+import { Schema } from "@effect/schema"
+
+const Person = Schema.Struct({
+  name: Schema.String
+})
+
+const Group = Schema.Struct({
+  person: Person
+})
+
+/*
+const MyUnion: Schema.Union<[Schema.Struct<{
+    name: typeof Schema.String;
+}>, Schema.Struct<{
+    person: Schema.Struct<{
+        name: typeof Schema.String;
+    }>;
+}>]>
+*/
+export const MyUnion = Schema.Union(Person, Group)
+```
+
+The new system opens up avenues for new patterns. For example, you can enrich your schema with custom values and functions.
+Let's see an example with the previously defined `Group` schema. For instance, we can add a decoding function attached directly to the schema for convenience:
+
+```ts
+import { Schema } from "@effect/schema"
+
+class Person extends Schema.Struct({
+  name: Schema.String
+}) {}
+
+class Group extends Schema.Struct({
+  person: Person
+}) {
+  static decodeUnknownSync(u: unknown) {
+    return Schema.decodeUnknownSync(this)(u)
+  }
+}
+
+console.log(Group.decodeUnknownSync({}))
+/*
+Error: { person: { name: string } }
+└─ ["person"]
+ └─ is missing
+*/
 ```
 
 # Understanding Schema Declaration for New Data Types

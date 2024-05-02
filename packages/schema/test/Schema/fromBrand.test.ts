@@ -1,7 +1,8 @@
 import * as S from "@effect/schema/Schema"
 import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
 import * as Brand from "effect/Brand"
-import { describe, expect, it } from "vitest"
+import { describe, it } from "vitest"
 
 type Int = number & Brand.Brand<"Int">
 const Int = Brand.refined<Int>(
@@ -45,26 +46,26 @@ describe("fromBrand", () => {
     await Util.expectDecodeUnknownFailure(
       schema,
       -0.5,
-      `<refinement schema>
+      `{ number | filter }
 └─ Predicate refinement failure
    └─ Expected -0.5 to be positive, Expected -0.5 to be an integer`
     )
     expect(() => S.decodeUnknownSync(schema)(-0.5)).toThrow(
-      new Error(`<refinement schema>
+      new Error(`{ number | filter }
 └─ Predicate refinement failure
    └─ Expected -0.5 to be positive, Expected -0.5 to be an integer`)
     )
     await Util.expectDecodeUnknownFailure(
       schema,
       -1,
-      `<refinement schema>
+      `{ number | filter }
 └─ Predicate refinement failure
    └─ Expected -1 to be positive`
     )
     await Util.expectDecodeUnknownFailure(
       schema,
       0,
-      `<refinement schema>
+      `{ number | filter }
 └─ Predicate refinement failure
    └─ Expected 0 to be positive`
     )
@@ -72,7 +73,7 @@ describe("fromBrand", () => {
     await Util.expectDecodeUnknownFailure(
       schema,
       1.5,
-      `<refinement schema>
+      `{ number | filter }
 └─ Predicate refinement failure
    └─ Expected 1.5 to be an integer`
     )
