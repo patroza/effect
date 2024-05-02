@@ -183,7 +183,7 @@ describe("Class APIs", () => {
             : O.none()
       ) {}
       expect(() => new A({ min: 3, max: 2 })).toThrow(
-        new Error(`<refinement schema>
+        new Error(`{ { readonly min: NonNegative; readonly max: NonNegative } | filter }
 └─ Predicate refinement failure
    └─ 3 >= 2`)
       )

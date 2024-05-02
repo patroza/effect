@@ -1479,7 +1479,7 @@ describe("JSONSchema", () => {
     })
 
     it("should support make(S.typeSchema(Class)) with custom annotation", () => {
-      class A extends Schema.Class<A>("A")({ a: Schema.String }, {
+      class A extends Schema.Class<A>("A")({ a: Schema.String }, undefined, {
         jsonSchema: { "type": "custom JSON Schema" }
       }) {}
       expectJSONSchema(Schema.typeSchema(A), {
