@@ -166,7 +166,7 @@ describe("Class APIs", () => {
     it("the constructor should validate the input by default", () => {
       class A extends S.Class<A>("A")({ a: S.NonEmpty }) {}
       expect(() => new A({ a: "" })).toThrow(
-        new Error(`{ readonly a: NonEmpty }
+        new Error(`A (Constructor side)
 └─ ["a"]
    └─ NonEmpty
       └─ Predicate refinement failure
@@ -183,7 +183,7 @@ describe("Class APIs", () => {
             : O.none()
       ) {}
       expect(() => new A({ min: 3, max: 2 })).toThrow(
-        new Error(`{ { readonly min: NonNegative; readonly max: NonNegative } | filter }
+        new Error(`A (Constructor side)
 └─ Predicate refinement failure
    └─ 3 >= 2`)
       )

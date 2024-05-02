@@ -6719,9 +6719,8 @@ const makeClass = ({ Base, annotations, fields, filter: ffilter, fromSchema, ide
 }): any => {
   let schema = fromSchema ?? Struct(fields)
   if (ffilter) schema = schema.pipe(filter(ffilter as any))
-  const validate = ParseResult.validateSync(schema)
 
-  return class extends Base {
+  return class A extends Base {
     constructor(
       props: { [x: string | symbol]: unknown } = {},
       disableValidation: boolean = false
@@ -6732,6 +6731,8 @@ const makeClass = ({ Base, annotations, fields, filter: ffilter, fromSchema, ide
       }
       props = lazilyMergeDefaults(fields, props)
       if (disableValidation !== true) {
+        // TODO: move this back out once we adopt the required `identifier`
+        const validate = ParseResult.validateSync(schema.annotations({ title: `${A.identifier} (Constructor side)` }))
         props = validate(props)
       }
       super(props, true)
