@@ -1,11 +1,11 @@
 import * as Effect from "effect/Effect"
-import { Either } from "../../src/index.js"
+import { Data, Either } from "../../src/index.js"
 import { expect, it } from "../utils/extend.js"
 
 export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unknown) => any }>(
   data: T,
   errors?: Errors
-) => Effectified<T, Errors> = (data, errors = {} as any) => {
+) => Effectified<T, Errors> = (data: any, errors: any = {}) => {
   return Object.entries(data).reduce((acc, [k, v]) => {
     if (typeof v !== "function") {
       acc[k] = Effect.sync(() => data[k])
@@ -26,7 +26,7 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
     })
     acc[k] = Object.setPrototypeOf(
       Object.assign(
-        (...args) =>
+        (...args: Array<any>) =>
           Effect.async<any, any>((cb) => {
             try {
               const maybePromise = data[k](...args)
@@ -45,19 +45,25 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
       eff
     )
     return acc
-  }, {}) as any
+  }, {} as any) as any
 }
 
+type OrReturnType<T> = T extends ((...args: any) => any) ? ReturnType<T> : unknown
+
 export type Effectified<T, Errors extends { [K in keyof T]?: (e: unknown) => any }> = {
-  [P in keyof T]: T[P] extends () => Promise<infer R> ?
-    Effect.Effect<R, keyof Errors extends P ? ReturnType<Errors[P]> : unknown> :
+  [P in keyof T]: T[P] extends () => Promise<infer R> ? Effect.Effect<
+      R,
+      P extends keyof Errors ? OrReturnType<Errors[P]> : unknown
+    > :
     T[P] extends (...args: infer A) => Promise<infer R> ?
-      (...args: A) => Effect.Effect<R, keyof Errors extends P ? ReturnType<Errors[P]> : unknown>
-    : T[P] extends () => infer R ? Effect.Effect<R, keyof Errors extends P ? ReturnType<Errors[P]> : unknown> :
+      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : unknown>
+    : T[P] extends () => infer R ? Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : unknown> :
     T[P] extends (...args: infer A) => infer R ?
-      (...args: A) => Effect.Effect<R, keyof Errors extends P ? ReturnType<Errors[P]> : unknown>
+      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : unknown>
     : Effect.Effect<T[P]>
 }
+
+// Test
 
 export interface SomeService {
   doSomethingPromise(): Promise<void>
@@ -67,7 +73,7 @@ export interface SomeService {
   doSomething(): void
 }
 
-export interface DoSomethingError {}
+export class DoSomethingError extends Data.TaggedError("DoSomethingError")<{}> {}
 export type EffectifiedSomeService = Effectified<SomeService, { doSomethingPromise: (e: unknown) => DoSomethingError }>
 
 it.effect(
@@ -77,8 +83,8 @@ it.effect(
       const result: Array<string> = []
       const s: SomeService = {
         someValue: 1,
-        withSomethingPromise: (a) => Promise.resolve(`${a}`),
-        withSomething: (a) => `${a}`,
+        withSomethingPromise: (a: number) => Promise.resolve(`${a}`),
+        withSomething: (a: number) => `${a}`,
         doSomethingPromise: async () => {
           result.push("I did something promise")
         },
@@ -86,7 +92,7 @@ it.effect(
           result.push("I did something")
         }
       }
-      const svc = effectify(s)
+      const svc = effectify(s, { doSomethingPromise: () => new DoSomethingError() })
       const s2 = {
         a: () => Promise.reject("I failed"),
         b: () => Promise.reject("I failed")
