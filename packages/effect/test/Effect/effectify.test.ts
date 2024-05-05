@@ -2,10 +2,22 @@ import * as Effect from "effect/Effect"
 import { Cause, Data, Either } from "../../src/index.js"
 import { expect, it } from "../utils/extend.js"
 
-export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unknown) => any }>(
+const defaultDefaultError = (e: unknown, k: string) => new Cause.UnknownException(e, `${k} produced an error`)
+
+/**
+ * Converts an object with properties or methods that might return promises into an object with properties and methods that return effects.
+ * Useful to convert an existing service object into an effectified service object.
+ * Will type the error channel as `Cause.UnknownException` if no error mapper is provided.
+ */
+export const effectify: <
+  T extends {},
+  Errors extends { [K in keyof T]?: (e: unknown) => any },
+  DefaultError = Cause.UnknownException
+>(
   data: T,
-  errors?: Errors
-) => Effectified<T, Errors> = (data: any, errors: any = {}) => {
+  errors?: Errors,
+  defaultError?: (e: unknown, k: keyof T) => DefaultError
+) => Effectified<T, Errors, DefaultError> = (data: any, errors: any = {}, defaultError: any = defaultDefaultError) => {
   return Object.entries(data).reduce((acc, [k, v]) => {
     if (typeof v !== "function") {
       acc[k] = Effect.sync(() => data[k])
@@ -20,7 +32,7 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
               cb(
                 k in errors
                   ? Effect.suspend(() => Effect.fail(errors[k](e)))
-                  : new Cause.UnknownException(e, `${k} produced an error`)
+                  : Effect.fail(defaultError(e, k))
               )
             )
         } else {
@@ -30,7 +42,7 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
         cb(
           k in errors
             ? Effect.suspend(() => Effect.fail(errors[k](e)))
-            : new Cause.UnknownException(e, `${k} produced an error`)
+            : Effect.fail(defaultError(e, k))
         )
       }
     })
@@ -46,7 +58,7 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
                     cb(
                       k in errors
                         ? Effect.suspend(() => Effect.fail(errors[k](e)))
-                        : new Cause.UnknownException(e, `${k} produced an error`)
+                        : Effect.fail(defaultError(e, k))
                     )
                   )
               } else {
@@ -56,7 +68,7 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
               cb(
                 k in errors
                   ? Effect.suspend(() => Effect.fail(errors[k](e)))
-                  : new Cause.UnknownException(e, `${k} produced an error`)
+                  : Effect.fail(defaultError(e, k))
               )
             }
           }),
@@ -68,19 +80,23 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
   }, {} as any) as any
 }
 
-type OrReturnType<T> = T extends ((...args: any) => any) ? ReturnType<T> : Cause.UnknownException
+type OrReturnType<T, DefaultError> = T extends ((...args: any) => any) ? ReturnType<T> : DefaultError
 
-export type Effectified<T, Errors extends { [K in keyof T]?: (e: unknown) => any }> = {
+export type Effectified<
+  T,
+  Errors extends { [K in keyof T]?: (e: unknown) => any },
+  DefaultError = Cause.UnknownException
+> = {
   [P in keyof T]: T[P] extends () => Promise<infer R> ? Effect.Effect<
       R,
-      P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException
+      P extends keyof Errors ? OrReturnType<Errors[P], DefaultError> : DefaultError
     > :
     T[P] extends (...args: infer A) => Promise<infer R> ?
-      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException>
+      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P], DefaultError> : DefaultError>
     : T[P] extends () => infer R ?
-      Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException> :
+      Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P], DefaultError> : DefaultError> :
     T[P] extends (...args: infer A) => infer R ?
-      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException>
+      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P], DefaultError> : DefaultError>
     : Effect.Effect<T[P]>
 }
 
@@ -119,6 +135,7 @@ it.effect(
         b: () => Promise.reject("I failed")
       }
       const svc2 = effectify(s2, { a: (e) => ({ e }) })
+      const svc3 = effectify(s2, { a: (e) => ({ e }) }, (e, k) => ({ e, k }))
 
       expect(yield* svc.doSomething).toBe(undefined)
       expect(result[0]).toEqual("I did something")
@@ -132,5 +149,8 @@ it.effect(
       expect(yield* svc2.b.pipe(Effect.either)).toStrictEqual(
         Either.left(new Cause.UnknownException("I failed", "b produced an error"))
       )
+
+      expect(yield* svc3.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed" }))
+      expect(yield* svc3.b.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed", k: "b" }))
     })
 )
