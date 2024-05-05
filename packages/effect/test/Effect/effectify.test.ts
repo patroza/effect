@@ -131,8 +131,8 @@ it.effect(
       }
       const svc = effectify(s, { doSomethingPromise: () => new DoSomethingError() })
       const s2 = {
-        a: () => Promise.reject("I failed"),
-        b: () => Promise.reject("I failed")
+        a: () => Promise.reject("I failed a"),
+        b: () => Promise.reject("I failed b")
       }
       const svc2 = effectify(s2, { a: (e) => ({ e }) })
       const svc3 = effectify(s2, { a: (e) => ({ e }) }, (e, k) => ({ e, k }))
@@ -145,12 +145,12 @@ it.effect(
       expect(yield* svc.withSomething(1)).toBe("1")
       expect(yield* svc.withSomethingPromise(1)).toBe("1")
 
-      expect(yield* svc2.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed" }))
+      expect(yield* svc2.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed a" }))
       expect(yield* svc2.b.pipe(Effect.either)).toStrictEqual(
-        Either.left(new Cause.UnknownException("I failed", "b produced an error"))
+        Either.left(new Cause.UnknownException("I failed b", "b produced an error"))
       )
 
-      expect(yield* svc3.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed" }))
-      expect(yield* svc3.b.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed", k: "b" }))
+      expect(yield* svc3.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed a" }))
+      expect(yield* svc3.b.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed b", k: "b" }))
     })
 )
