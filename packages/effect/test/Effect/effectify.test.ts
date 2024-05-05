@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import { Data, Either } from "../../src/index.js"
+import { Cause, Data, Either } from "../../src/index.js"
 import { expect, it } from "../utils/extend.js"
 
 export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unknown) => any }>(
@@ -16,12 +16,22 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
         const maybePromise = data[k]()
         if (maybePromise instanceof Promise) {
           maybePromise.then((_) => cb(Effect.succeed(_)))
-            .catch((e) => cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e)))
+            .catch((e) =>
+              cb(
+                k in errors
+                  ? Effect.suspend(() => Effect.fail(errors[k](e)))
+                  : new Cause.UnknownException(e, `${k} produced an error`)
+              )
+            )
         } else {
           cb(Effect.succeed(maybePromise))
         }
       } catch (e) {
-        cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e))
+        cb(
+          k in errors
+            ? Effect.suspend(() => Effect.fail(errors[k](e)))
+            : new Cause.UnknownException(e, `${k} produced an error`)
+        )
       }
     })
     acc[k] = Object.setPrototypeOf(
@@ -32,12 +42,22 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
               const maybePromise = data[k](...args)
               if (maybePromise instanceof Promise) {
                 maybePromise.then((_) => cb(Effect.succeed(_)))
-                  .catch((e) => cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e)))
+                  .catch((e) =>
+                    cb(
+                      k in errors
+                        ? Effect.suspend(() => Effect.fail(errors[k](e)))
+                        : new Cause.UnknownException(e, `${k} produced an error`)
+                    )
+                  )
               } else {
                 cb(Effect.succeed(maybePromise))
               }
             } catch (e) {
-              cb(k in errors ? Effect.suspend(() => Effect.fail(errors[k](e))) : Effect.fail(e))
+              cb(
+                k in errors
+                  ? Effect.suspend(() => Effect.fail(errors[k](e)))
+                  : new Cause.UnknownException(e, `${k} produced an error`)
+              )
             }
           }),
         eff
@@ -48,18 +68,19 @@ export const effectify: <T extends {}, Errors extends { [K in keyof T]?: (e: unk
   }, {} as any) as any
 }
 
-type OrReturnType<T> = T extends ((...args: any) => any) ? ReturnType<T> : unknown
+type OrReturnType<T> = T extends ((...args: any) => any) ? ReturnType<T> : Cause.UnknownException
 
 export type Effectified<T, Errors extends { [K in keyof T]?: (e: unknown) => any }> = {
   [P in keyof T]: T[P] extends () => Promise<infer R> ? Effect.Effect<
       R,
-      P extends keyof Errors ? OrReturnType<Errors[P]> : unknown
+      P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException
     > :
     T[P] extends (...args: infer A) => Promise<infer R> ?
-      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : unknown>
-    : T[P] extends () => infer R ? Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : unknown> :
+      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException>
+    : T[P] extends () => infer R ?
+      Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException> :
     T[P] extends (...args: infer A) => infer R ?
-      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : unknown>
+      (...args: A) => Effect.Effect<R, P extends keyof Errors ? OrReturnType<Errors[P]> : Cause.UnknownException>
     : Effect.Effect<T[P]>
 }
 
@@ -108,6 +129,8 @@ it.effect(
       expect(yield* svc.withSomethingPromise(1)).toBe("1")
 
       expect(yield* svc2.a.pipe(Effect.either)).toStrictEqual(Either.left({ e: "I failed" }))
-      expect(yield* svc2.b.pipe(Effect.either)).toStrictEqual(Either.left("I failed"))
+      expect(yield* svc2.b.pipe(Effect.either)).toStrictEqual(
+        Either.left(new Cause.UnknownException("I failed", "b produced an error"))
+      )
     })
 )
