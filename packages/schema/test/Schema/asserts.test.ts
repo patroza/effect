@@ -1,6 +1,7 @@
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
-import { describe, expect, it } from "vitest"
+import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
 const expectAssertsSuccess = <A, I>(schema: S.Schema<A, I>, input: unknown) => {
   expect(S.asserts(schema)(input)).toEqual(undefined)
@@ -10,17 +11,17 @@ const expectAssertsFailure = <A, I>(schema: S.Schema<A, I>, input: unknown, mess
   expect(() => S.asserts(schema)(input)).toThrow(new Error(message))
 }
 
-describe("Schema > asserts", () => {
+describe("asserts", () => {
   it("should respect outer/inner options", () => {
-    const schema = S.struct({ a: Util.NumberFromChar })
+    const schema = S.Struct({ a: Util.NumberFromChar })
     const input = { a: 1, b: "b" }
     expect(() => S.asserts(schema)(input, { onExcessProperty: "error" })).toThrow(
-      new Error(`{ a: number }
+      new Error(`{ readonly a: number }
 └─ ["b"]
    └─ is unexpected, expected "a"`)
     )
     expect(() => S.asserts(schema, { onExcessProperty: "error" })(input)).toThrow(
-      new Error(`{ a: number }
+      new Error(`{ readonly a: number }
 └─ ["b"]
    └─ is unexpected, expected "a"`)
     )
@@ -30,19 +31,19 @@ describe("Schema > asserts", () => {
 
   describe("struct", () => {
     it("required property signature", () => {
-      const schema = S.struct({ a: Util.NumberFromChar })
+      const schema = S.Struct({ a: Util.NumberFromChar })
       expectAssertsSuccess(schema, { a: 1 })
       expectAssertsFailure(
         schema,
         { a: null },
-        `{ a: number }
+        `{ readonly a: number }
 └─ ["a"]
    └─ Expected a number, actual null`
       )
     })
 
     it("required property signature with undefined", () => {
-      const schema = S.struct({ a: S.union(S.number, S.undefined) })
+      const schema = S.Struct({ a: S.Union(S.Number, S.Undefined) })
       expectAssertsSuccess(schema, { a: 1 })
       expectAssertsSuccess(schema, { a: undefined })
       expectAssertsSuccess(schema, { a: 1, b: "b" })
@@ -50,15 +51,15 @@ describe("Schema > asserts", () => {
       expectAssertsFailure(
         schema,
         {},
-        `{ a: number | undefined }
+        `{ readonly a: number | undefined }
 └─ ["a"]
    └─ is missing`
       )
-      expectAssertsFailure(schema, null, `Expected { a: number | undefined }, actual null`)
+      expectAssertsFailure(schema, null, `Expected { readonly a: number | undefined }, actual null`)
       expectAssertsFailure(
         schema,
         { a: "a" },
-        `{ a: number | undefined }
+        `{ readonly a: number | undefined }
 └─ ["a"]
    └─ number | undefined
       ├─ Union member

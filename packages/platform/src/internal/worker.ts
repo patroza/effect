@@ -1,6 +1,6 @@
 import * as Schema from "@effect/schema/Schema"
 import * as Serializable from "@effect/schema/Serializable"
-import { Tracer } from "effect"
+import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Channel from "effect/Channel"
 import * as Chunk from "effect/Chunk"
@@ -14,10 +14,10 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Pool from "effect/Pool"
 import * as Queue from "effect/Queue"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Schedule from "effect/Schedule"
 import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
+import * as Tracer from "effect/Tracer"
 import * as Transferable from "../Transferable.js"
 import type * as Worker from "../Worker.js"
 import { WorkerError } from "../WorkerError.js"
@@ -59,31 +59,31 @@ export const Spawner = Context.GenericTag<Worker.Spawner, Worker.SpawnerFn>(
 )
 
 /** @internal */
-export const makeManager = Effect.gen(function*(_) {
-  const platform = yield* _(PlatformWorker)
+export const makeManager = Effect.gen(function*() {
+  const platform = yield* PlatformWorker
   let idCounter = 0
   return WorkerManager.of({
     [WorkerManagerTypeId]: WorkerManagerTypeId,
-    spawn<I, E, O>({
+    spawn<I, O, E>({
       encode,
       initialMessage,
       permits = 1,
       queue,
       transfers = (_) => []
     }: Worker.Worker.Options<I>) {
-      return Effect.gen(function*(_) {
-        const spawn = yield* _(Spawner)
+      return Effect.gen(function*() {
+        const spawn = yield* Spawner
         const id = idCounter++
         let requestIdCounter = 0
-        const semaphore = yield* _(Effect.makeSemaphore(permits))
+        const semaphore = yield* Effect.makeSemaphore(permits)
         const requestMap = new Map<
           number,
           readonly [Queue.Queue<Exit.Exit<ReadonlyArray<O>, E | WorkerError>>, Deferred.Deferred<void>]
         >()
-        const sendQueue = yield* _(Effect.acquireRelease(
+        const sendQueue = yield* Effect.acquireRelease(
           Queue.unbounded<readonly [message: Worker.Worker.Request, transfers?: ReadonlyArray<unknown>]>(),
           Queue.shutdown
-        ))
+        )
 
         const collector = Transferable.unsafeMakeCollector()
         const wrappedEncode = encode ?
@@ -94,36 +94,33 @@ export const makeManager = Effect.gen(function*(_) {
             )) :
           Effect.succeed
 
-        const outbound = queue ?? (yield* _(defaultQueue<I>()))
-        yield* _(Effect.addFinalizer(() => outbound.shutdown))
+        const outbound = queue ?? (yield* defaultQueue<I>())
+        yield* Effect.addFinalizer(() => outbound.shutdown)
 
-        yield* _(
-          Effect.gen(function*(_) {
-            const readyLatch = yield* _(Deferred.make<void>())
-            const backing = yield* _(
-              platform.spawn<Worker.Worker.Request, Worker.Worker.Response<E, O>>(spawn(id))
-            )
-            const send = pipe(
-              sendQueue.take,
-              Effect.flatMap(([message, transfers]) => backing.send(message, transfers)),
-              Effect.forever
-            )
-            const take = pipe(
-              Queue.take(backing.queue),
-              Effect.flatMap((msg) => {
-                if (msg[0] === 0) {
-                  return Deferred.complete(readyLatch, Effect.unit)
-                }
-                return handleMessage(msg[1])
-              }),
-              Effect.forever
-            )
-            return yield* _(Effect.all([
-              Fiber.join(backing.fiber),
-              Effect.zipRight(Deferred.await(readyLatch), send),
-              take
-            ], { concurrency: "unbounded" }))
-          }),
+        yield* Effect.gen(function*() {
+          const readyLatch = yield* Deferred.make<void>()
+          const backing = yield* platform.spawn<Worker.Worker.Request, Worker.Worker.Response<E, O>>(spawn(id))
+          const send = pipe(
+            sendQueue.take,
+            Effect.flatMap(([message, transfers]) => backing.send(message, transfers)),
+            Effect.forever
+          )
+          const take = pipe(
+            Queue.take(backing.queue),
+            Effect.flatMap((msg) => {
+              if (msg[0] === 0) {
+                return Deferred.complete(readyLatch, Effect.void)
+              }
+              return handleMessage(msg[1])
+            }),
+            Effect.forever
+          )
+          return yield* Effect.all([
+            Fiber.join(backing.fiber),
+            Effect.zipRight(Deferred.await(readyLatch), send),
+            take
+          ], { concurrency: "unbounded" })
+        }).pipe(
           Effect.scoped,
           Effect.onError((cause) =>
             Effect.forEach(requestMap.values(), ([queue]) => Queue.offer(queue, Exit.failCause(cause)))
@@ -141,19 +138,19 @@ export const makeManager = Effect.gen(function*(_) {
           Effect.forkScoped
         )
 
-        yield* _(Effect.addFinalizer(() =>
+        yield* Effect.addFinalizer(() =>
           Effect.zipRight(
             Effect.forEach(requestMap.values(), ([queue]) => Queue.offer(queue, Exit.failCause(Cause.empty)), {
               discard: true
             }),
             Effect.sync(() => requestMap.clear())
           )
-        ))
+        )
 
         const handleMessage = (response: Worker.Worker.Response<E, O>) =>
           Effect.suspend(() => {
             const queue = requestMap.get(response[0])
-            if (!queue) return Effect.unit
+            if (!queue) return Effect.void
 
             switch (response[1]) {
               // data
@@ -210,7 +207,7 @@ export const makeManager = Effect.gen(function*(_) {
           exit: Exit.Exit<unknown, unknown>
         ) => {
           const release = Effect.zipRight(
-            Deferred.complete(deferred, Effect.unit),
+            Deferred.complete(deferred, Effect.void),
             Effect.sync(() => requestMap.delete(id))
           )
           return Exit.isFailure(exit) ?
@@ -229,7 +226,7 @@ export const makeManager = Effect.gen(function*(_) {
                 .flatMap(
                   Queue.take(queue),
                   Exit.match({
-                    onFailure: (cause) => Cause.isEmpty(cause) ? Channel.unit : Channel.failCause(cause),
+                    onFailure: (cause) => Cause.isEmpty(cause) ? Channel.void : Channel.failCause(cause),
                     onSuccess: (value) => Channel.flatMap(Channel.write(Chunk.unsafeFromArray(value)), () => loop)
                   })
                 )
@@ -240,18 +237,17 @@ export const makeManager = Effect.gen(function*(_) {
         const executeEffect = (request: I) =>
           Effect.acquireUseRelease(
             executeAcquire(request),
-            ([, queue]) => Effect.flatMap(Queue.take(queue), Exit.map(ReadonlyArray.unsafeGet(0))),
+            ([, queue]) => Effect.flatMap(Queue.take(queue), Exit.map(Arr.unsafeGet(0))),
             executeRelease
           )
 
-        yield* _(
-          semaphore.take(1),
+        yield* semaphore.take(1).pipe(
           Effect.zipRight(outbound.take),
           Effect.flatMap(([id, request, span]) =>
             pipe(
               Effect.suspend(() => {
                 const result = requestMap.get(id)
-                if (!result) return Effect.unit
+                if (!result) return Effect.void
                 const transferables = transfers(request)
                 const spanTuple = Option.getOrUndefined(
                   Option.map(span, (span) => [span.traceId, span.spanId, span.sampled] as const)
@@ -279,8 +275,7 @@ export const makeManager = Effect.gen(function*(_) {
         )
 
         if (initialMessage) {
-          yield* _(
-            Effect.sync(initialMessage),
+          yield* Effect.sync(initialMessage).pipe(
             Effect.flatMap(executeEffect),
             Effect.mapError((error) => new WorkerError({ reason: "spawn", error }))
           )
@@ -296,32 +291,30 @@ export const makeManager = Effect.gen(function*(_) {
 export const layerManager = Layer.effect(WorkerManager, makeManager)
 
 /** @internal */
-export const makePool = <I, E, O>(
+export const makePool = <I, O, E>(
   options: Worker.WorkerPool.Options<I>
 ) =>
-  Effect.gen(function*(_) {
-    const manager = yield* _(WorkerManager)
-    const workers = new Set<Worker.Worker<I, E, O>>()
+  Effect.gen(function*() {
+    const manager = yield* WorkerManager
+    const workers = new Set<Worker.Worker<I, O, E>>()
     const acquire = pipe(
-      manager.spawn<I, E, O>(options),
+      manager.spawn<I, O, E>(options),
       Effect.tap((worker) => Effect.sync(() => workers.add(worker))),
       Effect.tap((worker) => Effect.addFinalizer(() => Effect.sync(() => workers.delete(worker)))),
       options.onCreate ? Effect.tap(options.onCreate) : identity
     )
-    const backing = yield* _(
-      "timeToLive" in options ?
-        Pool.makeWithTTL({
-          acquire,
-          min: options.minSize,
-          max: options.maxSize,
-          timeToLive: options.timeToLive
-        }) :
-        Pool.make({
-          acquire,
-          size: options.size
-        })
-    )
-    const pool: Worker.WorkerPool<I, E, O> = {
+    const backing = yield* "timeToLive" in options ?
+      Pool.makeWithTTL({
+        acquire,
+        min: options.minSize,
+        max: options.maxSize,
+        timeToLive: options.timeToLive
+      }) :
+      Pool.make({
+        acquire,
+        size: options.size
+      })
+    const pool: Worker.WorkerPool<I, O, E> = {
       backing,
       broadcast: (message: I) =>
         Effect.forEach(workers, (worker) => worker.executeEffect(message), {
@@ -346,8 +339,8 @@ export const makePool = <I, E, O>(
   })
 
 /** @internal */
-export const makePoolLayer = <Tag, I, E, O>(
-  tag: Context.Tag<Tag, Worker.WorkerPool<I, E, O>>,
+export const makePoolLayer = <Tag, I, O, E>(
+  tag: Context.Tag<Tag, Worker.WorkerPool<I, O, E>>,
   options: Worker.WorkerPool.Options<I>
 ) => Layer.scoped(tag, makePool(options))
 
@@ -357,19 +350,17 @@ export const makeSerialized = <
 >(
   options: Worker.SerializedWorker.Options<I>
 ): Effect.Effect<Worker.SerializedWorker<I>, WorkerError, Worker.WorkerManager | Worker.Spawner | Scope.Scope> =>
-  Effect.gen(function*(_) {
-    const manager = yield* _(WorkerManager)
-    const backing = yield* _(
-      manager.spawn({
-        ...options as any,
-        encode(message) {
-          return Effect.mapError(
-            Serializable.serialize(message as any),
-            (error) => new WorkerError({ reason: "encode", error })
-          )
-        }
-      })
-    )
+  Effect.gen(function*() {
+    const manager = yield* WorkerManager
+    const backing = yield* manager.spawn({
+      ...options as any,
+      encode(message) {
+        return Effect.mapError(
+          Serializable.serialize(message as any),
+          (error) => new WorkerError({ reason: "encode", error })
+        )
+      }
+    })
     const execute = <Req extends I>(message: Req) => {
       const parseSuccess = Schema.decode(Serializable.successSchema(message as any))
       const parseFailure = Schema.decode(Serializable.failureSchema(message as any))
@@ -398,29 +389,31 @@ export const makeSerialized = <
 export const makePoolSerialized = <I extends Schema.TaggedRequest.Any>(
   options: Worker.SerializedWorkerPool.Options<I>
 ) =>
-  Effect.gen(function*(_) {
-    const manager = yield* _(WorkerManager)
+  Effect.gen(function*() {
+    const manager = yield* WorkerManager
     const workers = new Set<Worker.SerializedWorker<I>>()
     const acquire = pipe(
       makeSerialized<I>(options),
       Effect.tap((worker) => Effect.sync(() => workers.add(worker))),
       Effect.tap((worker) => Effect.addFinalizer(() => Effect.sync(() => workers.delete(worker)))),
-      options.onCreate ? Effect.tap(options.onCreate) : identity,
+      options.onCreate
+        ? Effect.tap(
+          options.onCreate as (worker: Worker.SerializedWorker<I>) => Effect.Effect<void, WorkerError>
+        )
+        : identity,
       Effect.provideService(WorkerManager, manager)
     )
-    const backing = yield* _(
-      "timeToLive" in options ?
-        Pool.makeWithTTL({
-          acquire,
-          min: options.minSize,
-          max: options.maxSize,
-          timeToLive: options.timeToLive
-        }) :
-        Pool.make({
-          acquire,
-          size: options.size
-        })
-    )
+    const backing = yield* "timeToLive" in options ?
+      Pool.makeWithTTL({
+        acquire,
+        min: options.minSize,
+        max: options.maxSize,
+        timeToLive: options.timeToLive
+      }) :
+      Pool.make({
+        acquire,
+        size: options.size
+      })
     const pool: Worker.SerializedWorkerPool<I> = {
       backing,
       broadcast: <Req extends I>(message: Req) =>

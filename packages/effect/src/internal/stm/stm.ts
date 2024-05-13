@@ -1,3 +1,4 @@
+import * as RA from "../../Array.js"
 import * as Cause from "../../Cause.js"
 import * as Chunk from "../../Chunk.js"
 import * as Context from "../../Context.js"
@@ -10,11 +11,10 @@ import { constFalse, constTrue, constVoid, dual, identity, pipe } from "../../Fu
 import * as Option from "../../Option.js"
 import type { Predicate, Refinement } from "../../Predicate.js"
 import * as predicate from "../../Predicate.js"
-import * as RA from "../../ReadonlyArray.js"
 import type * as STM from "../../STM.js"
 import type { MergeRecord, NoInfer } from "../../Types.js"
+import { yieldWrapGet } from "../../Utils.js"
 import * as effectCore from "../core.js"
-import * as SingleShotGen from "../singleShotGen.js"
 import * as core from "./core.js"
 import * as Journal from "./stm/journal.js"
 import * as STMState from "./stm/stmState.js"
@@ -98,7 +98,7 @@ export const asSomeError = <A, E, R>(self: STM.STM<A, E, R>): STM.STM<A, Option.
   pipe(self, mapError(Option.some))
 
 /** @internal */
-export const asUnit = <A, E, R>(self: STM.STM<A, E, R>): STM.STM<void, E, R> => pipe(self, core.map(constVoid))
+export const asVoid = <A, E, R>(self: STM.STM<A, E, R>): STM.STM<void, E, R> => pipe(self, core.map(constVoid))
 
 /** @internal */
 export const attempt = <A>(evaluate: LazyArg<A>): STM.STM<A, unknown> =>
@@ -273,7 +273,7 @@ export const catchTags: {
   }))
 
 /** @internal */
-export const check = (predicate: LazyArg<boolean>): STM.STM<void> => suspend(() => predicate() ? unit : core.retry)
+export const check = (predicate: LazyArg<boolean>): STM.STM<void> => suspend(() => predicate() ? void_ : core.retry)
 
 /** @internal */
 export const collect = dual<
@@ -573,7 +573,7 @@ export const forEach = dual<
           const loop: STM.STM<void, E, R> = suspend(() => {
             const next = iterator.next()
             if (next.done) {
-              return unit
+              return void_
             }
             return pipe(f(next.value), core.flatMap(() => loop))
           })
@@ -614,39 +614,20 @@ export const fromOption = <A>(option: Option.Option<A>): STM.STM<A, Option.Optio
     onSome: core.succeed
   })
 
-/** @internal */
-class STMGen {
-  constructor(readonly value: STM.STM<any, any, any>) {}
-  [Symbol.iterator]() {
-    return new SingleShotGen.SingleShotGen(this)
-  }
-}
-
-const adapter = function() {
-  let x = arguments[0]
-  for (let i = 1; i < arguments.length; i++) {
-    x = arguments[i](x)
-  }
-  return new STMGen(x) as any
-}
-
 /**
  * Inspired by https://github.com/tusharmath/qio/pull/22 (revised)
  * @internal
  */
 export const gen: typeof STM.gen = (f) =>
   suspend(() => {
-    const iterator = f(adapter)
+    const iterator = f(pipe)
     const state = iterator.next()
     const run = (
       state: IteratorYieldResult<any> | IteratorReturnResult<any>
     ): STM.STM<any, any, any> =>
       state.done ?
         core.succeed(state.value) :
-        core.flatMap(
-          state.value.value as unknown as STM.STM<any, any, any>,
-          (val: any) => run(iterator.next(val))
-        )
+        core.flatMap(yieldWrapGet(state.value) as any, (val: any) => run(iterator.next(val as never)))
     return run(state)
   })
 
@@ -713,7 +694,7 @@ export const if_ = dual<
 
 /** @internal */
 export const ignore = <A, E, R>(self: STM.STM<A, E, R>): STM.STM<void, never, R> =>
-  match(self, { onFailure: () => unit, onSuccess: () => unit })
+  match(self, { onFailure: () => void_, onSuccess: () => void_ })
 
 /** @internal */
 export const isFailure = <A, E, R>(self: STM.STM<A, E, R>): STM.STM<boolean, never, R> =>
@@ -806,7 +787,7 @@ const loopDiscardLoop = <Z, R, E, X>(
       core.flatMap(() => loopDiscardLoop(inc(initial), cont, inc, body))
     )
   }
-  return unit
+  return void_
 }
 
 /** @internal */
@@ -872,7 +853,7 @@ export const none = <A, E, R>(self: STM.STM<Option.Option<A>, E, R>): STM.STM<vo
   core.matchSTM(self, {
     onFailure: (e) => core.fail(Option.some(e)),
     onSuccess: Option.match({
-      onNone: () => unit,
+      onNone: () => void_,
       onSome: () => core.fail(Option.none())
     })
   })
@@ -1370,7 +1351,11 @@ export const try_: {
 }
 
 /** @internal */
-export const unit: STM.STM<void> = core.succeed(void 0)
+const void_: STM.STM<void> = core.succeed(void 0)
+export {
+  /** @internal */
+  void_ as void
+}
 
 /** @internal */
 export const unless = dual<

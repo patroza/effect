@@ -1,5 +1,787 @@
 # effect
 
+## 3.1.2
+
+### Patch Changes
+
+- [#2679](https://github.com/Effect-TS/effect/pull/2679) [`2e1cdf6`](https://github.com/Effect-TS/effect/commit/2e1cdf67d141281288fffe9a5c10d1379a800513) Thanks [@tim-smart](https://github.com/tim-smart)! - ensure all type ids are annotated with `unique symbol`
+
+## 3.1.1
+
+### Patch Changes
+
+- [#2670](https://github.com/Effect-TS/effect/pull/2670) [`e5e56d1`](https://github.com/Effect-TS/effect/commit/e5e56d138dbed3204636f605229c6685f89659fc) Thanks [@tim-smart](https://github.com/tim-smart)! - Allow structural regions in equality for testing
+
+## 3.1.0
+
+### Minor Changes
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`c3c12c6`](https://github.com/Effect-TS/effect/commit/c3c12c6625633fe80e79f9db75a3b8cf8ca8b11d) Thanks [@github-actions](https://github.com/apps/github-actions)! - add SortedMap.lastOption & partition apis
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`ba64ea6`](https://github.com/Effect-TS/effect/commit/ba64ea6757810c5e74cad3863a7d19d4d38af66b) Thanks [@github-actions](https://github.com/apps/github-actions)! - add `Types.DeepMutable`, an alternative to `Types.Mutable` that makes all properties recursively mutable
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`b5de2d2`](https://github.com/Effect-TS/effect/commit/b5de2d2ce5b1afe8be90827bf898a95cec40eb2b) Thanks [@github-actions](https://github.com/apps/github-actions)! - add Effect.annotateLogsScoped
+
+  This api allows you to annotate logs until the Scope has been closed.
+
+  ```ts
+  import { Effect } from "effect";
+
+  Effect.gen(function* () {
+    yield* Effect.log("no annotations");
+    yield* Effect.annotateLogsScoped({ foo: "bar" });
+    yield* Effect.log("annotated with foo=bar");
+  }).pipe(Effect.scoped, Effect.andThen(Effect.log("no annotations again")));
+  ```
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`a1c7ab8`](https://github.com/Effect-TS/effect/commit/a1c7ab8ffedacd18c1fc784f4ff5844f79498b83) Thanks [@github-actions](https://github.com/apps/github-actions)! - added Stream.fromEventListener, and BrowserStream.{fromEventListenerWindow, fromEventListenerDocument} for constructing a stream from addEventListener
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`a023f28`](https://github.com/Effect-TS/effect/commit/a023f28336f3865687d9a30c1883e36909906d85) Thanks [@github-actions](https://github.com/apps/github-actions)! - add `kind` property to `Tracer.Span`
+
+  This can be used to specify what kind of service created the span.
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`1c9454d`](https://github.com/Effect-TS/effect/commit/1c9454d532eae79b9f759aea77f59332cc6d18ed) Thanks [@github-actions](https://github.com/apps/github-actions)! - add Effect.timeoutOption
+
+  Returns an effect that will return `None` if the effect times out, otherwise it
+  will return `Some` of the produced value.
+
+  ```ts
+  import { Effect } from "effect";
+
+  // will return `None` after 500 millis
+  Effect.succeed("hello").pipe(
+    Effect.delay(1000),
+    Effect.timeoutOption("500 millis"),
+  );
+  ```
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`92d56db`](https://github.com/Effect-TS/effect/commit/92d56dbb3f33e36636c2a2f1030c56492e39cf4d) Thanks [@github-actions](https://github.com/apps/github-actions)! - add $is & $match helpers to Data.TaggedEnum constructors
+
+  ```ts
+  import { Data } from "effect";
+
+  type HttpError = Data.TaggedEnum<{
+    NotFound: {};
+    InternalServerError: { reason: string };
+  }>;
+  const { $is, $match, InternalServerError, NotFound } =
+    Data.taggedEnum<HttpError>();
+
+  // create a matcher
+  const matcher = $match({
+    NotFound: () => 0,
+    InternalServerError: () => 1,
+  });
+
+  // true
+  $is("NotFound")(NotFound());
+
+  // false
+  $is("NotFound")(InternalServerError({ reason: "fail" }));
+  ```
+
+## 3.0.8
+
+### Patch Changes
+
+- [#2656](https://github.com/Effect-TS/effect/pull/2656) [`557707b`](https://github.com/Effect-TS/effect/commit/557707bc9e5f230c8964d2757012075c34339b5c) Thanks [@tim-smart](https://github.com/tim-smart)! - update dependencies
+
+- [#2654](https://github.com/Effect-TS/effect/pull/2654) [`f4ed306`](https://github.com/Effect-TS/effect/commit/f4ed3068a70b50302d078a30d18ca3cfd2bc679c) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Actually fix Cause equality
+
+- [#2640](https://github.com/Effect-TS/effect/pull/2640) [`661004f`](https://github.com/Effect-TS/effect/commit/661004f4bf5f8b25f5a0678c21a3a822188ce461) Thanks [@patroza](https://github.com/patroza)! - fix: forEach NonEmpty overload causing inference issues for Iterables
+
+- [#2653](https://github.com/Effect-TS/effect/pull/2653) [`e79cb83`](https://github.com/Effect-TS/effect/commit/e79cb83d3b19098bc40a3012e2a059b8426306c2) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Consider type of failure in Cause equality
+
+## 3.0.7
+
+### Patch Changes
+
+- [#2637](https://github.com/Effect-TS/effect/pull/2637) [`18de56b`](https://github.com/Effect-TS/effect/commit/18de56b4a6b6d1f99230dfabf9147d59ea4dd759) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Avoid treating completed requests as interrupted when race conditions occur
+
+## 3.0.6
+
+### Patch Changes
+
+- [#2625](https://github.com/Effect-TS/effect/pull/2625) [`ffe4f4e`](https://github.com/Effect-TS/effect/commit/ffe4f4e95db35fff6869e360b072e3837befa0a1) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Avoid circularity on generators
+
+- [#2626](https://github.com/Effect-TS/effect/pull/2626) [`027418e`](https://github.com/Effect-TS/effect/commit/027418edaa6aa6c0ae4861b95832827b45adace4) Thanks [@fubhy](https://github.com/fubhy)! - Reintroduce custom `NoInfer` type
+
+- [#2609](https://github.com/Effect-TS/effect/pull/2609) [`ac1898e`](https://github.com/Effect-TS/effect/commit/ac1898eb7bc96880f911c276048e2ea3d6fe9c50) Thanks [@patroza](https://github.com/patroza)! - change: BatchedRequestResolver works with NonEmptyArray
+
+- [#2625](https://github.com/Effect-TS/effect/pull/2625) [`ffe4f4e`](https://github.com/Effect-TS/effect/commit/ffe4f4e95db35fff6869e360b072e3837befa0a1) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Make sure GenKind utilities are backward compatible
+
+## 3.0.5
+
+### Patch Changes
+
+- [#2611](https://github.com/Effect-TS/effect/pull/2611) [`6222404`](https://github.com/Effect-TS/effect/commit/62224044678751829ed2f128e05133a91c6b0569) Thanks [@tim-smart](https://github.com/tim-smart)! - simplify EffectGenerator type to improve inference
+
+- [#2608](https://github.com/Effect-TS/effect/pull/2608) [`868ed2a`](https://github.com/Effect-TS/effect/commit/868ed2a8fe94ee7f4206a6070f29dcf2a5ba1dc3) Thanks [@patroza](https://github.com/patroza)! - feat: foreach preserve non emptyness.
+
+## 3.0.4
+
+### Patch Changes
+
+- [#2602](https://github.com/Effect-TS/effect/pull/2602) [`9a24667`](https://github.com/Effect-TS/effect/commit/9a246672008a2b668d43fbfd2fe5508c54b2b920) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - allow use of generators (Effect.gen) without the adapter
+
+  Effect's data types now implement a Iterable that can be `yield*`'ed directly.
+
+  ```ts
+  Effect.gen(function* () {
+    const a = yield* Effect.success(1);
+    const b = yield* Effect.success(2);
+    return a + b;
+  });
+  ```
+
+## 3.0.3
+
+### Patch Changes
+
+- [#2568](https://github.com/Effect-TS/effect/pull/2568) [`a7b4b84`](https://github.com/Effect-TS/effect/commit/a7b4b84bd5a25f51aba922f9259c3a58c98c6a4e) Thanks [@tim-smart](https://github.com/tim-smart)! - add Match.withReturnType api
+
+  Which can be used to constrain the return type of a match expression.
+
+  ```ts
+  import { Match } from "effect";
+
+  Match.type<string>().pipe(
+    Match.withReturnType<string>(),
+    Match.when("foo", () => "foo"), // valid
+    Match.when("bar", () => 123), // type error
+    Match.else(() => "baz"),
+  );
+  ```
+
+## 3.0.2
+
+### Patch Changes
+
+- [#2562](https://github.com/Effect-TS/effect/pull/2562) [`2cecdbd`](https://github.com/Effect-TS/effect/commit/2cecdbd1cf30befce4e84796ccd953ea55ecfb86) Thanks [@fubhy](https://github.com/fubhy)! - Added provenance publishing
+
+## 3.0.1
+
+### Patch Changes
+
+- [#2539](https://github.com/Effect-TS/effect/pull/2539) [`3da0cfa`](https://github.com/Effect-TS/effect/commit/3da0cfa12c407fd930dc480be1ecc9217a8058f8) Thanks [@tim-smart](https://github.com/tim-smart)! - skip running effects in FiberHandle/Map if not required
+
+- [#2552](https://github.com/Effect-TS/effect/pull/2552) [`570e8d8`](https://github.com/Effect-TS/effect/commit/570e8d87e7c0e9ad4cd2686462fdb9b4812f7716) Thanks [@TylorS](https://github.com/TylorS)! - Improve typings of Array.isArray
+
+- [#2555](https://github.com/Effect-TS/effect/pull/2555) [`8edacca`](https://github.com/Effect-TS/effect/commit/8edacca37f8e37c01a63fec332b06d9361efaa7b) Thanks [@tim-smart](https://github.com/tim-smart)! - prevent use of `Array` as import name to solve bundler issues
+
+## 3.0.0
+
+### Major Changes
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`2fb7d9c`](https://github.com/Effect-TS/effect/commit/2fb7d9ca15037ff62a578bb9fe5732da5f4f317d) Thanks [@github-actions](https://github.com/apps/github-actions)! - Release Effect 3.0 🎉
+
+### Minor Changes
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`1b5f0c7`](https://github.com/Effect-TS/effect/commit/1b5f0c77e7fd477a0026071e82129a948227f4b3) Thanks [@github-actions](https://github.com/apps/github-actions)! - close FiberHandle/FiberSet/FiberMap when it is released
+
+  When they are closed, fibers can no longer be added to them.
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`d50a652`](https://github.com/Effect-TS/effect/commit/d50a652479f4d1d64f48da05c79fa847e6e51548) Thanks [@github-actions](https://github.com/apps/github-actions)! - add preregisteredWords option to frequency metric key type
+
+  You can use this to register a list of words to pre-populate the value of the
+  metric.
+
+  ```ts
+  import { Metric } from "effect";
+
+  const counts = Metric.frequency("counts", {
+    preregisteredWords: ["a", "b", "c"],
+  }).register();
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`9a3bd47`](https://github.com/Effect-TS/effect/commit/9a3bd47ebd0750c7e498162734f6d21895de0cb2) Thanks [@github-actions](https://github.com/apps/github-actions)! - Bump TypeScript min requirement to version 5.4
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`be9d025`](https://github.com/Effect-TS/effect/commit/be9d025e42355260ace02dd135851a8935a4deba) Thanks [@github-actions](https://github.com/apps/github-actions)! - add unique identifier to Tracer.ParentSpan tag
+
+- [#2529](https://github.com/Effect-TS/effect/pull/2529) [`78b767c`](https://github.com/Effect-TS/effect/commit/78b767c2b1625186e17131761a0edbac25d21850) Thanks [@fubhy](https://github.com/fubhy)! - Renamed `ReadonlyArray` and `ReadonlyRecord` modules for better discoverability.
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`5c2b561`](https://github.com/Effect-TS/effect/commit/5c2b5614f583b88784ed68126ae939832fb3c092) Thanks [@github-actions](https://github.com/apps/github-actions)! - The signatures of the `HaltStrategy.match` `StreamHaltStrategy.match` functions have been changed to the generally accepted ones
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`a18f594`](https://github.com/Effect-TS/effect/commit/a18f5948f1439a147232448b2c443472fda0eceb) Thanks [@github-actions](https://github.com/apps/github-actions)! - support variadic arguments in Effect.log
+
+  This makes Effect.log more similar to console.log:
+
+  ```ts
+  Effect.log("hello", { foo: "bar" }, Cause.fail("error"));
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`2f96d93`](https://github.com/Effect-TS/effect/commit/2f96d938b90f8c19377583279e3c7afd9b509c50) Thanks [@github-actions](https://github.com/apps/github-actions)! - Fix ConfigError `_tag`, with the previous implementation catching the `ConfigError` with `Effect.catchTag` would show `And`, `Or`, etc.
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`5a2314b`](https://github.com/Effect-TS/effect/commit/5a2314b70ec79c2c02b51cef45a5ddec8327daa1) Thanks [@github-actions](https://github.com/apps/github-actions)! - replace use of `unit` terminology with `void`
+
+  For all the data types.
+
+  ```ts
+  Effect.unit; // => Effect.void
+  Stream.unit; // => Stream.void
+
+  // etc
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`271b79f`](https://github.com/Effect-TS/effect/commit/271b79fc0b66a6c11e07a8779ff8800493a7eac2) Thanks [@github-actions](https://github.com/apps/github-actions)! - Either: fix `getEquivalence` parameter order from `Either.getEquivalence(left, right)` to `Either.getEquivalence({ left, right })`
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`53d1c2a`](https://github.com/Effect-TS/effect/commit/53d1c2a77559081fbb89667e343346375c6d6650) Thanks [@github-actions](https://github.com/apps/github-actions)! - use LazyArg for Effect.if branches
+
+  Instead of:
+
+  ```ts
+  Effect.if(true, {
+    onTrue: Effect.succeed("true"),
+    onFalse: Effect.succeed("false"),
+  });
+  ```
+
+  You should now write:
+
+  ```ts
+  Effect.if(true, {
+    onTrue: () => Effect.succeed("true"),
+    onFalse: () => Effect.succeed("false"),
+  });
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`e7e1bbe`](https://github.com/Effect-TS/effect/commit/e7e1bbe68486fdf31c8f84b0880522d39adcaad3) Thanks [@github-actions](https://github.com/apps/github-actions)! - Replaced custom `NoInfer` type with the native `NoInfer` type from TypeScript 5.4
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`10c169e`](https://github.com/Effect-TS/effect/commit/10c169eadc874e91b4defca3f467b4e6a50fd8f3) Thanks [@github-actions](https://github.com/apps/github-actions)! - `Cache<Key, Error, Value>` has been changed to `Cache<Key, Value, Error = never>`.
+  `ScopedCache<Key, Error, Value>` has been changed to `ScopedCache<Key, Value, Error = never>`.
+  `Lookup<Key, Environment, Error, Value>` has been changed to `Lookup<Key, Value, Error = never, Environment = never>`
+
+### Patch Changes
+
+- [#2104](https://github.com/Effect-TS/effect/pull/2104) [`1499974`](https://github.com/Effect-TS/effect/commit/14999741d2e19c1747f6a7e19d68977f6429cdb8) Thanks [@IMax153](https://github.com/IMax153)! - don't run resolver if there are no incomplete requests
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`1b5f0c7`](https://github.com/Effect-TS/effect/commit/1b5f0c77e7fd477a0026071e82129a948227f4b3) Thanks [@github-actions](https://github.com/apps/github-actions)! - add FiberMap.has/unsafeHas api
+
+- [#2104](https://github.com/Effect-TS/effect/pull/2104) [`1499974`](https://github.com/Effect-TS/effect/commit/14999741d2e19c1747f6a7e19d68977f6429cdb8) Thanks [@IMax153](https://github.com/IMax153)! - add String casing transformation apis
+
+  - `snakeToCamel`
+  - `snakeToPascal`
+  - `snakeToKebab`
+  - `camelToSnake`
+  - `pascalToSnake`
+  - `kebabToSnake`
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`1b5f0c7`](https://github.com/Effect-TS/effect/commit/1b5f0c77e7fd477a0026071e82129a948227f4b3) Thanks [@github-actions](https://github.com/apps/github-actions)! - add FiberHandle module, for holding a reference to a running fiber
+
+  ```ts
+  import { Effect, FiberHandle } from "effect";
+
+  Effect.gen(function* (_) {
+    const handle = yield* _(FiberHandle.make());
+
+    // run some effects
+    yield* _(FiberHandle.run(handle, Effect.never));
+    // this will interrupt the previous fiber
+    yield* _(FiberHandle.run(handle, Effect.never));
+    // this will not run, as a fiber is already running
+    yield* _(FiberHandle.run(handle, Effect.never, { onlyIfMissing: true }));
+
+    yield* _(Effect.sleep(1000));
+  }).pipe(
+    Effect.scoped, // The fiber will be interrupted when the scope is closed
+  );
+  ```
+
+- [#2521](https://github.com/Effect-TS/effect/pull/2521) [`6424181`](https://github.com/Effect-TS/effect/commit/64241815fe6a939e91e6947253e7dceea1306aa8) Thanks [@patroza](https://github.com/patroza)! - change return type of Fiber.joinAll to return an array
+
+## 2.4.19
+
+### Patch Changes
+
+- [#2503](https://github.com/Effect-TS/effect/pull/2503) [`41c8102`](https://github.com/Effect-TS/effect/commit/41c810228b1a50e4b41f19e735d7c62fe8d36871) Thanks [@gcanti](https://github.com/gcanti)! - Centralize error messages for bugs
+
+- [#2493](https://github.com/Effect-TS/effect/pull/2493) [`776ef2b`](https://github.com/Effect-TS/effect/commit/776ef2bb66db9aa9f68b7beab14f6986f9c1288b) Thanks [@gcanti](https://github.com/gcanti)! - add a `RegExp` module to `packages/effect`, closes #2488
+
+- [#2499](https://github.com/Effect-TS/effect/pull/2499) [`217147e`](https://github.com/Effect-TS/effect/commit/217147ea67c5c42c96f024775c41e5b070f81e4c) Thanks [@tim-smart](https://github.com/tim-smart)! - ensure FIFO ordering when a Deferred is resolved
+
+- [#2502](https://github.com/Effect-TS/effect/pull/2502) [`90776ec`](https://github.com/Effect-TS/effect/commit/90776ec8e8671d835b65fc33ead1de6c864b81b9) Thanks [@tim-smart](https://github.com/tim-smart)! - make tracing spans cheaper to construct
+
+- [#2472](https://github.com/Effect-TS/effect/pull/2472) [`8709856`](https://github.com/Effect-TS/effect/commit/870985694ae985c3cb9360ad8a25c60e6f785f55) Thanks [@tim-smart](https://github.com/tim-smart)! - add Subscribable trait / module
+
+  Subscribable represents a resource that has a current value and can be subscribed to for updates.
+
+  The following data types are subscribable:
+
+  - A `SubscriptionRef`
+  - An `Actor` from the experimental `Machine` module
+
+- [#2500](https://github.com/Effect-TS/effect/pull/2500) [`232c353`](https://github.com/Effect-TS/effect/commit/232c353c2e6f743f38e57639ee30e324ffa9c2a9) Thanks [@tim-smart](https://github.com/tim-smart)! - simplify scope internals
+
+- [#2507](https://github.com/Effect-TS/effect/pull/2507) [`0ca835c`](https://github.com/Effect-TS/effect/commit/0ca835cbac8e69072a93ace83b534219faba24e8) Thanks [@gcanti](https://github.com/gcanti)! - ensure correct value is passed to mapping function in `mapAccum` loop, closes #2506
+
+- [#2472](https://github.com/Effect-TS/effect/pull/2472) [`8709856`](https://github.com/Effect-TS/effect/commit/870985694ae985c3cb9360ad8a25c60e6f785f55) Thanks [@tim-smart](https://github.com/tim-smart)! - add Readable module / trait
+
+  `Readable` is a common interface for objects that can be read from using a `get`
+  Effect.
+
+  For example, `Ref`'s implement `Readable`:
+
+  ```ts
+  import { Effect, Readable, Ref } from "effect";
+  import assert from "assert";
+
+  Effect.gen(function* (_) {
+    const ref = yield* _(Ref.make(123));
+    assert(Readable.isReadable(ref));
+
+    const result = yield* _(ref.get);
+    assert(result === 123);
+  });
+  ```
+
+- [#2498](https://github.com/Effect-TS/effect/pull/2498) [`e983740`](https://github.com/Effect-TS/effect/commit/e9837401145605aff5bc2ec7e73004f397c5d2d1) Thanks [@jessekelly881](https://github.com/jessekelly881)! - added {Readable, Subscribable}.unwrap
+
+- [#2494](https://github.com/Effect-TS/effect/pull/2494) [`e3e0924`](https://github.com/Effect-TS/effect/commit/e3e09247d46a35430fc60e4aa4032cc50814f212) Thanks [@thewilkybarkid](https://github.com/thewilkybarkid)! - Add `Duration.divide` and `Duration.unsafeDivide`.
+
+  ```ts
+  import { Duration, Option } from "effect";
+  import assert from "assert";
+
+  assert.deepStrictEqual(
+    Duration.divide("10 seconds", 2),
+    Option.some(Duration.decode("5 seconds")),
+  );
+  assert.deepStrictEqual(Duration.divide("10 seconds", 0), Option.none());
+  assert.deepStrictEqual(Duration.divide("1 nano", 1.5), Option.none());
+
+  assert.deepStrictEqual(
+    Duration.unsafeDivide("10 seconds", 2),
+    Duration.decode("5 seconds"),
+  );
+  assert.deepStrictEqual(
+    Duration.unsafeDivide("10 seconds", 0),
+    Duration.infinity,
+  );
+  assert.throws(() => Duration.unsafeDivide("1 nano", 1.5));
+  ```
+
+## 2.4.18
+
+### Patch Changes
+
+- [#2473](https://github.com/Effect-TS/effect/pull/2473) [`dadc690`](https://github.com/Effect-TS/effect/commit/dadc6906121c512bc32be22b52adbd1ada834594) Thanks [@tim-smart](https://github.com/tim-smart)! - add Logger.withConsoleLog/withConsoleError apis
+
+  These apis send a Logger's output to console.log/console.error respectively.
+
+  ```ts
+  import { Logger } from "effect";
+
+  // send output to stderr
+  const stderrLogger = Logger.withConsoleError(Logger.stringLogger);
+  ```
+
+## 2.4.17
+
+### Patch Changes
+
+- [#2461](https://github.com/Effect-TS/effect/pull/2461) [`8fdfda6`](https://github.com/Effect-TS/effect/commit/8fdfda6618be848c01b399d13bc05a9a3adfb613) Thanks [@tim-smart](https://github.com/tim-smart)! - add Inspectable.toStringUnknown/stringifyCircular
+
+- [#2462](https://github.com/Effect-TS/effect/pull/2462) [`607b2e7`](https://github.com/Effect-TS/effect/commit/607b2e7a7fd9318c57acf4e50ec61747eea74ad7) Thanks [@tim-smart](https://github.com/tim-smart)! - remove handled errors from Effect.retryOrElse
+
+- [#2461](https://github.com/Effect-TS/effect/pull/2461) [`8fdfda6`](https://github.com/Effect-TS/effect/commit/8fdfda6618be848c01b399d13bc05a9a3adfb613) Thanks [@tim-smart](https://github.com/tim-smart)! - improve formatting of Runtime failures
+
+- [#2415](https://github.com/Effect-TS/effect/pull/2415) [`8206caf`](https://github.com/Effect-TS/effect/commit/8206caf7c2d22c68be4313318b61cfdacf6222b6) Thanks [@tim-smart](https://github.com/tim-smart)! - add Iterable module
+
+  This module shares many apis compared to "effect/ReadonlyArray", but is fully lazy.
+
+  ```ts
+  import { Iterable, pipe } from "effect";
+
+  // Only 5 items will be generated & transformed
+  pipe(
+    Iterable.range(1, 100),
+    Iterable.map((i) => `item ${i}`),
+    Iterable.take(5),
+  );
+  ```
+
+- [#2438](https://github.com/Effect-TS/effect/pull/2438) [`7ddd654`](https://github.com/Effect-TS/effect/commit/7ddd65415b65ccb654ad04f4dbefe39402f15117) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Support Heterogeneous Effects in Effect Iterable apis
+
+  Including:
+
+  - `Effect.allSuccesses`
+  - `Effect.firstSuccessOf`
+  - `Effect.mergeAll`
+  - `Effect.reduceEffect`
+  - `Effect.raceAll`
+  - `Effect.forkAll`
+
+  For example:
+
+  ```ts
+  import { Effect } from "effect";
+
+  class Foo extends Effect.Tag("Foo")<Foo, 3>() {}
+  class Bar extends Effect.Tag("Bar")<Bar, 4>() {}
+
+  // const program: Effect.Effect<(1 | 2 | 3 | 4)[], never, Foo | Bar>
+  export const program = Effect.allSuccesses([
+    Effect.succeed(1 as const),
+    Effect.succeed(2 as const),
+    Foo,
+    Bar,
+  ]);
+  ```
+
+  The above is now possible while before it was expecting all Effects to conform to the same type
+
+- [#2438](https://github.com/Effect-TS/effect/pull/2438) [`7ddd654`](https://github.com/Effect-TS/effect/commit/7ddd65415b65ccb654ad04f4dbefe39402f15117) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - add Effect.filterMap api
+
+  Which allows you to filter and map an Iterable of Effects in one step.
+
+  ```ts
+  import { Effect, Option } from "effect";
+
+  // resolves with `["even: 2"]
+  Effect.filterMap(
+    [Effect.succeed(1), Effect.succeed(2), Effect.succeed(3)],
+    (i) => (i % 2 === 0 ? Option.some(`even: ${i}`) : Option.none()),
+  );
+  ```
+
+- [#2461](https://github.com/Effect-TS/effect/pull/2461) [`8fdfda6`](https://github.com/Effect-TS/effect/commit/8fdfda6618be848c01b399d13bc05a9a3adfb613) Thanks [@tim-smart](https://github.com/tim-smart)! - use Inspectable.toStringUnknown for absurd runtime errors
+
+- [#2460](https://github.com/Effect-TS/effect/pull/2460) [`f456ba2`](https://github.com/Effect-TS/effect/commit/f456ba273bae21a6dcf8c966c50c97b5f0897d9f) Thanks [@tim-smart](https://github.com/tim-smart)! - use const type parameter for Config.withDefault
+
+  Which ensures that the fallback value type is not widened for literals.
+
+## 2.4.16
+
+### Patch Changes
+
+- [#2445](https://github.com/Effect-TS/effect/pull/2445) [`5170ce7`](https://github.com/Effect-TS/effect/commit/5170ce708c606283e8a30d273950f1a21c7eddc2) Thanks [@vecerek](https://github.com/vecerek)! - generate proper trace ids in default effect Tracer
+
+## 2.4.15
+
+### Patch Changes
+
+- [#2407](https://github.com/Effect-TS/effect/pull/2407) [`d7688c0`](https://github.com/Effect-TS/effect/commit/d7688c0c72717fe7876c871567f6946dabfc0546) Thanks [@thewilkybarkid](https://github.com/thewilkybarkid)! - Add Config.duration
+
+  This can be used to parse Duration's from environment variables:
+
+  ```ts
+  import { Config, Effect } from "effect"
+
+  Config.duration("CACHE_TTL").pipe(
+    Effect.andThen((duration) => ...)
+  )
+  ```
+
+- [#2416](https://github.com/Effect-TS/effect/pull/2416) [`b3a4fac`](https://github.com/Effect-TS/effect/commit/b3a4face2acaca422f0b0530436e8f13129f3b3a) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Collect exits on forEach interrupt of residual requests
+
+## 2.4.14
+
+### Patch Changes
+
+- [#2404](https://github.com/Effect-TS/effect/pull/2404) [`6180c0c`](https://github.com/Effect-TS/effect/commit/6180c0cc51dee785cfce72220a52c9fc3b9bf9aa) Thanks [@patroza](https://github.com/patroza)! - fix interruption of parked Requests
+
+## 2.4.13
+
+### Patch Changes
+
+- [#2402](https://github.com/Effect-TS/effect/pull/2402) [`3336287`](https://github.com/Effect-TS/effect/commit/3336287ff55a25e56d759b83847bfaa21c40f499) Thanks [@tim-smart](https://github.com/tim-smart)! - add Duration.subtract api
+
+- [#2399](https://github.com/Effect-TS/effect/pull/2399) [`54b7c00`](https://github.com/Effect-TS/effect/commit/54b7c0077fa784ad2646b812d6a44641f672edcd) Thanks [@coleea](https://github.com/coleea)! - add BigInt.fromString and BigInt.fromNumber
+
+- [#2402](https://github.com/Effect-TS/effect/pull/2402) [`3336287`](https://github.com/Effect-TS/effect/commit/3336287ff55a25e56d759b83847bfaa21c40f499) Thanks [@tim-smart](https://github.com/tim-smart)! - remove use of bigint literals in Duration
+
+## 2.4.12
+
+### Patch Changes
+
+- [#2385](https://github.com/Effect-TS/effect/pull/2385) [`3307729`](https://github.com/Effect-TS/effect/commit/3307729de162a033fa9caa8e14c111013dcf0d87) Thanks [@tim-smart](https://github.com/tim-smart)! - update typescript to 5.4
+
+## 2.4.11
+
+### Patch Changes
+
+- [#2384](https://github.com/Effect-TS/effect/pull/2384) [`2f488c4`](https://github.com/Effect-TS/effect/commit/2f488c436de52576562803c57ebc132ef40ccdd8) Thanks [@tim-smart](https://github.com/tim-smart)! - update dependencies
+
+- [#2381](https://github.com/Effect-TS/effect/pull/2381) [`37ca592`](https://github.com/Effect-TS/effect/commit/37ca592a4101ad90adbf8c8b3f727faf3110cae5) Thanks [@tim-smart](https://github.com/tim-smart)! - add fiber ref for disabling the tracer
+
+  You can use it with the Effect.withTracerEnabled api:
+
+  ```ts
+  import { Effect } from "effect";
+
+  Effect.succeed(42).pipe(
+    Effect.withSpan("my-span"),
+    // the span will not be registered with the tracer
+    Effect.withTracerEnabled(false),
+  );
+  ```
+
+- [#2383](https://github.com/Effect-TS/effect/pull/2383) [`317b5b8`](https://github.com/Effect-TS/effect/commit/317b5b8e8c8c2207469b3ebfcf72bf3a9f7cbc60) Thanks [@tim-smart](https://github.com/tim-smart)! - add Duration.isFinite api, to determine if a duration is not Infinity
+
+## 2.4.10
+
+### Patch Changes
+
+- [#2375](https://github.com/Effect-TS/effect/pull/2375) [`9bab1f9`](https://github.com/Effect-TS/effect/commit/9bab1f9fa5b999740755e4e82485cb77c638643a) Thanks [@tim-smart](https://github.com/tim-smart)! - remove dangling variable in frequency metric hook
+
+- [#2373](https://github.com/Effect-TS/effect/pull/2373) [`9bbde5b`](https://github.com/Effect-TS/effect/commit/9bbde5be9a0168d1c2a0308bfc27167ed62f3968) Thanks [@patroza](https://github.com/patroza)! - Use incremental counters instead of up-down for runtime metrics
+
+## 2.4.9
+
+### Patch Changes
+
+- [#2357](https://github.com/Effect-TS/effect/pull/2357) [`71fd528`](https://github.com/Effect-TS/effect/commit/71fd5287500f9ce155a7d9f0df6ee3e0ac3aeb99) Thanks [@tim-smart](https://github.com/tim-smart)! - make more data types in /platform implement Inspectable
+
+## 2.4.8
+
+### Patch Changes
+
+- [#2354](https://github.com/Effect-TS/effect/pull/2354) [`bb0b69e`](https://github.com/Effect-TS/effect/commit/bb0b69e519698c7c76aa68217de423c78ad16566) Thanks [@tim-smart](https://github.com/tim-smart)! - add overload to Effect.filterOrFail that fails with NoSuchElementException
+
+  This allows you to perform a filterOrFail without providing a fallback failure
+  function.
+
+  Example:
+
+  ```ts
+  import { Effect } from "effect";
+
+  // fails with NoSuchElementException
+  Effect.succeed(1).pipe(Effect.filterOrFail((n) => n === 0));
+  ```
+
+- [#2336](https://github.com/Effect-TS/effect/pull/2336) [`6b20bad`](https://github.com/Effect-TS/effect/commit/6b20badebb3a7ca4d38857753e8ecaa09d02ccfb) Thanks [@jessekelly881](https://github.com/jessekelly881)! - added Predicate.isTruthy
+
+- [#2351](https://github.com/Effect-TS/effect/pull/2351) [`4e64e9b`](https://github.com/Effect-TS/effect/commit/4e64e9b9876de6bfcbabe39e18a91a08e5f3fbb0) Thanks [@tim-smart](https://github.com/tim-smart)! - fix metrics not using labels from fiber ref
+
+- [#2266](https://github.com/Effect-TS/effect/pull/2266) [`3851a02`](https://github.com/Effect-TS/effect/commit/3851a022c481006aec1db36651e4b4fd727aa742) Thanks [@patroza](https://github.com/patroza)! - fix Effect.Tag generated proxy functions to work with andThen/tap, or others that do function/isEffect checks
+
+- [#2353](https://github.com/Effect-TS/effect/pull/2353) [`5f5fcd9`](https://github.com/Effect-TS/effect/commit/5f5fcd969ae30ed6fe61d566a571498d9e895e16) Thanks [@tim-smart](https://github.com/tim-smart)! - Types: add `Has` helper
+
+- [#2299](https://github.com/Effect-TS/effect/pull/2299) [`814e5b8`](https://github.com/Effect-TS/effect/commit/814e5b828f68210b9e8f336fd6ac688646835dd9) Thanks [@alex-dixon](https://github.com/alex-dixon)! - Prevent Effect.if from crashing when first argument is not an Effect
+
+## 2.4.7
+
+### Patch Changes
+
+- [#2328](https://github.com/Effect-TS/effect/pull/2328) [`eb93283`](https://github.com/Effect-TS/effect/commit/eb93283985913d7b04ca750e36ac8513e7b6cef6) Thanks [@tim-smart](https://github.com/tim-smart)! - set unhandled log level to none for fibers in FiberSet/Map
+
+## 2.4.6
+
+### Patch Changes
+
+- [#2290](https://github.com/Effect-TS/effect/pull/2290) [`4f35a7e`](https://github.com/Effect-TS/effect/commit/4f35a7e7c4eba598924aff24d1158b9056bb24be) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Remove function renaming from internals, introduce new cutpoint strategy
+
+- [#2311](https://github.com/Effect-TS/effect/pull/2311) [`9971186`](https://github.com/Effect-TS/effect/commit/99711862722188fbb5ed3ee75126ad5edf13f72f) Thanks [@tim-smart](https://github.com/tim-smart)! - add Channel.splitLines api
+
+  It splits strings on newlines. Handles both Windows newlines (`\r\n`) and UNIX
+  newlines (`\n`).
+
+## 2.4.5
+
+### Patch Changes
+
+- [#2300](https://github.com/Effect-TS/effect/pull/2300) [`bce21c5`](https://github.com/Effect-TS/effect/commit/bce21c5ded2177114666ba229bd5029fa000dee3) Thanks [@gcanti](https://github.com/gcanti)! - ReadonlyArray: fix `intersperse` signature
+
+- [#2303](https://github.com/Effect-TS/effect/pull/2303) [`c7d3036`](https://github.com/Effect-TS/effect/commit/c7d303630b7f0825cb2e584557c5767a67214d9f) Thanks [@gcanti](https://github.com/gcanti)! - ReadonlyArray: fix `sort` signature, closes #2301
+
+## 2.4.4
+
+### Patch Changes
+
+- [#2172](https://github.com/Effect-TS/effect/pull/2172) [`5d47ee0`](https://github.com/Effect-TS/effect/commit/5d47ee0855e492532085b6092879b1b952d84949) Thanks [@gcanti](https://github.com/gcanti)! - Brand: add `refined` overload
+
+  ```ts
+  export function refined<A extends Brand<any>>(
+    f: (unbranded: Brand.Unbranded<A>) => Option.Option<Brand.BrandErrors>,
+  ): Brand.Constructor<A>;
+  ```
+
+- [#2285](https://github.com/Effect-TS/effect/pull/2285) [`817a04c`](https://github.com/Effect-TS/effect/commit/817a04cb2df0f4140984dc97eb3e1bb14a6c4a38) Thanks [@tim-smart](https://github.com/tim-smart)! - add support for AbortSignal's to runPromise
+
+  If the signal is aborted, the effect execution will be interrupted.
+
+  ```ts
+  import { Effect } from "effect";
+
+  const controller = new AbortController();
+
+  Effect.runPromise(Effect.never, { signal: controller.signal });
+
+  // abort after 1 second
+  setTimeout(() => controller.abort(), 1000);
+  ```
+
+- [#2293](https://github.com/Effect-TS/effect/pull/2293) [`d90a99d`](https://github.com/Effect-TS/effect/commit/d90a99d03d074adc7cd2533f15419138264da5a2) Thanks [@tim-smart](https://github.com/tim-smart)! - add AbortSignal support to ManagedRuntime
+
+- [#2288](https://github.com/Effect-TS/effect/pull/2288) [`dd05faa`](https://github.com/Effect-TS/effect/commit/dd05faa621555ef3585ecd914ac13ecd89b710f4) Thanks [@tim-smart](https://github.com/tim-smart)! - optimize addition of blocked requests to parallel collection
+
+- [#2288](https://github.com/Effect-TS/effect/pull/2288) [`dd05faa`](https://github.com/Effect-TS/effect/commit/dd05faa621555ef3585ecd914ac13ecd89b710f4) Thanks [@tim-smart](https://github.com/tim-smart)! - use Chunk for request block collections
+
+- [#2280](https://github.com/Effect-TS/effect/pull/2280) [`802674b`](https://github.com/Effect-TS/effect/commit/802674b379b7559ad3ff09b33388891445a9e48b) Thanks [@jessekelly881](https://github.com/jessekelly881)! - added support for PromiseLike
+
+## 2.4.3
+
+### Patch Changes
+
+- [#2211](https://github.com/Effect-TS/effect/pull/2211) [`20e63fb`](https://github.com/Effect-TS/effect/commit/20e63fb9207210f3fe2d136ec40d0a2dbff3225e) Thanks [@tim-smart](https://github.com/tim-smart)! - add ManagedRuntime module, to make incremental adoption easier
+
+  You can use a ManagedRuntime to run Effect's that can use the
+  dependencies from the given Layer. For example:
+
+  ```ts
+  import { Console, Effect, Layer, ManagedRuntime } from "effect";
+
+  class Notifications extends Effect.Tag("Notifications")<
+    Notifications,
+    { readonly notify: (message: string) => Effect.Effect<void> }
+  >() {
+    static Live = Layer.succeed(this, {
+      notify: (message) => Console.log(message),
+    });
+  }
+
+  async function main() {
+    const runtime = ManagedRuntime.make(Notifications.Live);
+    await runtime.runPromise(Notifications.notify("Hello, world!"));
+    await runtime.dispose();
+  }
+
+  main();
+  ```
+
+- [#2211](https://github.com/Effect-TS/effect/pull/2211) [`20e63fb`](https://github.com/Effect-TS/effect/commit/20e63fb9207210f3fe2d136ec40d0a2dbff3225e) Thanks [@tim-smart](https://github.com/tim-smart)! - add Layer.toRuntimeWithMemoMap api
+
+  Similar to Layer.toRuntime, but allows you to share a Layer.MemoMap between
+  layer builds.
+
+  By sharing the MemoMap, layers are shared between each build - ensuring layers
+  are only built once between multiple calls to Layer.toRuntimeWithMemoMap.
+
+## 2.4.2
+
+### Patch Changes
+
+- [#2264](https://github.com/Effect-TS/effect/pull/2264) [`e03811e`](https://github.com/Effect-TS/effect/commit/e03811e80c93e986e6348b3b67ac2ed6d5fefff0) Thanks [@patroza](https://github.com/patroza)! - fix: unmatched function fallthrough in `andThen` and `tap`
+
+- [#2225](https://github.com/Effect-TS/effect/pull/2225) [`ac41d84`](https://github.com/Effect-TS/effect/commit/ac41d84776484cdce8165b7ca2c9c9b6377eee2d) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Add Effect.Tag to simplify access to service.
+
+  This change allows to define tags in the following way:
+
+  ```ts
+  class DemoTag extends Effect.Tag("DemoTag")<
+    DemoTag,
+    {
+      readonly getNumbers: () => Array<number>;
+      readonly strings: Array<string>;
+    }
+  >() {}
+  ```
+
+  And use them like:
+
+  ```ts
+  DemoTag.getNumbers();
+  DemoTag.strings;
+  ```
+
+  This fuses together `serviceFunctions` and `serviceConstants` in the static side of the tag.
+
+  Additionally it allows using the service like:
+
+  ```ts
+  DemoTag.use((_) => _.getNumbers());
+  ```
+
+  This is especially useful when having functions that contain generics in the service given that those can't be reliably transformed at the type level and because of that we can't put them on the tag.
+
+- [#2238](https://github.com/Effect-TS/effect/pull/2238) [`6137533`](https://github.com/Effect-TS/effect/commit/613753300c7705518ab1fea2f370b032851c2750) Thanks [@JJayet](https://github.com/JJayet)! - Request: swap Success and Error params
+
+- [#2270](https://github.com/Effect-TS/effect/pull/2270) [`f373529`](https://github.com/Effect-TS/effect/commit/f373529999f4b8bc92b634f6ea14f19271388eed) Thanks [@tim-smart](https://github.com/tim-smart)! - add structured logging apis
+
+  - Logger.json / Logger.jsonLogger
+  - Logger.structured / Logger.structuredLogger
+
+  `Logger.json` logs JSON serialized strings to the console.
+
+  `Logger.structured` logs structured objects, which is useful in the browser
+  where you can inspect objects logged to the console.
+
+- [#2257](https://github.com/Effect-TS/effect/pull/2257) [`1bf9f31`](https://github.com/Effect-TS/effect/commit/1bf9f31f07667de677673f7c29a4e7a26ebad3c8) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Make sure Effect.Tag works on primitives.
+
+  This change allows the following to work just fine:
+
+  ```ts
+  import { Effect, Layer } from "effect";
+
+  class DateTag extends Effect.Tag("DateTag")<DateTag, Date>() {
+    static date = new Date(1970, 1, 1);
+    static Live = Layer.succeed(this, this.date);
+  }
+
+  class MapTag extends Effect.Tag("MapTag")<MapTag, Map<string, string>>() {
+    static Live = Layer.effect(
+      this,
+      Effect.sync(() => new Map()),
+    );
+  }
+
+  class NumberTag extends Effect.Tag("NumberTag")<NumberTag, number>() {
+    static Live = Layer.succeed(this, 100);
+  }
+  ```
+
+- [#2244](https://github.com/Effect-TS/effect/pull/2244) [`e3ff789`](https://github.com/Effect-TS/effect/commit/e3ff789226f89e71eb28ca38ce79f90af6a03f1a) Thanks [@tim-smart](https://github.com/tim-smart)! - add FiberMap/FiberSet.join api
+
+  This api can be used to propogate failures back to a parent fiber, in case any of the fibers added to the FiberMap/FiberSet fail with an error.
+
+  Example:
+
+  ```ts
+  import { Effect, FiberSet } from "effect";
+
+  Effect.gen(function* (_) {
+    const set = yield* _(FiberSet.make());
+    yield* _(FiberSet.add(set, Effect.runFork(Effect.fail("error"))));
+
+    // parent fiber will fail with "error"
+    yield* _(FiberSet.join(set));
+  });
+  ```
+
+- [#2238](https://github.com/Effect-TS/effect/pull/2238) [`6137533`](https://github.com/Effect-TS/effect/commit/613753300c7705518ab1fea2f370b032851c2750) Thanks [@JJayet](https://github.com/JJayet)! - make Effect.request dual
+
+- [#2263](https://github.com/Effect-TS/effect/pull/2263) [`507ba40`](https://github.com/Effect-TS/effect/commit/507ba4060ff043c1a8d541dae723fa6940633b00) Thanks [@thewilkybarkid](https://github.com/thewilkybarkid)! - Allow duration inputs to be singular
+
+- [#2255](https://github.com/Effect-TS/effect/pull/2255) [`e466afe`](https://github.com/Effect-TS/effect/commit/e466afe32f2de598ceafd8982bd0cfbd388e5671) Thanks [@jessekelly881](https://github.com/jessekelly881)! - added Either.Either.{Left,Right} and Option.Option.Value type utils
+
+- [#2270](https://github.com/Effect-TS/effect/pull/2270) [`f373529`](https://github.com/Effect-TS/effect/commit/f373529999f4b8bc92b634f6ea14f19271388eed) Thanks [@tim-smart](https://github.com/tim-smart)! - add Logger.batched, for batching logger output
+
+  It takes a duration window and an effectful function that processes the batched output.
+
+  Example:
+
+  ```ts
+  import { Console, Effect, Logger } from "effect";
+
+  const LoggerLive = Logger.replaceScoped(
+    Logger.defaultLogger,
+    Logger.logfmtLogger.pipe(
+      Logger.batched("500 millis", (messages) =>
+        Console.log("BATCH", messages.join("\n")),
+      ),
+    ),
+  );
+
+  Effect.gen(function* (_) {
+    yield* _(Effect.log("one"));
+    yield* _(Effect.log("two"));
+    yield* _(Effect.log("three"));
+  }).pipe(Effect.provide(LoggerLive), Effect.runFork);
+  ```
+
+- [#2233](https://github.com/Effect-TS/effect/pull/2233) [`de74eb8`](https://github.com/Effect-TS/effect/commit/de74eb80a79eebde5ff645033765e7a617e92f27) Thanks [@gcanti](https://github.com/gcanti)! - Struct: make `pick` / `omit` dual
+
 ## 2.4.1
 
 ### Patch Changes

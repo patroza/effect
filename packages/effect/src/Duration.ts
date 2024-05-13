@@ -11,11 +11,15 @@ import * as Option from "./Option.js"
 import * as order from "./Order.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
-import { hasProperty, isBigInt, isNumber } from "./Predicate.js"
+import { hasProperty, isBigInt, isNumber, isString } from "./Predicate.js"
 
 const TypeId: unique symbol = Symbol.for("effect/Duration")
 
+const bigint0 = BigInt(0)
+const bigint24 = BigInt(24)
+const bigint60 = BigInt(60)
 const bigint1e3 = BigInt(1_000)
+const bigint1e6 = BigInt(1_000_000)
 const bigint1e9 = BigInt(1_000_000_000)
 
 /**
@@ -46,13 +50,21 @@ export type DurationValue =
  * @category models
  */
 export type Unit =
+  | "nano"
   | "nanos"
+  | "micro"
   | "micros"
+  | "milli"
   | "millis"
+  | "second"
   | "seconds"
+  | "minute"
   | "minutes"
+  | "hour"
   | "hours"
+  | "day"
   | "days"
+  | "week"
   | "weeks"
 
 /**
@@ -66,7 +78,7 @@ export type DurationInput =
   | [seconds: number, nanos: number]
   | `${number} ${Unit}`
 
-const DURATION_REGEX = /^(-?\d+(?:\.\d+)?)\s+(nanos|micros|millis|seconds|minutes|hours|days|weeks)$/
+const DURATION_REGEX = /^(-?\d+(?:\.\d+)?)\s+(nanos?|micros?|millis?|seconds?|minutes?|hours?|days?|weeks?)$/
 
 /**
  * @since 2.0.0
@@ -82,34 +94,47 @@ export const decode = (input: DurationInput): Duration => {
     if (input.length === 2 && isNumber(input[0]) && isNumber(input[1])) {
       return nanos(BigInt(input[0]) * bigint1e9 + BigInt(input[1]))
     }
-  } else {
+  } else if (isString(input)) {
     DURATION_REGEX.lastIndex = 0 // Reset the lastIndex before each use
     const match = DURATION_REGEX.exec(input)
     if (match) {
       const [_, valueStr, unit] = match
       const value = Number(valueStr)
       switch (unit) {
+        case "nano":
         case "nanos":
           return nanos(BigInt(valueStr))
+        case "micro":
         case "micros":
           return micros(BigInt(valueStr))
+        case "milli":
         case "millis":
           return millis(value)
+        case "second":
         case "seconds":
           return seconds(value)
+        case "minute":
         case "minutes":
           return minutes(value)
+        case "hour":
         case "hours":
           return hours(value)
+        case "day":
         case "days":
           return days(value)
+        case "week":
         case "weeks":
           return weeks(value)
       }
     }
   }
-  throw new Error("Invalid duration input")
+  throw new Error("Invalid DurationInput")
 }
+
+/**
+ * @since 2.5.0
+ */
+export const decodeUnknown: (u: unknown) => Option.Option<Duration> = Option.liftThrowable(decode) as any
 
 const zeroValue: DurationValue = { _tag: "Millis", millis: 0 }
 const infinityValue: DurationValue = { _tag: "Infinity" }
@@ -146,7 +171,7 @@ const DurationProto: Omit<Duration, "value"> = {
 const make = (input: number | bigint): Duration => {
   const duration = Object.create(DurationProto)
   if (isNumber(input)) {
-    if (isNaN(input) || input < 0) {
+    if (isNaN(input) || input <= 0) {
       duration.value = zeroValue
     } else if (!Number.isFinite(input)) {
       duration.value = infinityValue
@@ -155,7 +180,7 @@ const make = (input: number | bigint): Duration => {
     } else {
       duration.value = { _tag: "Millis", millis: input }
     }
-  } else if (input < BigInt(0)) {
+  } else if (input <= bigint0) {
     duration.value = zeroValue
   } else {
     duration.value = { _tag: "Nanos", nanos: input }
@@ -168,6 +193,12 @@ const make = (input: number | bigint): Duration => {
  * @category guards
  */
 export const isDuration = (u: unknown): u is Duration => hasProperty(u, TypeId)
+
+/**
+ * @since 2.0.0
+ * @category guards
+ */
+export const isFinite = (self: Duration): boolean => self.value._tag !== "Infinity"
 
 /**
  * @since 2.0.0
@@ -485,6 +516,59 @@ export const clamp: {
 )
 
 /**
+ * @since 2.4.19
+ * @category math
+ */
+export const divide: {
+  (by: number): (self: DurationInput) => Option.Option<Duration>
+  (self: DurationInput, by: number): Option.Option<Duration>
+} = dual(
+  2,
+  (self: DurationInput, by: number): Option.Option<Duration> =>
+    match(self, {
+      onMillis: (millis) => {
+        if (by === 0 || isNaN(by) || !Number.isFinite(by)) {
+          return Option.none()
+        }
+        return Option.some(make(millis / by))
+      },
+      onNanos: (nanos) => {
+        if (isNaN(by) || by <= 0 || !Number.isFinite(by)) {
+          return Option.none()
+        }
+        try {
+          return Option.some(make(nanos / BigInt(by)))
+        } catch (e) {
+          return Option.none()
+        }
+      }
+    })
+)
+
+/**
+ * @since 2.4.19
+ * @category math
+ */
+export const unsafeDivide: {
+  (by: number): (self: DurationInput) => Duration
+  (self: DurationInput, by: number): Duration
+} = dual(
+  2,
+  (self: DurationInput, by: number): Duration =>
+    match(self, {
+      onMillis: (millis) => make(millis / by),
+      onNanos: (nanos) => {
+        if (isNaN(by) || by < 0 || Object.is(by, -0)) {
+          return zero
+        } else if (Object.is(by, 0) || !Number.isFinite(by)) {
+          return infinity
+        }
+        return make(nanos / BigInt(by))
+      }
+    })
+)
+
+/**
  * @since 2.0.0
  * @category math
  */
@@ -497,6 +581,22 @@ export const times: {
     match(self, {
       onMillis: (millis) => make(millis * times),
       onNanos: (nanos) => make(nanos * BigInt(times))
+    })
+)
+
+/**
+ * @since 2.0.0
+ * @category math
+ */
+export const subtract: {
+  (that: DurationInput): (self: DurationInput) => Duration
+  (self: DurationInput, that: DurationInput): Duration
+} = dual(
+  2,
+  (self: DurationInput, that: DurationInput): Duration =>
+    matchWith(self, that, {
+      onMillis: (self, that) => make(self - that),
+      onNanos: (self, that) => make(self - that)
     })
 )
 
@@ -594,7 +694,7 @@ export const equals: {
  * @since 2.0.0
  *
  * @example
- * import * as Duration from "effect/Duration"
+ * import { Duration } from "effect"
  *
  * Duration.format(Duration.millis(1000)) // "1s"
  * Duration.format(Duration.millis(1001)) // "1s 1ms"
@@ -609,32 +709,32 @@ export const format = (self: DurationInput): string => {
 
   const nanos = unsafeToNanos(duration)
 
-  if (nanos % 1000000n) {
-    parts.push(`${nanos % 1000000n}ns`)
+  if (nanos % bigint1e6) {
+    parts.push(`${nanos % bigint1e6}ns`)
   }
 
-  const ms = nanos / 1000000n
-  if (ms % 1000n !== 0n) {
-    parts.push(`${ms % 1000n}ms`)
+  const ms = nanos / bigint1e6
+  if (ms % bigint1e3 !== bigint0) {
+    parts.push(`${ms % bigint1e3}ms`)
   }
 
-  const sec = ms / 1000n
-  if (sec % 60n !== 0n) {
-    parts.push(`${sec % 60n}s`)
+  const sec = ms / bigint1e3
+  if (sec % bigint60 !== bigint0) {
+    parts.push(`${sec % bigint60}s`)
   }
 
-  const min = sec / 60n
-  if (min % 60n !== 0n) {
-    parts.push(`${min % 60n}m`)
+  const min = sec / bigint60
+  if (min % bigint60 !== bigint0) {
+    parts.push(`${min % bigint60}m`)
   }
 
-  const hr = min / 60n
-  if (hr % 24n !== 0n) {
-    parts.push(`${hr % 24n}h`)
+  const hr = min / bigint60
+  if (hr % bigint24 !== bigint0) {
+    parts.push(`${hr % bigint24}h`)
   }
 
-  const days = hr / 24n
-  if (days !== 0n) {
+  const days = hr / bigint24
+  if (days !== bigint0) {
     parts.push(`${days}d`)
   }
 

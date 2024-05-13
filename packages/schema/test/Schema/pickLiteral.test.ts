@@ -1,25 +1,23 @@
 import * as AST from "@effect/schema/AST"
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
-import { describe, expect, it } from "vitest"
+import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
-describe("Schema/literal > pickLiteral", () => {
-  it("should return never with no literals", () => {
-    expect(S.literal().pipe(S.pickLiteral()).ast).toEqual(AST.neverKeyword)
-  })
+describe("pickLiteral", () => {
   it("should return an unwrapped AST with exactly one literal", () => {
-    expect(S.literal("a").pipe(S.pickLiteral("a")).ast).toEqual(AST.createLiteral("a"))
+    expect(S.Literal("a").pipe(S.pickLiteral("a")).ast).toEqual(new AST.Literal("a"))
   })
 
   it("should return a union with more than one literal", () => {
-    expect(S.literal("a", "b", "c").pipe(S.pickLiteral("a", "b")).ast).toEqual(
-      AST.createUnion([AST.createLiteral("a"), AST.createLiteral("b")])
+    expect(S.Literal("a", "b", "c").pipe(S.pickLiteral("a", "b")).ast).toEqual(
+      AST.Union.make([new AST.Literal("a"), new AST.Literal("b")])
     )
   })
 
   describe("decoding", () => {
     it("1 member", async () => {
-      const schema = S.literal("a").pipe(S.pickLiteral("a"))
+      const schema = S.Literal("a").pipe(S.pickLiteral("a"))
       await Util.expectDecodeUnknownSuccess(schema, "a")
 
       await Util.expectDecodeUnknownFailure(schema, 1, `Expected "a", actual 1`)
@@ -27,7 +25,7 @@ describe("Schema/literal > pickLiteral", () => {
     })
 
     it("2 members", async () => {
-      const schema = S.literal("a", "b", "c").pipe(S.pickLiteral("a", "b"))
+      const schema = S.Literal("a", "b", "c").pipe(S.pickLiteral("a", "b"))
 
       await Util.expectDecodeUnknownSuccess(schema, "a")
       await Util.expectDecodeUnknownSuccess(schema, "b")
@@ -45,7 +43,7 @@ describe("Schema/literal > pickLiteral", () => {
   })
 
   it("encoding", async () => {
-    const schema = S.literal(null).pipe(S.pickLiteral(null))
+    const schema = S.Literal(null).pipe(S.pickLiteral(null))
     await Util.expectEncodeSuccess(schema, null, null)
   })
 })

@@ -8,6 +8,7 @@ import type * as Fiber from "./Fiber.js"
 import { pipe } from "./Function.js"
 import * as Hash from "./Hash.js"
 import * as HashSet from "./HashSet.js"
+import { getBugErrorMessage } from "./internal/errors.js"
 import type * as MutableRef from "./MutableRef.js"
 import { hasProperty } from "./Predicate.js"
 import type * as SortedSet from "./SortedSet.js"
@@ -19,7 +20,7 @@ const TestAnnotationSymbolKey = "effect/TestAnnotation"
 /**
  * @since 2.0.0
  */
-export const TestAnnotationTypeId = Symbol.for(TestAnnotationSymbolKey)
+export const TestAnnotationTypeId: unique symbol = Symbol.for(TestAnnotationSymbolKey)
 
 /**
  * @since 2.0.0
@@ -96,7 +97,7 @@ export const compose = <A>(
   if (Either.isLeft(left) && Either.isRight(right)) {
     return right
   }
-  throw new Error("BUG: TestAnnotation.compose - please report an issue at https://github.com/Effect-TS/effect/issues")
+  throw new Error(getBugErrorMessage("TestAnnotation.compose"))
 }
 
 /**

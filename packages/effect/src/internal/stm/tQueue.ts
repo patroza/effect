@@ -1,8 +1,8 @@
+import * as RA from "../../Array.js"
 import * as Chunk from "../../Chunk.js"
 import { dual, pipe } from "../../Function.js"
 import * as Option from "../../Option.js"
 import { hasProperty, type Predicate } from "../../Predicate.js"
-import * as RA from "../../ReadonlyArray.js"
 import * as STM from "../../STM.js"
 import type * as TQueue from "../../TQueue.js"
 import type * as TRef from "../../TRef.js"
@@ -110,7 +110,7 @@ class TQueueImpl<in out A> implements TQueue.TQueue<A> {
 
   shutdown: STM.STM<void> = core.withSTMRuntime((runtime) => {
     tRef.unsafeSet(this.ref, void 0, runtime.journal)
-    return stm.unit
+    return stm.void
   })
 
   isShutdown: STM.STM<boolean> = core.effect<never, boolean>((journal) => {
@@ -120,7 +120,7 @@ class TQueueImpl<in out A> implements TQueue.TQueue<A> {
 
   awaitShutdown: STM.STM<void> = core.flatMap(
     this.isShutdown,
-    (isShutdown) => isShutdown ? stm.unit : core.retry
+    (isShutdown) => isShutdown ? stm.void : core.retry
   )
 
   offer(value: A): STM.STM<boolean> {

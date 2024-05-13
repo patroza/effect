@@ -1,17 +1,17 @@
 {
   "name": "@effect/experimental",
-  "version": "0.9.20",
+  "version": "0.15.18",
   "type": "module",
   "license": "MIT",
-  "description": "Functional programming in TypeScript",
+  "description": "Experimental modules for the Effect ecosystem",
   "homepage": "https://effect.website",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effect-ts/effect.git",
+    "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/experimental"
   },
   "bugs": {
-    "url": "https://github.com/effect-ts/effect/issues"
+    "url": "https://github.com/Effect-TS/effect/issues"
   },
   "tags": [
     "typescript",
@@ -26,7 +26,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",
@@ -39,7 +39,6 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "isomorphic-ws": "^5.0.0",
     "msgpackr": "^1.10.1"
   },
   "peerDependencies": {
@@ -47,11 +46,15 @@
     "@effect/platform-node": "workspace:^",
     "@effect/schema": "workspace:^",
     "effect": "workspace:^",
-    "lmdb": "^2.9.2",
-    "ws": "^8.14"
+    "ioredis": "^5",
+    "lmdb": "^3",
+    "ws": "^8"
   },
   "peerDependenciesMeta": {
     "@effect/platform-node": {
+      "optional": true
+    },
+    "ioredis": {
       "optional": true
     },
     "lmdb": {
@@ -63,9 +66,10 @@
   },
   "devDependencies": {
     "@types/ws": "^8.5.10",
-    "lmdb": "^2.9.2",
+    "ioredis": "^5.4.1",
+    "lmdb": "^3.0.7",
     "vitest-websocket-mock": "^0.3.0",
-    "ws": "^8.16.0"
+    "ws": "^8.17.0"
   },
   "effect": {
     "generateExports": {

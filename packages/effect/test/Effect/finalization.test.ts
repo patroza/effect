@@ -1,4 +1,5 @@
 import * as it from "effect-test/utils/extend"
+import * as Array from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Chunk from "effect/Chunk"
 import * as Deferred from "effect/Deferred"
@@ -8,7 +9,6 @@ import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import { identity, pipe } from "effect/Function"
 import * as Option from "effect/Option"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Ref from "effect/Ref"
 import { assert, describe } from "vitest"
 
@@ -20,9 +20,9 @@ const asyncExampleError = <A>(): Effect.Effect<A, unknown> => {
   })
 }
 
-const asyncUnit = <E>(): Effect.Effect<void, E> => {
+const asyncVoid = <E>(): Effect.Effect<void, E> => {
   return Effect.async((cb) => {
-    cb(Effect.unit)
+    cb(Effect.void)
   })
 }
 
@@ -98,9 +98,9 @@ describe("Effect", () => {
   it.effect("acquireUseRelease exit.effect() is usage result", () =>
     Effect.gen(function*($) {
       const result = yield* $(Effect.acquireUseRelease(
-        Effect.unit,
+        Effect.void,
         () => Effect.succeed(42),
-        () => Effect.unit
+        () => Effect.void
       ))
       assert.strictEqual(result, 42)
     }))
@@ -110,8 +110,8 @@ describe("Effect", () => {
         pipe(
           Effect.acquireUseRelease(
             Effect.fail(ExampleError),
-            () => Effect.unit,
-            () => Effect.unit
+            () => Effect.void,
+            () => Effect.void
           ),
           Effect.exit
         )
@@ -123,8 +123,8 @@ describe("Effect", () => {
       const result = yield* $(
         pipe(
           Effect.acquireUseRelease(
-            Effect.unit,
-            () => Effect.unit,
+            Effect.void,
+            () => Effect.void,
             () => Effect.die(ExampleError)
           ),
           Effect.exit
@@ -137,9 +137,9 @@ describe("Effect", () => {
       const result = yield* $(
         pipe(
           Effect.acquireUseRelease(
-            Effect.unit,
+            Effect.void,
             () => Effect.fail(ExampleError),
-            () => Effect.unit
+            () => Effect.void
           ),
           Effect.exit
         )
@@ -151,8 +151,8 @@ describe("Effect", () => {
       const result = yield* $(
         Effect.acquireUseRelease(
           Effect.fail(ExampleError),
-          () => Effect.unit,
-          () => Effect.unit
+          () => Effect.void,
+          () => Effect.void
         ),
         Effect.either,
         Effect.flatMap(identity),
@@ -165,8 +165,8 @@ describe("Effect", () => {
       const result = yield* $(
         pipe(
           Effect.acquireUseRelease(
-            Effect.unit,
-            () => Effect.unit,
+            Effect.void,
+            () => Effect.void,
             () => Effect.die(ExampleError)
           ),
           Effect.exit
@@ -178,9 +178,9 @@ describe("Effect", () => {
     Effect.gen(function*($) {
       const result = yield* $(
         Effect.acquireUseRelease(
-          Effect.unit,
+          Effect.void,
           () => Effect.fail(ExampleError),
-          () => Effect.unit
+          () => Effect.void
         ),
         Effect.exit
       )
@@ -189,14 +189,14 @@ describe("Effect", () => {
   it.effect("test eval of async fail", () =>
     Effect.gen(function*($) {
       const io1 = Effect.acquireUseRelease(
-        Effect.unit,
+        Effect.void,
         () => asyncExampleError<void>(),
-        () => asyncUnit<never>()
+        () => asyncVoid<never>()
       )
       const io2 = Effect.acquireUseRelease(
-        asyncUnit<never>(),
+        asyncVoid<never>(),
         () => asyncExampleError<void>(),
-        () => asyncUnit<never>()
+        () => asyncVoid<never>()
       )
       const a1 = yield* $(Effect.exit(io1))
       const a2 = yield* $(Effect.exit(io2))
@@ -219,8 +219,8 @@ describe("Effect", () => {
       const fiber = yield* $(
         Effect.acquireUseRelease(
           Effect.acquireUseRelease(
-            Effect.unit,
-            () => Effect.unit,
+            Effect.void,
+            () => Effect.void,
             () =>
               pipe(
                 log("start 1"),
@@ -228,7 +228,7 @@ describe("Effect", () => {
                 Effect.zipRight(log("release 1"))
               )
           ),
-          () => Effect.unit,
+          () => Effect.void,
           () =>
             pipe(
               log("start 2"),
@@ -241,27 +241,27 @@ describe("Effect", () => {
       yield* $(
         Ref.get(ref),
         Effect.zipLeft(Effect.sleep(Duration.millis(1))),
-        Effect.repeat({ until: (list) => pipe(list, ReadonlyArray.findFirst((s) => s === "start 1"), Option.isSome) })
+        Effect.repeat({ until: (list) => pipe(list, Array.findFirst((s) => s === "start 1"), Option.isSome) })
       )
       yield* $(Fiber.interrupt(fiber))
       yield* $(
         Ref.get(ref),
         Effect.zipLeft(Effect.sleep(Duration.millis(1))),
-        Effect.repeat({ until: (list) => pipe(list, ReadonlyArray.findFirst((s) => s === "release 2"), Option.isSome) })
+        Effect.repeat({ until: (list) => pipe(list, Array.findFirst((s) => s === "release 2"), Option.isSome) })
       )
       const result = yield* $(Ref.get(ref))
       assert.isTrue(pipe(
         result,
-        ReadonlyArray.findFirst((s) => s === "start 1"),
+        Array.findFirst((s) => s === "start 1"),
         Option.isSome
       ))
       assert.isTrue(pipe(
         result,
-        ReadonlyArray.findFirst((s) => s === "release 1"),
+        Array.findFirst((s) => s === "release 1"),
         Option.isSome
       ))
-      assert.isTrue(pipe(result, ReadonlyArray.findFirst((s) => s === "start 2"), Option.isSome))
-      assert.isTrue(pipe(result, ReadonlyArray.findFirst((s) => s === "release 2"), Option.isSome))
+      assert.isTrue(pipe(result, Array.findFirst((s) => s === "start 2"), Option.isSome))
+      assert.isTrue(pipe(result, Array.findFirst((s) => s === "release 2"), Option.isSome))
     }))
   it.live("interrupt waits for finalizer", () =>
     Effect.gen(function*($) {
@@ -285,9 +285,9 @@ describe("Effect", () => {
     Effect.gen(function*($) {
       const ref = yield* $(Ref.make(false))
       yield* $(
-        Effect.unit,
+        Effect.void,
         Effect.onExit(Exit.match({
-          onFailure: () => Effect.unit,
+          onFailure: () => Effect.void,
           onSuccess: () => Ref.set(ref, true)
         }))
       )
@@ -300,9 +300,9 @@ describe("Effect", () => {
       yield* $(
         Effect.die(Cause.RuntimeException),
         Effect.onExit((exit) =>
-          Exit.isFailure(exit) && Cause.isDie(exit.i0) ?
+          Exit.isFailure(exit) && Cause.isDie(exit.effect_instruction_i0) ?
             Ref.set(ref, true) :
-            Effect.unit
+            Effect.void
         ),
         Effect.sandbox,
         Effect.ignore
@@ -319,9 +319,9 @@ describe("Effect", () => {
           Deferred.succeed(latch1, void 0),
           Effect.zipRight(Effect.never),
           Effect.onExit((exit) =>
-            Exit.isFailure(exit) && Cause.isInterrupted(exit.i0) ?
-              pipe(Deferred.succeed(latch2, void 0), Effect.asUnit) :
-              Effect.unit
+            Exit.isFailure(exit) && Cause.isInterrupted(exit.effect_instruction_i0) ?
+              pipe(Deferred.succeed(latch2, void 0), Effect.asVoid) :
+              Effect.void
           ),
           Effect.fork
         )

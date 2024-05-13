@@ -1,3 +1,4 @@
+import * as Arr from "../Array.js"
 import type * as Cause from "../Cause.js"
 import * as Chunk from "../Chunk.js"
 import * as Either from "../Either.js"
@@ -11,9 +12,9 @@ import * as Option from "../Option.js"
 import { pipeArguments } from "../Pipeable.js"
 import { hasProperty, isFunction } from "../Predicate.js"
 import type { Predicate, Refinement } from "../Predicate.js"
-import * as ReadonlyArray from "../ReadonlyArray.js"
-import type { ParentSpan, Span } from "../Tracer.js"
+import type { AnySpan, Span } from "../Tracer.js"
 import type { NoInfer } from "../Types.js"
+import { getBugErrorMessage } from "./errors.js"
 import * as OpCodes from "./opCodes/cause.js"
 
 // -----------------------------------------------------------------------------
@@ -584,7 +585,7 @@ const flattenCauseLoop = (
   while (1) {
     const [parallel, sequential] = pipe(
       causes,
-      ReadonlyArray.reduce(
+      Arr.reduce(
         [HashSet.empty<unknown>(), Chunk.empty<Cause.Cause<unknown>>()] as const,
         ([parallel, sequential], cause) => {
           const [par, seq] = evaluateCause(cause)
@@ -604,7 +605,7 @@ const flattenCauseLoop = (
     causes = sequential
     flattened = updated
   }
-  throw new Error("BUG: Cause.flattenCauseLoop - please report an issue at https://github.com/Effect-TS/effect/issues")
+  throw new Error(getBugErrorMessage("Cause.flattenCauseLoop"))
 }
 
 // -----------------------------------------------------------------------------
@@ -685,7 +686,7 @@ const evaluateCause = (
         break
       }
       case OpCodes.OP_FAIL: {
-        _parallel = HashSet.add(_parallel, cause.error)
+        _parallel = HashSet.add(_parallel, Chunk.make(cause._tag, cause.error))
         if (stack.length === 0) {
           return [_parallel, _sequential]
         }
@@ -693,7 +694,7 @@ const evaluateCause = (
         break
       }
       case OpCodes.OP_DIE: {
-        _parallel = HashSet.add(_parallel, cause.defect)
+        _parallel = HashSet.add(_parallel, Chunk.make(cause._tag, cause.defect))
         if (stack.length === 0) {
           return [_parallel, _sequential]
         }
@@ -701,7 +702,7 @@ const evaluateCause = (
         break
       }
       case OpCodes.OP_INTERRUPT: {
-        _parallel = HashSet.add(_parallel, cause.fiberId as unknown)
+        _parallel = HashSet.add(_parallel, Chunk.make(cause._tag, cause.fiberId as unknown))
         if (stack.length === 0) {
           return [_parallel, _sequential]
         }
@@ -740,7 +741,7 @@ const evaluateCause = (
       }
     }
   }
-  throw new Error("BUG: Cause.evaluateCauseLoop - please report an issue at https://github.com/Effect-TS/effect/issues")
+  throw new Error(getBugErrorMessage("Cause.evaluateCauseLoop"))
 }
 
 // -----------------------------------------------------------------------------
@@ -971,8 +972,8 @@ const filterStack = (stack: string) => {
   const lines = stack.split("\n")
   const out: Array<string> = []
   for (let i = 0; i < lines.length; i++) {
-    out.push(lines[i].replace(/at .*effect_cutpoint.*\((.*)\)/, "at $1"))
-    if (lines[i].includes("effect_cutpoint")) {
+    out.push(lines[i].replace(/at .*effect_instruction_i.*\((.*)\)/, "at $1"))
+    if (lines[i].includes("effect_instruction_i")) {
       return out.join("\n")
     }
   }
@@ -990,7 +991,7 @@ export const pretty = <E>(cause: Cause.Cause<E>): string => {
       message += `\r\n${filterStack(e.stack)}`
     }
     if (e.span) {
-      let current: Span | ParentSpan | undefined = e.span
+      let current: Span | AnySpan | undefined = e.span
       let i = 0
       while (current && current._tag === "Span" && i < 10) {
         message += `\r\n    at ${current.name}`
@@ -1046,7 +1047,7 @@ export const prettyErrorMessage = (u: unknown): string => {
       hasProperty(u, "toString") &&
       isFunction(u["toString"]) &&
       u["toString"] !== Object.prototype.toString &&
-      u["toString"] !== Array.prototype.toString
+      u["toString"] !== globalThis.Array.prototype.toString
     ) {
       return u["toString"]()
     }

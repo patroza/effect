@@ -1,15 +1,20 @@
 /**
  * @since 1.0.0
  */
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
+import type { Channel } from "effect/Channel"
+import type { Chunk } from "effect/Chunk"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
+import type { ReadonlyRecord } from "effect/Record"
 import type * as Scope from "effect/Scope"
 import type * as Stream from "effect/Stream"
 import type * as FileSystem from "../FileSystem.js"
 import * as internal from "../internal/http/serverRequest.js"
 import type * as Path from "../Path.js"
+import type * as Socket from "../Socket.js"
 import type * as Headers from "./Headers.js"
 import type * as IncomingMessage from "./IncomingMessage.js"
 import type { Method } from "./Method.js"
@@ -46,6 +51,7 @@ export interface ServerRequest extends IncomingMessage.IncomingMessage<Error.Req
   readonly url: string
   readonly originalUrl: string
   readonly method: Method
+  readonly cookies: ReadonlyRecord<string, string>
 
   readonly multipart: Effect.Effect<
     Multipart.Persisted,
@@ -53,6 +59,8 @@ export interface ServerRequest extends IncomingMessage.IncomingMessage<Error.Req
     Scope.Scope | FileSystem.FileSystem | Path.Path
   >
   readonly multipartStream: Stream.Stream<Multipart.Part, Multipart.MultipartError>
+
+  readonly upgrade: Effect.Effect<Socket.Socket, Error.RequestError>
 
   readonly modify: (
     options: {
@@ -71,6 +79,28 @@ export const ServerRequest: Context.Tag<ServerRequest, ServerRequest> = internal
 
 /**
  * @since 1.0.0
+ * @category search params
+ */
+export interface ParsedSearchParams {
+  readonly _: unique symbol
+}
+
+/**
+ * @since 1.0.0
+ * @category search params
+ */
+export const ParsedSearchParams: Context.Tag<ParsedSearchParams, ReadonlyRecord<string, string | Array<string>>> =
+  internal.parsedSearchParamsTag
+
+/**
+ * @since 1.0.0
+ * @category search params
+ */
+export const searchParamsFromURL: (url: URL) => ReadonlyRecord<string, string | Array<string>> =
+  internal.searchParamsFromURL
+
+/**
+ * @since 1.0.0
  * @category accessors
  */
 export const persistedMultipart: Effect.Effect<
@@ -81,30 +111,71 @@ export const persistedMultipart: Effect.Effect<
 
 /**
  * @since 1.0.0
+ * @category accessors
+ */
+export const upgrade: Effect.Effect<Socket.Socket, Error.RequestError, ServerRequest> = internal.upgrade
+
+/**
+ * @since 1.0.0
+ * @category accessors
+ */
+export const upgradeChannel: <IE = never>() => Channel<
+  Chunk<Uint8Array>,
+  Chunk<Uint8Array | string | Socket.CloseEvent>,
+  Error.RequestError | IE | Socket.SocketError,
+  IE,
+  void,
+  unknown,
+  ServerRequest
+> = internal.upgradeChannel
+
+/**
+ * @since 1.0.0
+ * @category schema
+ */
+export const schemaCookies: <R, I extends Readonly<Record<string, string>>, A>(
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
+) => Effect.Effect<A, ParseResult.ParseError, ServerRequest | R> = internal.schemaCookies
+
+/**
+ * @since 1.0.0
  * @category schema
  */
 export const schemaHeaders: <R, I extends Readonly<Record<string, string>>, A>(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => Effect.Effect<A, ParseResult.ParseError, ServerRequest | R> = internal.schemaHeaders
 
 /**
  * @since 1.0.0
  * @category schema
  */
+export const schemaSearchParams: <R, I extends Readonly<Record<string, string | Array<string> | undefined>>, A>(
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
+) => Effect.Effect<A, ParseResult.ParseError, ParsedSearchParams | R> = internal.schemaSearchParams
+
+/**
+ * @since 1.0.0
+ * @category schema
+ */
 export const schemaBodyJson: <A, I, R>(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => Effect.Effect<A, Error.RequestError | ParseResult.ParseError, ServerRequest | R> = internal.schemaBodyJson
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const schemaBodyForm: <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<A, I, R>
+export const schemaBodyForm: <R, I extends Partial<Multipart.Persisted>, A>(
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => Effect.Effect<
   A,
-  Multipart.MultipartError | Error.RequestError | ParseResult.ParseError,
-  ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path | R
+  Multipart.MultipartError | ParseResult.ParseError | Error.RequestError,
+  R | ServerRequest | Scope.Scope | FileSystem.FileSystem | Path.Path
 > = internal.schemaBodyForm
 
 /**
@@ -112,15 +183,17 @@ export const schemaBodyForm: <R, I extends Multipart.Persisted, A>(
  * @category schema
  */
 export const schemaBodyUrlParams: <R, I extends Readonly<Record<string, string>>, A>(
-  schema: Schema.Schema<A, I, R>
-) => Effect.Effect<A, Error.RequestError | ParseResult.ParseError, ServerRequest | R> = internal.schemaBodyUrlParams
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
+) => Effect.Effect<A, ParseResult.ParseError | Error.RequestError, R | ServerRequest> = internal.schemaBodyUrlParams
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const schemaBodyMultipart: <R, I extends Multipart.Persisted, A>(
-  schema: Schema.Schema<A, I, R>
+export const schemaBodyMultipart: <R, I extends Partial<Multipart.Persisted>, A>(
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => Effect.Effect<
   A,
   Multipart.MultipartError | ParseResult.ParseError,
@@ -132,7 +205,8 @@ export const schemaBodyMultipart: <R, I extends Multipart.Persisted, A>(
  * @category schema
  */
 export const schemaBodyFormJson: <A, I, R>(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => (
   field: string
 ) => Effect.Effect<

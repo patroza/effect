@@ -2,6 +2,7 @@
  * @since 1.0.0
  */
 import type * as Serializable from "@effect/schema/Serializable"
+import * as Arr from "effect/Array"
 import * as Deferred from "effect/Deferred"
 import type * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -10,7 +11,6 @@ import { dual, pipe } from "effect/Function"
 import * as Option from "effect/Option"
 import type * as PrimaryKey from "effect/PrimaryKey"
 import * as Queue from "effect/Queue"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Ref from "effect/Ref"
 import * as Request from "effect/Request"
 import * as RequestResolver from "effect/RequestResolver"
@@ -59,8 +59,8 @@ export const dataLoader = dual<
         Queue.shutdown
       )
     )
-    const batch = yield* _(Ref.make(ReadonlyArray.empty<DataLoaderItem<A>>()))
-    const takeOne = Effect.flatMap(Queue.take(queue), (item) => Ref.updateAndGet(batch, ReadonlyArray.append(item)))
+    const batch = yield* _(Ref.make(Arr.empty<DataLoaderItem<A>>()))
+    const takeOne = Effect.flatMap(Queue.take(queue), (item) => Ref.updateAndGet(batch, Arr.append(item)))
     const takeRest = takeOne.pipe(
       Effect.repeat({
         until: (items) =>
@@ -69,7 +69,7 @@ export const dataLoader = dual<
       }),
       Effect.timeout(options.window),
       Effect.ignore,
-      Effect.zipRight(Ref.getAndSet(batch, ReadonlyArray.empty()))
+      Effect.zipRight(Ref.getAndSet(batch, Arr.empty()))
     )
 
     yield* _(
@@ -110,7 +110,7 @@ export const dataLoader = dual<
  * @category model
  */
 export interface PersistedRequest<R, IE, E, IA, A>
-  extends Request.Request<A, E>, PrimaryKey.PrimaryKey, Serializable.WithResult<R, IE, E, IA, A>
+  extends Request.Request<A, E>, PrimaryKey.PrimaryKey, Serializable.WithResult<A, IA, E, IE, R>
 {}
 
 /**
@@ -163,7 +163,7 @@ export const persisted: {
     const partition = (requests: ReadonlyArray<Req>) =>
       storage.getMany(requests as any).pipe(
         Effect.map(
-          ReadonlyArray.partitionMap((_, i) =>
+          Arr.partitionMap((_, i) =>
             Option.match(_, {
               onNone: () => Either.left(requests[i]),
               onSome: (_) => Either.right([requests[i], _] as const)
@@ -178,7 +178,7 @@ export const persisted: {
       result: Request.Request.Result<Req>
     ): Effect.Effect<void, never, any> => Effect.ignoreLogged(storage.set(request as any, result))
 
-    return RequestResolver.makeBatched((requests: Array<Req>) =>
+    return RequestResolver.makeBatched((requests: Arr.NonEmptyArray<Req>) =>
       Effect.flatMap(partition(requests), ([remaining, results]) => {
         const completeCached = Effect.forEach(
           results,

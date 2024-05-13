@@ -26,10 +26,11 @@ export interface Tracer {
   readonly [TracerTypeId]: TracerTypeId
   span(
     name: string,
-    parent: Option.Option<ParentSpan>,
+    parent: Option.Option<AnySpan>,
     context: Context.Context<never>,
     links: ReadonlyArray<SpanLink>,
-    startTime: bigint
+    startTime: bigint,
+    kind: SpanKind
   ): Span
   context<X>(f: () => X, fiber: Fiber.RuntimeFiber<any, any>): X
 }
@@ -52,13 +53,21 @@ export type SpanStatus = {
  * @since 2.0.0
  * @category models
  */
-export type ParentSpan = Span | ExternalSpan
+export type AnySpan = Span | ExternalSpan
 
 /**
  * @since 2.0.0
  * @category tags
  */
-export const ParentSpan: Context.Tag<ParentSpan, ParentSpan> = internal.spanTag
+export interface ParentSpan {
+  readonly _: unique symbol
+}
+
+/**
+ * @since 2.0.0
+ * @category tags
+ */
+export const ParentSpan: Context.Tag<ParentSpan, AnySpan> = internal.spanTag
 
 /**
  * @since 2.0.0
@@ -73,6 +82,25 @@ export interface ExternalSpan {
 }
 
 /**
+ * @since 3.1.0
+ * @category models
+ */
+export interface SpanOptions {
+  readonly attributes?: Record<string, unknown> | undefined
+  readonly links?: ReadonlyArray<SpanLink> | undefined
+  readonly parent?: AnySpan | undefined
+  readonly root?: boolean | undefined
+  readonly context?: Context.Context<never> | undefined
+  readonly kind?: SpanKind | undefined
+}
+
+/**
+ * @since 3.1.0
+ * @category models
+ */
+export type SpanKind = "internal" | "server" | "client" | "producer" | "consumer"
+
+/**
  * @since 2.0.0
  * @category models
  */
@@ -81,12 +109,13 @@ export interface Span {
   readonly name: string
   readonly spanId: string
   readonly traceId: string
-  readonly parent: Option.Option<ParentSpan>
+  readonly parent: Option.Option<AnySpan>
   readonly context: Context.Context<never>
   readonly status: SpanStatus
   readonly attributes: ReadonlyMap<string, unknown>
   readonly links: ReadonlyArray<SpanLink>
   readonly sampled: boolean
+  readonly kind: SpanKind
   end(endTime: bigint, exit: Exit.Exit<unknown, unknown>): void
   attribute(key: string, value: unknown): void
   event(name: string, startTime: bigint, attributes?: Record<string, unknown>): void
@@ -98,7 +127,7 @@ export interface Span {
  */
 export interface SpanLink {
   readonly _tag: "SpanLink"
-  readonly span: ParentSpan
+  readonly span: AnySpan
   readonly attributes: Readonly<Record<string, unknown>>
 }
 

@@ -1,7 +1,7 @@
 import * as OptionInstances from "@effect/typeclass/data/Option"
 import * as _ from "@effect/typeclass/Of"
+import * as RA from "effect/Array"
 import * as O from "effect/Option"
-import * as RA from "effect/ReadonlyArray"
 import { describe, it } from "vitest"
 import * as U from "./util.js"
 
@@ -14,6 +14,6 @@ describe.concurrent("Of", () => {
   })
 
   it("unit", () => {
-    U.deepStrictEqual(_.unit(OptionInstances.Pointed)(), O.some(undefined))
+    U.deepStrictEqual(_.void(OptionInstances.Pointed)(), O.some(undefined))
   })
 })

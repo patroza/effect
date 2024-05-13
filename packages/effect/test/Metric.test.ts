@@ -1,4 +1,5 @@
 import * as it from "effect-test/utils/extend"
+import * as Array from "effect/Array"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -12,7 +13,6 @@ import * as MetricLabel from "effect/MetricLabel"
 import * as MetricPolling from "effect/MetricPolling"
 import * as MetricState from "effect/MetricState"
 import * as Option from "effect/Option"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Schedule from "effect/Schedule"
 import { assert, describe, expect } from "vitest"
 
@@ -34,7 +34,7 @@ describe("Metric", () => {
         const id = nextName()
         const counter = Metric.counter(id).pipe(Metric.taggedWithLabels(labels), Metric.withConstantInput(1))
         const result = yield* $(
-          counter(Effect.unit).pipe(Effect.zipRight(counter(Effect.unit)), Effect.zipRight(Metric.value(counter)))
+          counter(Effect.void).pipe(Effect.zipRight(counter(Effect.void)), Effect.zipRight(Metric.value(counter)))
         )
         assert.deepStrictEqual(result, MetricState.counter(2))
       }))
@@ -128,7 +128,7 @@ describe("Metric", () => {
         const name = nextName()
         const result = yield* $(
           pipe(
-            Effect.unit,
+            Effect.void,
             Effect.withMetric(
               Metric.counter(name).pipe(
                 Metric.taggedWithLabels(labels),
@@ -137,7 +137,7 @@ describe("Metric", () => {
             ),
             Effect.zipRight(
               pipe(
-                Effect.unit,
+                Effect.void,
                 Effect.withMetric(pipe(
                   Metric.counter(name),
                   Metric.taggedWithLabels(labels),
@@ -206,7 +206,7 @@ describe("Metric", () => {
         const counter = pipe(Metric.counter(name), Metric.withConstantInput(1))
         const result = yield* $(
           pipe(
-            Effect.unit,
+            Effect.void,
             Effect.withMetric(counter),
             Effect.zipRight(pipe(Effect.fail("error"), Effect.withMetric(counter), Effect.ignore)),
             Effect.zipRight(Metric.value(counter))
@@ -653,12 +653,11 @@ describe("Metric", () => {
       const result3 = yield* _(Metric.value(counter3))
 
       const snapshot = yield* _(Metric.snapshot)
-      const values = Array.from(snapshot)
       const pair1 = yield* _(
-        ReadonlyArray.findFirst(values, (key) => Equal.equals(key.metricKey, MetricKey.counter(name)))
+        Array.findFirst(snapshot, (key) => Equal.equals(key.metricKey, MetricKey.counter(name)))
       )
       const pair2 = yield* _(
-        ReadonlyArray.findFirst(values, (key) =>
+        Array.findFirst(snapshot, (key) =>
           Equal.equals(
             key.metricKey,
             MetricKey.counter(name, {
@@ -667,7 +666,7 @@ describe("Metric", () => {
           ))
       )
       const pair3 = yield* _(
-        ReadonlyArray.findFirst(values, (key) =>
+        Array.findFirst(snapshot, (key) =>
           Equal.equals(
             key.metricKey,
             MetricKey.counter(name, {
@@ -703,8 +702,8 @@ describe("Metric", () => {
       Metric.counter(id).register()
       const snapshot = yield* _(Metric.snapshot)
       const value = pipe(
-        ReadonlyArray.fromIterable(snapshot),
-        ReadonlyArray.findFirst((_) => _.metricKey.name === id)
+        Array.fromIterable(snapshot),
+        Array.findFirst((_) => _.metricKey.name === id)
       )
       expect(value._tag).toBe("Some")
     }))

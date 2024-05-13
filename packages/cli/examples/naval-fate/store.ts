@@ -1,11 +1,11 @@
 import * as KeyValueStore from "@effect/platform/KeyValueStore"
 import * as Schema from "@effect/schema/Schema"
+import * as Arr from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import { CoordinatesOccupiedError, Mine, Ship, ShipExistsError, ShipNotFoundError } from "./domain.js"
 
 /**
@@ -28,11 +28,11 @@ export const NavalFateStore = Context.GenericTag<NavalFateStore>("NavalFateStore
 export const make = Effect.gen(function*($) {
   const shipsStore = yield* $(Effect.map(
     KeyValueStore.KeyValueStore,
-    (store) => store.forSchema(Schema.readonlyMap({ key: Schema.string, value: Ship }))
+    (store) => store.forSchema(Schema.ReadonlyMap({ key: Schema.String, value: Ship }))
   ))
   const minesStore = yield* $(Effect.map(
     KeyValueStore.KeyValueStore,
-    (store) => store.forSchema(Schema.array(Mine))
+    (store) => store.forSchema(Schema.Array(Mine))
   ))
 
   const getShips = shipsStore.get("ships").pipe(
@@ -67,8 +67,8 @@ export const make = Effect.gen(function*($) {
         return yield* $(Effect.fail(new ShipNotFoundError({ name, x, y })))
       }
       const shipAtCoords = pipe(
-        ReadonlyArray.fromIterable(oldShips.values()),
-        ReadonlyArray.findFirst((ship) => ship.hasCoordinates(x, y))
+        Arr.fromIterable(oldShips.values()),
+        Arr.findFirst((ship) => ship.hasCoordinates(x, y))
       )
       if (Option.isSome(shipAtCoords)) {
         return yield* $(Effect.fail(
@@ -76,7 +76,7 @@ export const make = Effect.gen(function*($) {
         ))
       }
       const mines = yield* $(getMines)
-      const mineAtCoords = ReadonlyArray.findFirst(mines, (mine) => mine.hasCoordinates(x, y))
+      const mineAtCoords = Arr.findFirst(mines, (mine) => mine.hasCoordinates(x, y))
       const ship = Option.isSome(mineAtCoords)
         ? foundShip.value.move(x, y).destroy()
         : foundShip.value.move(x, y)
@@ -89,8 +89,8 @@ export const make = Effect.gen(function*($) {
     Effect.gen(function*($) {
       const oldShips = yield* $(getShips)
       const shipAtCoords = pipe(
-        ReadonlyArray.fromIterable(oldShips.values()),
-        ReadonlyArray.findFirst((ship) => ship.hasCoordinates(x, y))
+        Arr.fromIterable(oldShips.values()),
+        Arr.findFirst((ship) => ship.hasCoordinates(x, y))
       )
       if (Option.isSome(shipAtCoords)) {
         const ship = shipAtCoords.value.destroy()
@@ -102,10 +102,10 @@ export const make = Effect.gen(function*($) {
   const setMine: NavalFateStore["setMine"] = (x, y) =>
     Effect.gen(function*($) {
       const mines = yield* $(getMines)
-      const mineAtCoords = ReadonlyArray.findFirst(mines, (mine) => mine.hasCoordinates(x, y))
+      const mineAtCoords = Arr.findFirst(mines, (mine) => mine.hasCoordinates(x, y))
       if (Option.isNone(mineAtCoords)) {
         const mine = Mine.create(x, y)
-        const newMines = ReadonlyArray.append(mines, mine)
+        const newMines = Arr.append(mines, mine)
         yield* $(setMines(newMines))
       }
     })
@@ -113,9 +113,9 @@ export const make = Effect.gen(function*($) {
   const removeMine: NavalFateStore["removeMine"] = (x, y) =>
     Effect.gen(function*($) {
       const mines = yield* $(getMines)
-      const mineAtCoords = ReadonlyArray.findFirstIndex(mines, (mine) => mine.hasCoordinates(x, y))
+      const mineAtCoords = Arr.findFirstIndex(mines, (mine) => mine.hasCoordinates(x, y))
       if (Option.isSome(mineAtCoords)) {
-        const newMines = ReadonlyArray.remove(mines, mineAtCoords.value)
+        const newMines = Arr.remove(mines, mineAtCoords.value)
         yield* $(setMines(newMines))
       }
     })

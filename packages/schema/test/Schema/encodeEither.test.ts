@@ -1,18 +1,18 @@
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
+import * as Util from "@effect/schema/test/TestUtils"
 import { describe, it } from "vitest"
 
-describe("Schema > encodeEither", () => {
-  const schema = S.struct({ a: Util.NumberFromChar })
+describe("encodeEither", () => {
+  const schema = S.Struct({ a: Util.NumberFromChar })
 
   it("should return Left on invalid values", () => {
     Util.expectEitherRight(S.encodeEither(schema)({ a: 1 }), { a: "1" })
     Util.expectEitherLeft(
       S.encodeEither(schema)({ a: 10 }),
-      `{ a: NumberFromChar }
+      `{ readonly a: NumberFromChar }
 └─ ["a"]
    └─ NumberFromChar
-      └─ From side transformation failure
+      └─ Encoded side transformation failure
          └─ Char
             └─ Predicate refinement failure
                └─ Expected Char (a single character), actual "10"`
@@ -23,7 +23,7 @@ describe("Schema > encodeEither", () => {
     Util.expectEitherLeft(
       S.encodeEither(Util.AsyncString)("a"),
       `AsyncString
-└─ Fiber #0 cannot be be resolved synchronously, this is caused by using runSync on an effect that performs async work`
+└─ cannot be be resolved synchronously, this is caused by using runSync on an effect that performs async work`
     )
   })
 
@@ -31,13 +31,13 @@ describe("Schema > encodeEither", () => {
     const input = { a: 1, b: "b" }
     Util.expectEitherLeft(
       S.encodeEither(schema)(input, { onExcessProperty: "error" }),
-      `{ a: NumberFromChar }
+      `{ readonly a: NumberFromChar }
 └─ ["b"]
    └─ is unexpected, expected "a"`
     )
     Util.expectEitherLeft(
       S.encodeEither(schema, { onExcessProperty: "error" })(input),
-      `{ a: NumberFromChar }
+      `{ readonly a: NumberFromChar }
 └─ ["b"]
    └─ is unexpected, expected "a"`
     )

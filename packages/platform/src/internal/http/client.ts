@@ -1,23 +1,30 @@
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import * as Schema from "@effect/schema/Schema"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
-import { dual, pipe } from "effect/Function"
+import type * as Fiber from "effect/Fiber"
+import * as FiberRef from "effect/FiberRef"
+import { constFalse, dual } from "effect/Function"
+import { globalValue } from "effect/GlobalValue"
 import * as Layer from "effect/Layer"
 import { pipeArguments } from "effect/Pipeable"
-import type * as Predicate from "effect/Predicate"
+import * as Predicate from "effect/Predicate"
+import * as Ref from "effect/Ref"
 import type * as Schedule from "effect/Schedule"
-import type * as Scope from "effect/Scope"
+import * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import type * as Body from "../../Http/Body.js"
 import type * as Client from "../../Http/Client.js"
-import type * as Error from "../../Http/ClientError.js"
+import * as Error from "../../Http/ClientError.js"
 import type * as ClientRequest from "../../Http/ClientRequest.js"
 import type * as ClientResponse from "../../Http/ClientResponse.js"
+import * as Cookies from "../../Http/Cookies.js"
+import * as Headers from "../../Http/Headers.js"
 import * as Method from "../../Http/Method.js"
+import * as TraceContext from "../../Http/TraceContext.js"
 import * as UrlParams from "../../Http/UrlParams.js"
 import * as internalBody from "./body.js"
-import * as internalError from "./clientError.js"
 import * as internalRequest from "./clientRequest.js"
 import * as internalResponse from "./clientResponse.js"
 
@@ -29,6 +36,57 @@ export const TypeId: Client.TypeId = Symbol.for(
 /** @internal */
 export const tag = Context.GenericTag<Client.Client.Default>("@effect/platform/Http/Client")
 
+/** @internal */
+export const currentTracerDisabledWhen = globalValue(
+  Symbol.for("@effect/platform/Http/Client/tracerDisabledWhen"),
+  () => FiberRef.unsafeMake<Predicate.Predicate<ClientRequest.ClientRequest>>(constFalse)
+)
+
+/** @internal */
+export const withTracerDisabledWhen = dual<
+  (
+    predicate: Predicate.Predicate<ClientRequest.ClientRequest>
+  ) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(
+    effect: Effect.Effect<A, E, R>,
+    predicate: Predicate.Predicate<ClientRequest.ClientRequest>
+  ) => Effect.Effect<A, E, R>
+>(2, (self, pred) => Effect.locally(self, currentTracerDisabledWhen, pred))
+
+/** @internal */
+export const currentTracerPropagation = globalValue(
+  Symbol.for("@effect/platform/Http/Client/currentTracerPropagation"),
+  () => FiberRef.unsafeMake(true)
+)
+
+/** @internal */
+export const withTracerPropagation = dual<
+  (
+    enabled: boolean
+  ) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(
+    effect: Effect.Effect<A, E, R>,
+    enabled: boolean
+  ) => Effect.Effect<A, E, R>
+>(2, (self, enabled) => Effect.locally(self, currentTracerPropagation, enabled))
+
+/** @internal */
+export const currentFetchOptions = globalValue(
+  Symbol.for("@effect/platform/Http/Client/currentFetchOptions"),
+  () => FiberRef.unsafeMake<RequestInit>({})
+)
+
+/** @internal */
+export const withFetchOptions = dual<
+  (
+    options: RequestInit
+  ) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
+  <R, E, A>(
+    effect: Effect.Effect<A, E, R>,
+    options: RequestInit
+  ) => Effect.Effect<A, E, R>
+>(2, (self, options) => Effect.locally(self, currentFetchOptions, options))
+
 const clientProto = {
   [TypeId]: TypeId,
   pipe() {
@@ -36,13 +94,15 @@ const clientProto = {
   }
 }
 
+const isClient = (u: unknown): u is Client.Client<unknown, unknown, unknown> => Predicate.hasProperty(u, TypeId)
+
 /** @internal */
-export const make = <R, E, A, R2, E2>(
+export const make = <A, E, R, R2, E2>(
   execute: (
     request: Effect.Effect<ClientRequest.ClientRequest, E2, R2>
   ) => Effect.Effect<A, E, R>,
-  preprocess: Client.Client.Preprocess<R2, E2>
-): Client.Client<R, E, A> => {
+  preprocess: Client.Client.Preprocess<E2, R2>
+): Client.Client<A, E, R> => {
   function client(request: ClientRequest.ClientRequest) {
     return execute(preprocess(request))
   }
@@ -52,25 +112,85 @@ export const make = <R, E, A, R2, E2>(
   return client as any
 }
 
-const addB3Headers = (req: ClientRequest.ClientRequest) =>
-  Effect.match(Effect.currentSpan, {
-    onFailure: () => req,
-    onSuccess: (span) =>
-      internalRequest.setHeader(
-        req,
-        "b3",
-        `${span.traceId}-${span.spanId}-${span.sampled ? "1" : "0"}${
-          span.parent._tag === "Some" ? `-${span.parent.value.spanId}` : ""
-        }`
-      )
-  })
-
 /** @internal */
 export const makeDefault = (
   f: (
-    request: ClientRequest.ClientRequest
+    request: ClientRequest.ClientRequest,
+    url: URL,
+    signal: AbortSignal,
+    fiber: Fiber.RuntimeFiber<ClientResponse.ClientResponse, Error.HttpClientError>
   ) => Effect.Effect<ClientResponse.ClientResponse, Error.HttpClientError, Scope.Scope>
-): Client.Client.Default => make(Effect.flatMap(f), addB3Headers)
+): Client.Client.Default =>
+  make((effect) =>
+    Effect.flatMap(effect, (request) =>
+      Effect.withFiberRuntime((fiber) => {
+        const scope = Context.unsafeGet(fiber.getFiberRef(FiberRef.currentContext), Scope.Scope)
+        const controller = new AbortController()
+        const addAbort = Scope.addFinalizer(scope, Effect.sync(() => controller.abort()))
+        const urlResult = UrlParams.makeUrl(request.url, request.urlParams)
+        if (urlResult._tag === "Left") {
+          return Effect.fail(new Error.RequestError({ request, reason: "InvalidUrl", error: urlResult.left }))
+        }
+        const url = urlResult.right
+        const tracerDisabled = !fiber.getFiberRef(FiberRef.currentTracerEnabled) ||
+          fiber.getFiberRef(currentTracerDisabledWhen)(request)
+        if (tracerDisabled) {
+          return Effect.zipRight(
+            addAbort,
+            f(request, url, controller.signal, fiber)
+          )
+        }
+        return Effect.zipRight(
+          addAbort,
+          Effect.useSpan(
+            `http.client ${request.method}`,
+            { kind: "client" },
+            (span) => {
+              span.attribute("http.method", request.method)
+              span.attribute("http.request.method", request.method)
+              span.attribute("server.address", url.origin)
+              if (url.port !== "") {
+                span.attribute("server.port", +url.port)
+              }
+              span.attribute("http.url", url.toString())
+              span.attribute("url.full", url.toString())
+              span.attribute("url.path", url.pathname)
+              span.attribute("url.scheme", url.protocol.slice(0, -1))
+              const query = url.search.slice(1)
+              if (query !== "") {
+                span.attribute("url.query", query)
+              }
+              const redactedHeaderNames = fiber.getFiberRef(Headers.currentRedactedNames)
+              const redactedHeaders = Headers.redact(request.headers, redactedHeaderNames)
+              for (const name in redactedHeaders) {
+                span.attribute(`http.request.header.${name}`, String(redactedHeaders[name]))
+              }
+              request = fiber.getFiberRef(currentTracerPropagation)
+                ? internalRequest.setHeaders(request, TraceContext.toHeaders(span))
+                : request
+              return Effect.tap(
+                Effect.withParentSpan(
+                  f(
+                    request,
+                    url,
+                    controller.signal,
+                    fiber
+                  ),
+                  span
+                ),
+                (response) => {
+                  span.attribute("http.response.status_code", response.status)
+                  span.attribute("http.status_code", response.status)
+                  const redactedHeaders = Headers.redact(response.headers, redactedHeaderNames)
+                  for (const name in redactedHeaders) {
+                    span.attribute(`http.response.header.${name}`, String(redactedHeaders[name]))
+                  }
+                }
+              )
+            }
+          )
+        )
+      })), Effect.succeed as Client.Client.Preprocess<never, never>)
 
 /** @internal */
 export const Fetch = Context.GenericTag<Client.Fetch, typeof globalThis.fetch>(
@@ -78,53 +198,37 @@ export const Fetch = Context.GenericTag<Client.Fetch, typeof globalThis.fetch>(
 )
 
 /** @internal */
-export const fetch = (options?: RequestInit): Client.Client.Default =>
-  makeDefault((request) =>
-    Effect.flatMap(
-      UrlParams.makeUrl(request.url, request.urlParams, (_) =>
-        internalError.requestError({
-          request,
-          reason: "InvalidUrl",
-          error: _
-        })),
-      (url) =>
-        Effect.flatMap(Effect.serviceOption(Fetch), (fetch_) => {
-          const fetch = fetch_._tag === "Some" ? fetch_.value : globalThis.fetch
-          const headers = new Headers(request.headers)
-          const send = (body: BodyInit | undefined) =>
-            pipe(
-              Effect.acquireRelease(
-                Effect.sync(() => new AbortController()),
-                (controller) => Effect.sync(() => controller.abort())
-              ),
-              Effect.flatMap((controller) =>
-                Effect.tryPromise({
-                  try: () =>
-                    fetch(url, {
-                      ...options,
-                      method: request.method,
-                      headers,
-                      body,
-                      duplex: request.body._tag === "Stream" ? "half" : undefined,
-                      signal: controller.signal
-                    } as any),
-                  catch: (_) =>
-                    internalError.requestError({
-                      request,
-                      reason: "Transport",
-                      error: _
-                    })
-                })
-              ),
-              Effect.map((_) => internalResponse.fromWeb(request, _))
-            )
-          if (Method.hasBody(request.method)) {
-            return send(convertBody(request.body))
-          }
-          return send(undefined)
-        })
+export const fetch: Client.Client.Default = makeDefault((request, url, signal, fiber) => {
+  const context = fiber.getFiberRef(FiberRef.currentContext)
+  const fetch: typeof globalThis.fetch = context.unsafeMap.get(Fetch.key) ?? globalThis.fetch
+  const options = fiber.getFiberRef(currentFetchOptions)
+  const headers = new globalThis.Headers(request.headers)
+  const send = (body: BodyInit | undefined) =>
+    Effect.map(
+      Effect.tryPromise({
+        try: () =>
+          fetch(url, {
+            ...options,
+            method: request.method,
+            headers,
+            body,
+            duplex: request.body._tag === "Stream" ? "half" : undefined,
+            signal
+          } as any),
+        catch: (error) =>
+          new Error.RequestError({
+            request,
+            reason: "Transport",
+            error
+          })
+      }),
+      (response) => internalResponse.fromWeb(request, response)
     )
-  )
+  if (Method.hasBody(request.method)) {
+    return send(convertBody(request.body))
+  }
+  return send(undefined)
+})
 
 const convertBody = (body: Body.Body): BodyInit | undefined => {
   switch (body._tag) {
@@ -142,26 +246,20 @@ const convertBody = (body: Body.Body): BodyInit | undefined => {
 }
 
 /** @internal */
-export const fetchOk = (options?: RequestInit): Client.Client.Default => filterStatusOk(fetch(options))
-
-/** @internal */
-export const layer = Layer.succeed(tag, fetch())
-
-/** @internal */
 export const transform = dual<
-  <R, E, A, R1, E1, A1>(
+  <A, E, R, R1, E1, A1>(
     f: (
       effect: Effect.Effect<A, E, R>,
       request: ClientRequest.ClientRequest
     ) => Effect.Effect<A1, E1, R1>
-  ) => (self: Client.Client<R, E, A>) => Client.Client<R | R1, E | E1, A1>,
-  <R, E, A, R1, E1, A1>(
-    self: Client.Client<R, E, A>,
+  ) => (self: Client.Client<A, E, R>) => Client.Client<A1, E | E1, R | R1>,
+  <A, E, R, R1, E1, A1>(
+    self: Client.Client<A, E, R>,
     f: (
       effect: Effect.Effect<A, E, R>,
       request: ClientRequest.ClientRequest
     ) => Effect.Effect<A1, E1, R1>
-  ) => Client.Client<R | R1, E | E1, A1>
+  ) => Client.Client<A1, E | E1, R | R1>
 >(2, (self, f) =>
   make(
     Effect.flatMap((request) => f(self.execute(Effect.succeed(request)), request)),
@@ -169,14 +267,62 @@ export const transform = dual<
   ))
 
 /** @internal */
+export const filterStatus = dual<
+  (
+    f: (status: number) => boolean
+  ) => <E, R>(
+    self: Client.Client.WithResponse<E, R>
+  ) => Client.Client.WithResponse<E | Error.ResponseError, R>,
+  <E, R>(
+    self: Client.Client.WithResponse<E, R>,
+    f: (status: number) => boolean
+  ) => Client.Client.WithResponse<E | Error.ResponseError, R>
+>(2, (self, f) =>
+  transform(self, (effect, request) =>
+    Effect.filterOrFail(
+      effect,
+      (response) => f(response.status),
+      (response) =>
+        new Error.ResponseError({
+          request,
+          response,
+          reason: "StatusCode",
+          error: "invalid status code"
+        })
+    )))
+
+/** @internal */
+export const filterStatusOk = <E, R>(
+  self: Client.Client.WithResponse<E, R>
+): Client.Client.WithResponse<E | Error.ResponseError, R> =>
+  transform(self, (effect, request) =>
+    Effect.filterOrFail(
+      effect,
+      (response) => response.status >= 200 && response.status < 300,
+      (response) =>
+        new Error.ResponseError({
+          request,
+          response,
+          reason: "StatusCode",
+          error: "non 2xx status code"
+        })
+    ))
+
+/** @internal */
+export const fetchOk: Client.Client.Default = filterStatusOk(fetch)
+
+/** @internal */
+export const layer = Layer.succeed(tag, fetch)
+
+/** @internal */
 export const transformResponse = dual<
-  <R, E, A, R1, E1, A1>(
+  <A, E, R, R1, E1, A1>(
     f: (effect: Effect.Effect<A, E, R>) => Effect.Effect<A1, E1, R1>
-  ) => (self: Client.Client<R, E, A>) => Client.Client<R1, E1, A1>,
-  <R, E, A, R1, E1, A1>(
-    self: Client.Client<R, E, A>,
+  ) => (self: Client.Client<A, E, R>) => Client.Client<A1, E1, R1>,
+  <A, E, R, R1, E1, A1>(
+    self: Client.Client<A, E, R>,
     f: (effect: Effect.Effect<A, E, R>) => Effect.Effect<A1, E1, R1>
-  ) => Client.Client<R1, E1, A1>
+  ) => Client.Client<A1, E1, R1>
 >(2, (self, f) => make((request) => f(self.execute(request)), self.preprocess))
 
 /** @internal */
@@ -184,9 +330,9 @@ export const catchTag: {
   <K extends E extends { _tag: string } ? E["_tag"] : never, E, R1, E1, A1>(
     tag: K,
     f: (e: Extract<E, { _tag: K }>) => Effect.Effect<A1, E1, R1>
-  ): <R, A>(
-    self: Client.Client<R, E, A>
-  ) => Client.Client<R1 | R, E1 | Exclude<E, { _tag: K }>, A1 | A>
+  ): <A, R>(
+    self: Client.Client<A, E, R>
+  ) => Client.Client<A1 | A, E1 | Exclude<E, { _tag: K }>, R1 | R>
   <
     R,
     E,
@@ -196,10 +342,10 @@ export const catchTag: {
     E1,
     A1
   >(
-    self: Client.Client<R, E, A>,
+    self: Client.Client<A, E, R>,
     tag: K,
     f: (e: Extract<E, { _tag: K }>) => Effect.Effect<A1, E1, R1>
-  ): Client.Client<R1 | R, E1 | Exclude<E, { _tag: K }>, A1 | A>
+  ): Client.Client<A1 | A, E1 | Exclude<E, { _tag: K }>, R1 | R>
 } = dual(
   3,
   <
@@ -211,10 +357,10 @@ export const catchTag: {
     E1,
     A1
   >(
-    self: Client.Client<R, E, A>,
+    self: Client.Client<A, E, R>,
     tag: K,
     f: (e: Extract<E, { _tag: K }>) => Effect.Effect<A1, E1, R1>
-  ): Client.Client<R1 | R, E1 | Exclude<E, { _tag: K }>, A1 | A> => transformResponse(self, Effect.catchTag(tag, f))
+  ): Client.Client<A1 | A, E1 | Exclude<E, { _tag: K }>, R1 | R> => transformResponse(self, Effect.catchTag(tag, f))
 )
 
 /** @internal */
@@ -238,14 +384,14 @@ export const catchTags: {
         })
   >(
     cases: Cases
-  ): <R, A>(
-    self: Client.Client<R, E, A>
+  ): <A, R>(
+    self: Client.Client<A, E, R>
   ) => Client.Client<
-    | R
+    | A
     | {
       [K in keyof Cases]: Cases[K] extends (
         ...args: Array<any>
-      ) => Effect.Effect<any, any, infer R> ? R
+      ) => Effect.Effect<infer A, any, any> ? A
         : never
     }[keyof Cases],
     | Exclude<E, { _tag: keyof Cases }>
@@ -255,18 +401,18 @@ export const catchTags: {
       ) => Effect.Effect<any, infer E, any> ? E
         : never
     }[keyof Cases],
-    | A
+    | R
     | {
       [K in keyof Cases]: Cases[K] extends (
         ...args: Array<any>
-      ) => Effect.Effect<infer A, any, any> ? A
+      ) => Effect.Effect<any, any, infer R> ? R
         : never
     }[keyof Cases]
   >
   <
-    R,
-    E extends { _tag: string },
     A,
+    E extends { _tag: string },
+    R,
     Cases extends
       & {
         [K in Extract<E, { _tag: string }>["_tag"]]+?: (
@@ -283,14 +429,14 @@ export const catchTags: {
           ]: never
         })
   >(
-    self: Client.Client<R, E, A>,
+    self: Client.Client<A, E, R>,
     cases: Cases
   ): Client.Client<
-    | R
+    | A
     | {
       [K in keyof Cases]: Cases[K] extends (
         ...args: Array<any>
-      ) => Effect.Effect<any, any, infer R> ? R
+      ) => Effect.Effect<infer A, any, any> ? A
         : never
     }[keyof Cases],
     | Exclude<E, { _tag: keyof Cases }>
@@ -300,20 +446,20 @@ export const catchTags: {
       ) => Effect.Effect<any, infer E, any> ? E
         : never
     }[keyof Cases],
-    | A
+    | R
     | {
       [K in keyof Cases]: Cases[K] extends (
         ...args: Array<any>
-      ) => Effect.Effect<infer A, any, any> ? A
+      ) => Effect.Effect<any, any, infer R> ? R
         : never
     }[keyof Cases]
   >
 } = dual(
   2,
   <
-    R,
-    E extends { _tag: string },
     A,
+    E extends { _tag: string },
+    R,
     Cases extends
       & {
         [K in Extract<E, { _tag: string }>["_tag"]]+?: (
@@ -330,14 +476,14 @@ export const catchTags: {
           ]: never
         })
   >(
-    self: Client.Client<R, E, A>,
+    self: Client.Client<A, E, R>,
     cases: Cases
   ): Client.Client<
-    | R
+    | A
     | {
       [K in keyof Cases]: Cases[K] extends (
         ...args: Array<any>
-      ) => Effect.Effect<any, any, infer R> ? R
+      ) => Effect.Effect<infer A, any, any> ? A
         : never
     }[keyof Cases],
     | Exclude<E, { _tag: keyof Cases }>
@@ -347,11 +493,11 @@ export const catchTags: {
       ) => Effect.Effect<any, infer E, any> ? E
         : never
     }[keyof Cases],
-    | A
+    | R
     | {
       [K in keyof Cases]: Cases[K] extends (
         ...args: Array<any>
-      ) => Effect.Effect<infer A, any, any> ? A
+      ) => Effect.Effect<any, any, infer R> ? R
         : never
     }[keyof Cases]
   > => transformResponse(self, Effect.catchTags(cases))
@@ -361,17 +507,17 @@ export const catchTags: {
 export const catchAll: {
   <E, R2, E2, A2>(
     f: (e: E) => Effect.Effect<A2, E2, R2>
-  ): <R, A>(self: Client.Client<R, E, A>) => Client.Client<R | R2, E2, A2 | A>
-  <R, E, A, R2, E2, A2>(
-    self: Client.Client<R, E, A>,
+  ): <A, R>(self: Client.Client<A, E, R>) => Client.Client<A2 | A, E2, R | R2>
+  <A, E, R, R2, E2, A2>(
+    self: Client.Client<A, E, R>,
     f: (e: E) => Effect.Effect<A2, E2, R2>
-  ): Client.Client<R | R2, E2, A2 | A>
+  ): Client.Client<A2 | A, E2, R | R2>
 } = dual(
   2,
-  <R, E, A, R2, E2, A2>(
-    self: Client.Client<R, E, A>,
+  <A, E, R, R2, E2, A2>(
+    self: Client.Client<A, E, R>,
     f: (e: E) => Effect.Effect<A2, E2, R2>
-  ): Client.Client<R | R2, E2, A2 | A> => transformResponse(self, Effect.catchAll(f))
+  ): Client.Client<A2 | A, E2, R | R2> => transformResponse(self, Effect.catchAll(f))
 )
 
 /** @internal */
@@ -379,14 +525,14 @@ export const filterOrElse = dual<
   <A, R2, E2, B>(
     f: Predicate.Predicate<A>,
     orElse: (a: A) => Effect.Effect<B, E2, R2>
-  ) => <R, E>(
-    self: Client.Client<R, E, A>
-  ) => Client.Client<R2 | R, E2 | E, A | B>,
-  <R, E, A, R2, E2, B>(
-    self: Client.Client<R, E, A>,
+  ) => <E, R>(
+    self: Client.Client<A, E, R>
+  ) => Client.Client<A | B, E2 | E, R2 | R>,
+  <A, E, R, R2, E2, B>(
+    self: Client.Client<A, E, R>,
     f: Predicate.Predicate<A>,
     orElse: (a: A) => Effect.Effect<B, E2, R2>
-  ) => Client.Client<R2 | R, E2 | E, A | B>
+  ) => Client.Client<A | B, E2 | E, R2 | R>
 >(3, (self, f, orElse) => transformResponse(self, Effect.filterOrElse(f, orElse)))
 
 /** @internal */
@@ -394,93 +540,61 @@ export const filterOrFail = dual<
   <A, E2>(
     f: Predicate.Predicate<A>,
     orFailWith: (a: A) => E2
-  ) => <R, E>(self: Client.Client<R, E, A>) => Client.Client<R, E2 | E, A>,
-  <R, E, A, E2>(
-    self: Client.Client<R, E, A>,
+  ) => <E, R>(self: Client.Client<A, E, R>) => Client.Client<A, E2 | E, R>,
+  <A, E, R, E2>(
+    self: Client.Client<A, E, R>,
     f: Predicate.Predicate<A>,
     orFailWith: (a: A) => E2
-  ) => Client.Client<R, E2 | E, A>
+  ) => Client.Client<A, E2 | E, R>
 >(3, (self, f, orFailWith) => transformResponse(self, Effect.filterOrFail(f, orFailWith)))
-
-/** @internal */
-export const filterStatus = dual<
-  (
-    f: (status: number) => boolean
-  ) => <R, E>(
-    self: Client.Client.WithResponse<R, E>
-  ) => Client.Client.WithResponse<R, E | Error.ResponseError>,
-  <R, E>(
-    self: Client.Client.WithResponse<R, E>,
-    f: (status: number) => boolean
-  ) => Client.Client.WithResponse<R, E | Error.ResponseError>
->(2, (self, f) =>
-  transform(self, (effect, request) =>
-    Effect.filterOrFail(
-      effect,
-      (response) => f(response.status),
-      (response) =>
-        internalError.responseError({
-          request,
-          response,
-          reason: "StatusCode",
-          error: "non 2xx status code"
-        })
-    )))
-
-/** @internal */
-export const filterStatusOk: <R, E>(
-  self: Client.Client.WithResponse<R, E>
-) => Client.Client.WithResponse<R, E | Error.ResponseError> = filterStatus(
-  (status) => status >= 200 && status < 300
-)
 
 /** @internal */
 export const map = dual<
   <A, B>(
     f: (a: A) => B
-  ) => <R, E>(self: Client.Client<R, E, A>) => Client.Client<R, E, B>,
-  <R, E, A, B>(
-    self: Client.Client<R, E, A>,
+  ) => <E, R>(self: Client.Client<A, E, R>) => Client.Client<B, E, R>,
+  <A, E, R, B>(
+    self: Client.Client<A, E, R>,
     f: (a: A) => B
-  ) => Client.Client<R, E, B>
+  ) => Client.Client<B, E, R>
 >(2, (self, f) => transformResponse(self, Effect.map(f)))
 
 /** @internal */
 export const mapEffect = dual<
   <A, R2, E2, B>(
     f: (a: A) => Effect.Effect<B, E2, R2>
-  ) => <R, E>(self: Client.Client<R, E, A>) => Client.Client<R | R2, E | E2, B>,
-  <R, E, A, R2, E2, B>(
-    self: Client.Client<R, E, A>,
+  ) => <E, R>(self: Client.Client<A, E, R>) => Client.Client<B, E | E2, R | R2>,
+  <A, E, R, R2, E2, B>(
+    self: Client.Client<A, E, R>,
     f: (a: A) => Effect.Effect<B, E2, R2>
-  ) => Client.Client<R | R2, E | E2, B>
+  ) => Client.Client<B, E | E2, R | R2>
 >(2, (self, f) => transformResponse(self, Effect.flatMap(f)))
 
 /** @internal */
-export const scoped = <R, E, A>(
-  self: Client.Client<R, E, A>
-): Client.Client<Exclude<R, Scope.Scope>, E, A> => transformResponse(self, Effect.scoped)
+export const scoped = <A, E, R>(
+  self: Client.Client<A, E, R>
+): Client.Client<A, E, Exclude<R, Scope.Scope>> => transformResponse(self, Effect.scoped)
 
 /** @internal */
 export const mapEffectScoped = dual<
   <A, R2, E2, B>(
     f: (a: A) => Effect.Effect<B, E2, R2>
-  ) => <R, E>(self: Client.Client<R, E, A>) => Client.Client<Exclude<R | R2, Scope.Scope>, E | E2, B>,
-  <R, E, A, R2, E2, B>(
-    self: Client.Client<R, E, A>,
+  ) => <E, R>(self: Client.Client<A, E, R>) => Client.Client<B, E | E2, Exclude<R | R2, Scope.Scope>>,
+  <A, E, R, R2, E2, B>(
+    self: Client.Client<A, E, R>,
     f: (a: A) => Effect.Effect<B, E2, R2>
-  ) => Client.Client<Exclude<R | R2, Scope.Scope>, E | E2, B>
+  ) => Client.Client<B, E | E2, Exclude<R | R2, Scope.Scope>>
 >(2, (self, f) => scoped(mapEffect(self, f)))
 
 /** @internal */
 export const mapRequest = dual<
   (
     f: (a: ClientRequest.ClientRequest) => ClientRequest.ClientRequest
-  ) => <R, E, A>(self: Client.Client<R, E, A>) => Client.Client<R, E, A>,
-  <R, E, A>(
-    self: Client.Client<R, E, A>,
+  ) => <A, E, R>(self: Client.Client<A, E, R>) => Client.Client<A, E, R>,
+  <A, E, R>(
+    self: Client.Client<A, E, R>,
     f: (a: ClientRequest.ClientRequest) => ClientRequest.ClientRequest
-  ) => Client.Client<R, E, A>
+  ) => Client.Client<A, E, R>
 >(2, (self, f) => make(self.execute, (request) => Effect.map(self.preprocess(request), f)))
 
 /** @internal */
@@ -489,26 +603,26 @@ export const mapRequestEffect = dual<
     f: (
       a: ClientRequest.ClientRequest
     ) => Effect.Effect<ClientRequest.ClientRequest, E2, R2>
-  ) => <R, E, A>(
-    self: Client.Client<R, E, A>
-  ) => Client.Client<R | R2, E | E2, A>,
-  <R, E, A, R2, E2>(
-    self: Client.Client<R, E, A>,
+  ) => <A, E, R>(
+    self: Client.Client<A, E, R>
+  ) => Client.Client<A, E | E2, R | R2>,
+  <A, E, R, R2, E2>(
+    self: Client.Client<A, E, R>,
     f: (
       a: ClientRequest.ClientRequest
     ) => Effect.Effect<ClientRequest.ClientRequest, E2, R2>
-  ) => Client.Client<R | R2, E | E2, A>
+  ) => Client.Client<A, E | E2, R | R2>
 >(2, (self, f) => make(self.execute as any, (request) => Effect.flatMap(self.preprocess(request), f)))
 
 /** @internal */
 export const mapInputRequest = dual<
   (
     f: (a: ClientRequest.ClientRequest) => ClientRequest.ClientRequest
-  ) => <R, E, A>(self: Client.Client<R, E, A>) => Client.Client<R, E, A>,
-  <R, E, A>(
-    self: Client.Client<R, E, A>,
+  ) => <A, E, R>(self: Client.Client<A, E, R>) => Client.Client<A, E, R>,
+  <A, E, R>(
+    self: Client.Client<A, E, R>,
     f: (a: ClientRequest.ClientRequest) => ClientRequest.ClientRequest
-  ) => Client.Client<R, E, A>
+  ) => Client.Client<A, E, R>
 >(2, (self, f) => make(self.execute, (request) => self.preprocess(f(request))))
 
 /** @internal */
@@ -517,61 +631,63 @@ export const mapInputRequestEffect = dual<
     f: (
       a: ClientRequest.ClientRequest
     ) => Effect.Effect<ClientRequest.ClientRequest, E2, R2>
-  ) => <R, E, A>(
-    self: Client.Client<R, E, A>
-  ) => Client.Client<R | R2, E | E2, A>,
-  <R, E, A, R2, E2>(
-    self: Client.Client<R, E, A>,
+  ) => <A, E, R>(
+    self: Client.Client<A, E, R>
+  ) => Client.Client<A, E | E2, R | R2>,
+  <A, E, R, R2, E2>(
+    self: Client.Client<A, E, R>,
     f: (
       a: ClientRequest.ClientRequest
     ) => Effect.Effect<ClientRequest.ClientRequest, E2, R2>
-  ) => Client.Client<R | R2, E | E2, A>
+  ) => Client.Client<A, E | E2, R | R2>
 >(2, (self, f) => make(self.execute as any, (request) => Effect.flatMap(f(request), self.preprocess)))
 
 /** @internal */
 export const retry: {
   <R1, E extends E0, E0, B>(
     policy: Schedule.Schedule<B, E0, R1>
-  ): <R, A>(self: Client.Client<R, E, A>) => Client.Client<R1 | R, E, A>
-  <R, E extends E0, E0, A, R1, B>(
-    self: Client.Client<R, E, A>,
+  ): <A, R>(self: Client.Client<A, E, R>) => Client.Client<A, E, R1 | R>
+  <A, E extends E0, E0, R, R1, B>(
+    self: Client.Client<A, E, R>,
     policy: Schedule.Schedule<B, E0, R1>
-  ): Client.Client<R | R1, E, A>
+  ): Client.Client<A, E, R | R1>
 } = dual(
   2,
-  <R, E extends E0, E0, A, R1, B>(
-    self: Client.Client<R, E, A>,
+  <A, E extends E0, E0, R, R1, B>(
+    self: Client.Client<A, E, R>,
     policy: Schedule.Schedule<B, E0, R1>
-  ): Client.Client<R | R1, E, A> => transformResponse(self, Effect.retry(policy))
+  ): Client.Client<A, E, R | R1> => transformResponse(self, Effect.retry(policy))
 )
 
 /** @internal */
 export const schemaFunction = dual<
   <SA, SI, SR>(
-    schema: Schema.Schema<SA, SI, SR>
-  ) => <R, E, A>(
-    self: Client.Client<R, E, A>
+    schema: Schema.Schema<SA, SI, SR>,
+    options?: ParseOptions | undefined
+  ) => <A, E, R>(
+    self: Client.Client<A, E, R>
   ) => (
     request: ClientRequest.ClientRequest
   ) => (
     a: SA
   ) => Effect.Effect<A, E | ParseResult.ParseError | Error.RequestError, SR | R>,
-  <R, E, A, SA, SI, SR>(
-    self: Client.Client<R, E, A>,
-    schema: Schema.Schema<SA, SI, SR>
+  <A, E, R, SA, SI, SR>(
+    self: Client.Client<A, E, R>,
+    schema: Schema.Schema<SA, SI, SR>,
+    options?: ParseOptions | undefined
   ) => (
     request: ClientRequest.ClientRequest
   ) => (
     a: SA
   ) => Effect.Effect<A, E | ParseResult.ParseError | Error.RequestError, SR | R>
->(2, (self, schema) => {
-  const encode = Schema.encode(schema)
+>((args) => isClient(args[0]), (self, schema, options) => {
+  const encode = Schema.encode(schema, options)
   return (request) => (a) =>
     Effect.flatMap(
       Effect.tryMap(encode(a), {
         try: (body) => new TextEncoder().encode(JSON.stringify(body)),
         catch: (error) =>
-          internalError.requestError({
+          new Error.RequestError({
             request,
             reason: "Encode",
             error
@@ -591,22 +707,55 @@ export const schemaFunction = dual<
 export const tap = dual<
   <A, R2, E2, _>(
     f: (a: A) => Effect.Effect<_, E2, R2>
-  ) => <R, E>(self: Client.Client<R, E, A>) => Client.Client<R | R2, E | E2, A>,
-  <R, E, A, R2, E2, _>(
-    self: Client.Client<R, E, A>,
+  ) => <E, R>(self: Client.Client<A, E, R>) => Client.Client<A, E | E2, R | R2>,
+  <A, E, R, R2, E2, _>(
+    self: Client.Client<A, E, R>,
     f: (a: A) => Effect.Effect<_, E2, R2>
-  ) => Client.Client<R | R2, E | E2, A>
+  ) => Client.Client<A, E | E2, R | R2>
 >(2, (self, f) => transformResponse(self, Effect.tap(f)))
 
 /** @internal */
 export const tapRequest = dual<
   <R2, E2, _>(
     f: (a: ClientRequest.ClientRequest) => Effect.Effect<_, E2, R2>
-  ) => <R, E, A>(
-    self: Client.Client<R, E, A>
-  ) => Client.Client<R | R2, E | E2, A>,
-  <R, E, A, R2, E2, _>(
-    self: Client.Client<R, E, A>,
+  ) => <A, E, R>(
+    self: Client.Client<A, E, R>
+  ) => Client.Client<A, E | E2, R | R2>,
+  <A, E, R, R2, E2, _>(
+    self: Client.Client<A, E, R>,
     f: (a: ClientRequest.ClientRequest) => Effect.Effect<_, E2, R2>
-  ) => Client.Client<R | R2, E | E2, A>
+  ) => Client.Client<A, E | E2, R | R2>
 >(2, (self, f) => make(self.execute as any, (request) => Effect.tap(self.preprocess(request), f)))
+
+/** @internal */
+export const withCookiesRef = dual<
+  (
+    ref: Ref.Ref<Cookies.Cookies>
+  ) => <E, R>(self: Client.Client.WithResponse<E, R>) => Client.Client.WithResponse<E, R>,
+  <E, R>(
+    self: Client.Client.WithResponse<E, R>,
+    ref: Ref.Ref<Cookies.Cookies>
+  ) => Client.Client.WithResponse<E, R>
+>(
+  2,
+  <E, R>(
+    self: Client.Client.WithResponse<E, R>,
+    ref: Ref.Ref<Cookies.Cookies>
+  ): Client.Client.WithResponse<E, R> =>
+    make(
+      (request: Effect.Effect<ClientRequest.ClientRequest, E, R>) =>
+        Effect.tap(
+          self.execute(request),
+          (response) => Ref.update(ref, (cookies) => Cookies.merge(cookies, response.cookies))
+        ),
+      (request) =>
+        Effect.flatMap(self.preprocess(request), (request) =>
+          Effect.map(
+            Ref.get(ref),
+            (cookies) =>
+              Cookies.isEmpty(cookies)
+                ? request
+                : internalRequest.setHeader(request, "cookie", Cookies.toCookieHeader(cookies))
+          ))
+    )
+)

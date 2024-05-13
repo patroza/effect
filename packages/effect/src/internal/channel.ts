@@ -44,7 +44,7 @@ export const acquireUseRelease = <Acquired, OutErr, Env, OutElem1, InElem, InErr
     core.fromEffect(
       Ref.make<
         (exit: Exit.Exit<OutDone, OutErr>) => Effect.Effect<any, never, Env>
-      >(() => Effect.unit)
+      >(() => Effect.void)
     ),
     (ref) =>
       pipe(
@@ -78,7 +78,7 @@ export const as = dual<
 ): Channel.Channel<OutElem, InElem, OutErr, InErr, OutDone2, InDone, Env> => map(self, () => value))
 
 /** @internal */
-export const asUnit = <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
+export const asVoid = <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
   self: Channel.Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>
 ): Channel.Channel<OutElem, InElem, OutErr, InErr, void, InDone, Env> => map(self, constVoid)
 
@@ -931,8 +931,8 @@ export const mapOutEffectPar = dual<
                 onLeft: (outDone) => {
                   const lock = withPermits(n)
                   return Effect.zipRight(
-                    Effect.interruptible(lock(Effect.unit)),
-                    Effect.asUnit(Queue.offer(
+                    Effect.interruptible(lock(Effect.void)),
+                    Effect.asVoid(Queue.offer(
                       queue,
                       Effect.succeed(Either.left(outDone))
                     ))
@@ -942,7 +942,7 @@ export const mapOutEffectPar = dual<
                   Effect.gen(function*($) {
                     const deferred = yield* $(Deferred.make<OutElem1, OutErr1>())
                     const latch = yield* $(Deferred.make<void>())
-                    yield* $(Effect.asUnit(Queue.offer(
+                    yield* $(Effect.asVoid(Queue.offer(
                       queue,
                       Effect.map(Deferred.await(deferred), Either.right)
                     )))
@@ -1189,7 +1189,7 @@ export const mergeAllWith = (
               pipe(
                 Queue.offer(queue, Effect.failCause(cause)),
                 Effect.zipRight(Deferred.succeed(errorSignal, void 0)),
-                Effect.asUnit
+                Effect.asVoid
               )
           )
         )
@@ -1204,7 +1204,7 @@ export const mergeAllWith = (
             onLeft: (outDone) =>
               Effect.raceWith(
                 Effect.interruptible(Deferred.await(errorSignal)),
-                Effect.interruptible(withPermits(concurrencyN)(Effect.unit)),
+                Effect.interruptible(withPermits(concurrencyN)(Effect.void)),
                 {
                   onSelfDone: (_, permitAcquisition) => Effect.as(Fiber.interrupt(permitAcquisition), false),
                   onOtherDone: (_, failureAwait) =>
@@ -2106,6 +2106,98 @@ export const serviceWithEffect = <T extends Context.Tag<any, any>>(tag: T) =>
   mapEffect(service(tag), f)
 
 /** @internal */
+export const splitLines = <Err, Done>(): Channel.Channel<
+  Chunk.Chunk<string>,
+  Chunk.Chunk<string>,
+  Err,
+  Err,
+  Done,
+  Done,
+  never
+> =>
+  core.suspend(() => {
+    let stringBuilder = ""
+    let midCRLF = false
+    const splitLinesChunk = (chunk: Chunk.Chunk<string>): Chunk.Chunk<string> => {
+      const chunkBuilder: Array<string> = []
+      Chunk.map(chunk, (str) => {
+        if (str.length !== 0) {
+          let from = 0
+          let indexOfCR = str.indexOf("\r")
+          let indexOfLF = str.indexOf("\n")
+          if (midCRLF) {
+            if (indexOfLF === 0) {
+              chunkBuilder.push(stringBuilder)
+              stringBuilder = ""
+              from = 1
+              indexOfLF = str.indexOf("\n", from)
+            } else {
+              stringBuilder = stringBuilder + "\r"
+            }
+            midCRLF = false
+          }
+          while (indexOfCR !== -1 || indexOfLF !== -1) {
+            if (indexOfCR === -1 || (indexOfLF !== -1 && indexOfLF < indexOfCR)) {
+              if (stringBuilder.length === 0) {
+                chunkBuilder.push(str.substring(from, indexOfLF))
+              } else {
+                chunkBuilder.push(stringBuilder + str.substring(from, indexOfLF))
+                stringBuilder = ""
+              }
+              from = indexOfLF + 1
+              indexOfLF = str.indexOf("\n", from)
+            } else {
+              if (str.length === indexOfCR + 1) {
+                midCRLF = true
+                indexOfCR = -1
+              } else {
+                if (indexOfLF === indexOfCR + 1) {
+                  if (stringBuilder.length === 0) {
+                    chunkBuilder.push(str.substring(from, indexOfCR))
+                  } else {
+                    stringBuilder = stringBuilder + str.substring(from, indexOfCR)
+                    chunkBuilder.push(stringBuilder)
+                    stringBuilder = ""
+                  }
+                  from = indexOfCR + 2
+                  indexOfCR = str.indexOf("\r", from)
+                  indexOfLF = str.indexOf("\n", from)
+                } else {
+                  indexOfCR = str.indexOf("\r", indexOfCR + 1)
+                }
+              }
+            }
+          }
+          if (midCRLF) {
+            stringBuilder = stringBuilder + str.substring(from, str.length - 1)
+          } else {
+            stringBuilder = stringBuilder + str.substring(from, str.length)
+          }
+        }
+      })
+      return Chunk.unsafeFromArray(chunkBuilder)
+    }
+    const loop: Channel.Channel<Chunk.Chunk<string>, Chunk.Chunk<string>, Err, Err, Done, Done, never> = core
+      .readWithCause({
+        onInput: (input: Chunk.Chunk<string>) => {
+          const out = splitLinesChunk(input)
+          return Chunk.isEmpty(out)
+            ? loop
+            : core.flatMap(core.write(out), () => loop)
+        },
+        onFailure: (cause) =>
+          stringBuilder.length === 0
+            ? core.failCause(cause)
+            : core.flatMap(core.write(Chunk.of(stringBuilder)), () => core.failCause(cause)),
+        onDone: (done) =>
+          stringBuilder.length === 0
+            ? core.succeed(done)
+            : core.flatMap(core.write(Chunk.of(stringBuilder)), () => core.succeed(done))
+      })
+    return loop
+  })
+
+/** @internal */
 export const toPubSub = <Done, Err, Elem>(
   pubsub: PubSub.PubSub<Either.Either<Elem, Exit.Exit<Done, Err>>>
 ): Channel.Channel<never, Elem, never, Err, unknown, Done> => toQueue(pubsub)
@@ -2119,7 +2211,7 @@ export const toPull = <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
       Effect.sync(() => new executor.ChannelExecutor(self, void 0, identity)),
       (exec, exit) => {
         const finalize = exec.close(exit)
-        return finalize === undefined ? Effect.unit : finalize
+        return finalize === undefined ? Effect.void : finalize
       }
     ),
     (exec) => Effect.suspend(() => interpretToPull(exec.run() as ChannelState.ChannelState<OutErr, Env>, exec))
@@ -2221,26 +2313,14 @@ export const updateService = dual<
 export const withSpan = dual<
   (
     name: string,
-    options?: {
-      readonly attributes?: Record<string, unknown> | undefined
-      readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-      readonly parent?: Tracer.ParentSpan | undefined
-      readonly root?: boolean | undefined
-      readonly context?: Context.Context<never> | undefined
-    }
+    options?: Tracer.SpanOptions
   ) => <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
     self: Channel.Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>
   ) => Channel.Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Exclude<Env, Tracer.ParentSpan>>,
   <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
     self: Channel.Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>,
     name: string,
-    options?: {
-      readonly attributes?: Record<string, unknown> | undefined
-      readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-      readonly parent?: Tracer.ParentSpan | undefined
-      readonly root?: boolean | undefined
-      readonly context?: Context.Context<never> | undefined
-    }
+    options?: Tracer.SpanOptions
   ) => Channel.Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Exclude<Env, Tracer.ParentSpan>>
 >(3, (self, name, options) =>
   unwrapScoped(
@@ -2271,7 +2351,7 @@ const writeChunkWriter = <OutElem>(
   chunk: Chunk.Chunk<OutElem>
 ): Channel.Channel<OutElem> => {
   return idx === len
-    ? core.unit
+    ? core.void
     : pipe(
       core.write(pipe(chunk, Chunk.unsafeGet(idx))),
       core.flatMap(() => writeChunkWriter(idx + 1, len, chunk))

@@ -1,19 +1,20 @@
 import * as Http from "@effect/platform/HttpClient"
 import * as Schema from "@effect/schema/Schema"
+import { Ref } from "effect"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Stream from "effect/Stream"
-import { describe, expect, it } from "vitest"
+import { assert, describe, expect, it } from "vitest"
 
-const Todo = Schema.struct({
-  userId: Schema.number,
-  id: Schema.number,
-  title: Schema.string,
-  completed: Schema.boolean
+const Todo = Schema.Struct({
+  userId: Schema.Number,
+  id: Schema.Number,
+  title: Schema.String,
+  completed: Schema.Boolean
 })
-const OkTodo = Schema.struct({
-  status: Schema.literal(200),
+const OkTodo = Schema.Struct({
+  status: Schema.Literal(200),
   body: Todo
 })
 
@@ -45,18 +46,41 @@ describe("HttpClient", () => {
     Effect.gen(function*(_) {
       const response = yield* _(
         Http.request.get("https://www.google.com/"),
-        Http.client.fetchOk(),
+        Http.client.fetchOk,
         Effect.flatMap((_) => _.text),
         Effect.scoped
       )
       expect(response).toContain("Google")
     }).pipe(Effect.runPromise))
 
+  it("google withCookiesRef", () =>
+    Effect.gen(function*(_) {
+      const ref = yield* _(Ref.make(Http.cookies.empty))
+      const client = Http.client.withCookiesRef(Http.client.fetchOk, ref)
+      yield* _(
+        Http.request.get("https://www.google.com/"),
+        client,
+        Effect.scoped
+      )
+      const cookieHeader = yield* _(Ref.get(ref), Effect.map(Http.cookies.toCookieHeader))
+      yield* _(
+        Http.request.get("https://www.google.com/"),
+        client.pipe(
+          Http.client.tapRequest((req) =>
+            Effect.sync(() => {
+              assert.strictEqual(req.headers.cookie, cookieHeader)
+            })
+          )
+        ),
+        Effect.scoped
+      )
+    }).pipe(Effect.runPromise))
+
   it("google stream", () =>
     Effect.gen(function*(_) {
       const response = yield* _(
         Http.request.get(new URL("https://www.google.com/")),
-        Http.client.fetchOk(),
+        Http.client.fetchOk,
         Effect.map((_) => _.stream),
         Stream.unwrapScoped,
         Stream.runFold("", (a, b) => a + new TextDecoder().decode(b))

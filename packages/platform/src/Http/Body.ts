@@ -4,6 +4,8 @@
 import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
 import type * as Effect from "effect/Effect"
+import type { Inspectable } from "effect/Inspectable"
+import * as Predicate from "effect/Predicate"
 import type * as Stream_ from "effect/Stream"
 import type * as PlatformError from "../Error.js"
 import type * as FileSystem from "../FileSystem.js"
@@ -24,6 +26,12 @@ export type TypeId = typeof TypeId
 
 /**
  * @since 1.0.0
+ * @category refinements
+ */
+export const isBody = (u: unknown): u is Body => Predicate.hasProperty(u, TypeId)
+
+/**
+ * @since 1.0.0
  * @category models
  */
 export type Body = Empty | Raw | Uint8Array | FormData | Stream
@@ -36,7 +44,7 @@ export declare namespace Body {
    * @since 1.0.0
    * @category models
    */
-  export interface Proto {
+  export interface Proto extends Inspectable {
     readonly [TypeId]: TypeId
     readonly _tag: string
     readonly contentType?: string | undefined
@@ -122,7 +130,13 @@ export interface Raw extends Body.Proto {
  * @since 1.0.0
  * @category constructors
  */
-export const raw: (body: unknown) => Raw = internal.raw
+export const raw: (
+  body: unknown,
+  options?: {
+    readonly contentType?: string | undefined
+    readonly contentLength?: number | undefined
+  } | undefined
+) => Raw = internal.raw
 
 /**
  * @since 1.0.0

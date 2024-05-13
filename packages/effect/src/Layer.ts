@@ -785,6 +785,23 @@ export const toRuntime: <RIn, E, ROut>(
 ) => Effect.Effect<Runtime.Runtime<ROut>, E, Scope.Scope | RIn> = internal.toRuntime
 
 /**
+ * Converts a layer that requires no services into a scoped runtime, which can
+ * be used to execute effects.
+ *
+ * @since 2.0.0
+ * @category conversions
+ */
+export const toRuntimeWithMemoMap: {
+  (
+    memoMap: MemoMap
+  ): <RIn, E, ROut>(self: Layer<ROut, E, RIn>) => Effect.Effect<Runtime.Runtime<ROut>, E, Scope.Scope | RIn>
+  <RIn, E, ROut>(
+    self: Layer<ROut, E, RIn>,
+    memoMap: MemoMap
+  ): Effect.Effect<Runtime.Runtime<ROut>, E, Scope.Scope | RIn>
+} = internal.toRuntimeWithMemoMap
+
+/**
  * Feeds the output services of this builder into the input of the specified
  * builder, resulting in a new builder with the inputs of this builder as
  * well as any leftover inputs, and the outputs of the specified builder.
@@ -879,7 +896,7 @@ export const setConfigProvider: (configProvider: ConfigProvider) => Layer<never>
  * @since 2.0.0
  * @category tracing
  */
-export const parentSpan: (span: Tracer.ParentSpan) => Layer<Tracer.ParentSpan> = circularLayer.parentSpan
+export const parentSpan: (span: Tracer.AnySpan) => Layer<Tracer.ParentSpan> = circularLayer.parentSpan
 
 /**
  * @since 2.0.0
@@ -942,12 +959,7 @@ export const setScheduler: (scheduler: Scheduler.Scheduler) => Layer<never> = (
  */
 export const span: (
   name: string,
-  options?: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
+  options?: Tracer.SpanOptions & {
     readonly onEnd?:
       | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
       | undefined
@@ -961,6 +973,15 @@ export const span: (
  * @category tracing
  */
 export const setTracer: (tracer: Tracer.Tracer) => Layer<never> = circularLayer.setTracer
+
+/**
+ * @since 2.0.0
+ * @category tracing
+ */
+export const setTracerEnabled: (enabled: boolean) => Layer<never> = (enabled: boolean) =>
+  scopedDiscard(
+    fiberRuntime.fiberRefLocallyScoped(core.currentTracerEnabled, enabled)
+  )
 
 /**
  * @since 2.0.0
@@ -989,12 +1010,7 @@ export const setUnhandledErrorLogLevel: (level: Option.Option<LogLevel>) => Laye
 export const withSpan: {
   (
     name: string,
-    options?: {
-      readonly attributes?: Record<string, unknown> | undefined
-      readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-      readonly parent?: Tracer.ParentSpan | undefined
-      readonly root?: boolean | undefined
-      readonly context?: Context.Context<never> | undefined
+    options?: Tracer.SpanOptions & {
       readonly onEnd?:
         | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
         | undefined
@@ -1003,12 +1019,7 @@ export const withSpan: {
   <A, E, R>(
     self: Layer<A, E, R>,
     name: string,
-    options?: {
-      readonly attributes?: Record<string, unknown> | undefined
-      readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-      readonly parent?: Tracer.ParentSpan | undefined
-      readonly root?: boolean | undefined
-      readonly context?: Context.Context<never> | undefined
+    options?: Tracer.SpanOptions & {
       readonly onEnd?:
         | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
         | undefined
@@ -1021,8 +1032,8 @@ export const withSpan: {
  * @category tracing
  */
 export const withParentSpan: {
-  (span: Tracer.ParentSpan): <A, E, R>(self: Layer<A, E, R>) => Layer<A, E, Exclude<R, Tracer.ParentSpan>>
-  <A, E, R>(self: Layer<A, E, R>, span: Tracer.ParentSpan): Layer<A, E, Exclude<R, Tracer.ParentSpan>>
+  (span: Tracer.AnySpan): <A, E, R>(self: Layer<A, E, R>) => Layer<A, E, Exclude<R, Tracer.ParentSpan>>
+  <A, E, R>(self: Layer<A, E, R>, span: Tracer.AnySpan): Layer<A, E, Exclude<R, Tracer.ParentSpan>>
 } = internal.withParentSpan
 
 // -----------------------------------------------------------------------------

@@ -9,19 +9,35 @@ Duration.decode(100)
 // $ExpectType Duration
 Duration.decode(10n)
 // $ExpectType Duration
+Duration.decode("1 nano")
+// $ExpectType Duration
 Duration.decode("10 nanos")
+// $ExpectType Duration
+Duration.decode("1 micro")
 // $ExpectType Duration
 Duration.decode("10 micros")
 // $ExpectType Duration
+Duration.decode("1 milli")
+// $ExpectType Duration
 Duration.decode("10 millis")
+// $ExpectType Duration
+Duration.decode("1 second")
 // $ExpectType Duration
 Duration.decode("10 seconds")
 // $ExpectType Duration
+Duration.decode("1 minute")
+// $ExpectType Duration
 Duration.decode("10 minutes")
+// $ExpectType Duration
+Duration.decode("1 hour")
 // $ExpectType Duration
 Duration.decode("10 hours")
 // $ExpectType Duration
+Duration.decode("1 day")
+// $ExpectType Duration
 Duration.decode("10 days")
+// $ExpectType Duration
+Duration.decode("1 nano")
 // $ExpectType Duration
 Duration.decode("10 nanos")
 
@@ -93,6 +109,20 @@ Duration.max("1 minutes", "2 millis")
 
 // $ExpectType Duration
 Duration.clamp("1 millis", { minimum: "2 millis", maximum: "3 millis" })
+
+// -------------------------------------------------------------------------------------
+// divide
+// -------------------------------------------------------------------------------------
+
+// $ExpectType Option<Duration>
+Duration.divide("1 seconds", 2)
+
+// -------------------------------------------------------------------------------------
+// unsafeDivide
+// -------------------------------------------------------------------------------------
+
+// $ExpectType Duration
+Duration.unsafeDivide("1 seconds", 2)
 
 // -------------------------------------------------------------------------------------
 // times

@@ -1,17 +1,17 @@
 {
   "name": "@effect/platform",
   "type": "module",
-  "version": "0.46.3",
+  "version": "0.52.3",
   "license": "MIT",
   "description": "Unified interfaces for common platform-specific services",
   "homepage": "https://effect.website",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effect-ts/effect.git",
+    "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/platform"
   },
   "bugs": {
-    "url": "https://github.com/effect-ts/effect/issues"
+    "url": "https://github.com/Effect-TS/effect/issues"
   },
   "tags": [
     "typescript",
@@ -26,7 +26,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",
@@ -39,8 +39,9 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "find-my-way-ts": "^0.1.1",
-    "multipasta": "^0.1.21",
+    "find-my-way-ts": "^0.1.2",
+    "isows": "^1.0.4",
+    "multipasta": "^0.2.1",
     "path-browserify": "^1.0.1"
   },
   "peerDependencies": {

@@ -35,10 +35,9 @@ export interface Refinement<in A, out B extends A> {
  * @param f - a function to transform `B` to `A`.
  *
  * @example
- * import * as P from "effect/Predicate"
- * import * as N from "effect/Number"
+ * import { Predicate, Number } from "effect"
  *
- * const minLength3 = P.mapInput(N.greaterThan(2), (s: string) => s.length)
+ * const minLength3 = Predicate.mapInput(Number.greaterThan(2), (s: string) => s.length)
  *
  * assert.deepStrictEqual(minLength3("a"), false)
  * assert.deepStrictEqual(minLength3("aa"), false)
@@ -52,6 +51,23 @@ export const mapInput: {
   <B, A>(f: (b: B) => A): (self: Predicate<A>) => Predicate<B>
   <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B>
 } = dual(2, <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B> => (b) => self(f(b)))
+
+/**
+ * Tests if a value is `truthy`.
+ *
+ * @param input - The value to test.
+ *
+ * @example
+ * import { isTruthy } from "effect/Predicate"
+ *
+ * assert.deepStrictEqual(isTruthy(1), true)
+ * assert.deepStrictEqual(isTruthy(0), false)
+ * assert.deepStrictEqual(isTruthy(""), false)
+ *
+ * @category guards
+ * @since 2.0.0
+ */
+export const isTruthy = (input: unknown) => !!input
 
 /**
  * Tests if a value is a `Set`.
@@ -544,6 +560,14 @@ export const isPromise = (
   hasProperty(input, "then") && "catch" in input && isFunction(input.then) && isFunction(input.catch)
 
 /**
+ * @category guards
+ * @since 2.0.0
+ */
+export const isPromiseLike = (
+  input: unknown
+): input is PromiseLike<unknown> => hasProperty(input, "then") && isFunction(input.then)
+
+/**
  * @since 2.0.0
  */
 export const compose: {
@@ -633,10 +657,9 @@ export const struct = <R extends Record<string, Predicate<any>>>(
  * @param self - A predicate.
  *
  * @example
- * import * as P from "effect/Predicate"
- * import * as N from "effect/Number"
+ * import { Predicate, Number } from "effect"
  *
- * const isPositive = P.not(N.lessThan(0))
+ * const isPositive = Predicate.not(Number.lessThan(0))
  *
  * assert.deepStrictEqual(isPositive(-1), false)
  * assert.deepStrictEqual(isPositive(0), true)
@@ -654,10 +677,9 @@ export const not = <A>(self: Predicate<A>): Predicate<A> => (a) => !self(a)
  * @param that - A predicate.
  *
  * @example
- * import * as P from "effect/Predicate"
- * import * as N from "effect/Number"
+ * import { Predicate, Number } from "effect"
  *
- * const nonZero = P.or(N.lessThan(0), N.greaterThan(0))
+ * const nonZero = Predicate.or(Number.lessThan(0), Number.greaterThan(0))
  *
  * assert.deepStrictEqual(nonZero(-1), true)
  * assert.deepStrictEqual(nonZero(0), false)
@@ -678,12 +700,12 @@ export const or: {
  * @param that - A predicate.
  *
  * @example
- * import * as P from "effect/Predicate"
+ * import { Predicate } from "effect"
  *
  * const minLength = (n: number) => (s: string) => s.length >= n
  * const maxLength = (n: number) => (s: string) => s.length <= n
  *
- * const length = (n: number) => P.and(minLength(n), maxLength(n))
+ * const length = (n: number) => Predicate.and(minLength(n), maxLength(n))
  *
  * assert.deepStrictEqual(length(2)("aa"), true)
  * assert.deepStrictEqual(length(2)("a"), false)

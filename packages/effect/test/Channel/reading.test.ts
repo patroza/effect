@@ -1,5 +1,7 @@
 import * as it from "effect-test/utils/extend"
+import * as Array from "effect/Array"
 import * as Channel from "effect/Channel"
+import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as Equal from "effect/Equal"
 import { pipe } from "effect/Function"
@@ -8,7 +10,6 @@ import * as HashSet from "effect/HashSet"
 import * as MergeDecision from "effect/MergeDecision"
 import * as Option from "effect/Option"
 import * as Random from "effect/Random"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Ref from "effect/Ref"
 import { assert, describe } from "vitest"
 
@@ -21,8 +22,8 @@ export const mapper = <A, B>(
         Channel.write(f(a)),
         () => mapper(f)
       ),
-    onFailure: () => Channel.unit,
-    onDone: () => Channel.unit
+    onFailure: () => Channel.void,
+    onDone: () => Channel.void
   })
 }
 
@@ -32,11 +33,11 @@ export const refWriter = <A>(
   return Channel.readWith({
     onInput: (a: A) =>
       Channel.flatMap(
-        Channel.fromEffect(Effect.asUnit(Ref.update(ref, ReadonlyArray.prepend(a)))),
+        Channel.fromEffect(Effect.asVoid(Ref.update(ref, Array.prepend(a)))),
         () => refWriter(ref)
       ),
-    onFailure: () => Channel.unit,
-    onDone: () => Channel.unit
+    onFailure: () => Channel.void,
+    onDone: () => Channel.void
   })
 }
 
@@ -46,14 +47,14 @@ export const refReader = <A>(
   return pipe(
     Channel.fromEffect(
       Ref.modify(ref, (array) => {
-        if (ReadonlyArray.isEmptyReadonlyArray(array)) {
-          return [Option.none(), ReadonlyArray.empty<A>()] as const
+        if (Array.isEmptyReadonlyArray(array)) {
+          return [Option.none(), Array.empty<A>()] as const
         }
         return [Option.some(array[0]!), array.slice(1)] as const
       })
     ),
     Channel.flatMap(Option.match({
-      onNone: () => Channel.unit,
+      onNone: () => Channel.void,
       onSome: (i) => Channel.flatMap(Channel.write(i), () => refReader(ref))
     }))
   )
@@ -90,7 +91,7 @@ describe("Channel", () => {
       )
       const result = yield* $(Channel.runCollect(channel))
       const [chunk, value] = result
-      assert.deepStrictEqual(Array.from(chunk), [
+      assert.deepStrictEqual(Chunk.toReadonlyArray(chunk), [
         new Whatever(1),
         new Whatever(2),
         new Whatever(3),
@@ -112,8 +113,8 @@ describe("Channel", () => {
                   Channel.zipRight(Channel.write(input)),
                   Channel.flatMap(inner)
                 ),
-              onFailure: () => Channel.unit,
-              onDone: () => Channel.unit
+              onFailure: () => Channel.void,
+              onDone: () => Channel.void
             })
           return pipe(
             inner(),
@@ -126,12 +127,12 @@ describe("Channel", () => {
       const channel = pipe(
         Channel.writeAll(1, 2),
         Channel.pipeTo(mapper(f)),
-        Channel.pipeTo(pipe(mapper(g), Channel.concatMap((ns) => Channel.writeAll(...ns)), Channel.asUnit)),
+        Channel.pipeTo(pipe(mapper(g), Channel.concatMap((ns) => Channel.writeAll(...ns)), Channel.asVoid)),
         Channel.pipeTo(innerChannel)
       )
       const [chunk, list] = yield* $(Channel.runCollect(channel))
-      assert.deepStrictEqual(Array.from(chunk), [1, 1, 2, 2])
-      assert.deepStrictEqual(Array.from(list), [1, 1, 2, 2])
+      assert.deepStrictEqual(Chunk.toReadonlyArray(chunk), [1, 1, 2, 2])
+      assert.deepStrictEqual(list, [1, 1, 2, 2])
     }))
 
   it.effect("read pipelining 2", () =>
@@ -205,16 +206,16 @@ describe("Channel", () => {
       const read = pipe(
         Channel.read<number>(),
         Channel.mapEffect((i) => event(`Read ${i}`)),
-        Channel.asUnit
+        Channel.asVoid
       )
       const right = pipe(
         read,
         Channel.zipRight(read),
-        Channel.catchAll(() => Channel.unit)
+        Channel.catchAll(() => Channel.void)
       )
       const channel = pipe(left, Channel.pipeTo(right))
       const result = yield* $(Channel.runDrain(channel), Effect.zipRight(Ref.get(ref)))
-      assert.deepStrictEqual(Array.from(result), [
+      assert.deepStrictEqual(result, [
         "Acquire outer",
         "Acquire 1",
         "Read 1",
@@ -229,15 +230,15 @@ describe("Channel", () => {
   it.effect("simple concurrent reads", () =>
     Effect.gen(function*($) {
       const capacity = 128
-      const elements = yield* $(Effect.all(Array.from({ length: capacity }, () => Random.nextInt)))
-      const source = yield* $(Ref.make(ReadonlyArray.fromIterable(elements)))
+      const elements = yield* $(Effect.replicateEffect(Random.nextInt, capacity))
+      const source = yield* $(Ref.make(Array.fromIterable(elements)))
       const destination = yield* $(Ref.make<ReadonlyArray<number>>([]))
       const twoWriters = pipe(
         refWriter(destination),
         Channel.mergeWith({
           other: refWriter(destination),
-          onSelfDone: () => MergeDecision.AwaitConst(Effect.unit),
-          onOtherDone: () => MergeDecision.AwaitConst(Effect.unit)
+          onSelfDone: () => MergeDecision.AwaitConst(Effect.void),
+          onOtherDone: () => MergeDecision.AwaitConst(Effect.void)
         })
       )
       const [missing, surplus] = yield* $(
@@ -266,16 +267,16 @@ describe("Channel", () => {
     Effect.gen(function*($) {
       const capacity = 128
       const f = (n: number) => n + 1
-      const elements = yield* $(Effect.all(Array.from({ length: capacity }, () => Random.nextInt)))
-      const source = yield* $(Ref.make(ReadonlyArray.fromIterable(elements)))
+      const elements = yield* $(Effect.replicateEffect(Random.nextInt, capacity))
+      const source = yield* $(Ref.make(Array.fromIterable(elements)))
       const destination = yield* $(Ref.make<ReadonlyArray<number>>([]))
       const twoWriters = pipe(
         mapper(f),
         Channel.pipeTo(refWriter(destination)),
         Channel.mergeWith({
           other: pipe(mapper(f), Channel.pipeTo(refWriter(destination))),
-          onSelfDone: () => MergeDecision.AwaitConst(Effect.unit),
-          onOtherDone: () => MergeDecision.AwaitConst(Effect.unit)
+          onSelfDone: () => MergeDecision.AwaitConst(Effect.void),
+          onOtherDone: () => MergeDecision.AwaitConst(Effect.void)
         })
       )
       const [missing, surplus] = yield* $(

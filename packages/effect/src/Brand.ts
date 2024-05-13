@@ -16,11 +16,11 @@
  *
  * @since 2.0.0
  */
+import * as Arr from "./Array.js"
 import * as Either from "./Either.js"
 import { identity } from "./Function.js"
 import * as Option from "./Option.js"
 import type { Predicate } from "./Predicate.js"
-import * as ReadonlyArray from "./ReadonlyArray.js"
 import type * as Types from "./Types.js"
 
 /**
@@ -69,7 +69,7 @@ export declare namespace Brand {
    * @since 2.0.0
    * @category models
    */
-  export interface BrandErrors extends ReadonlyArray<RefinementError> {}
+  export interface BrandErrors extends Array<RefinementError> {}
 
   /**
    * Represents an error that occurs when the provided value of the branded type does not pass the refinement predicate.
@@ -183,7 +183,7 @@ export const error = (message: string, meta?: unknown): Brand.BrandErrors => [{
  */
 export const errors: (...errors: Array<Brand.BrandErrors>) => Brand.BrandErrors = (
   ...errors: Array<Brand.BrandErrors>
-): Brand.BrandErrors => ReadonlyArray.flatten(errors)
+): Brand.BrandErrors => Arr.flatten(errors)
 
 /**
  * Returns a `Brand.Constructor` that can construct a branded type from an unbranded value using the provided `refinement`
@@ -196,7 +196,7 @@ export const errors: (...errors: Array<Brand.BrandErrors>) => Brand.BrandErrors 
  * @param onFailure - Takes the unbranded value that did not pass the `refinement` predicate and returns a `BrandErrors`.
  *
  * @example
- * import * as Brand from "effect/Brand"
+ * import { Brand } from "effect"
  *
  * type Int = number & Brand.Brand<"Int">
  *
@@ -211,28 +211,33 @@ export const errors: (...errors: Array<Brand.BrandErrors>) => Brand.BrandErrors 
  * @since 2.0.0
  * @category constructors
  */
-export const refined: <A extends Brand<any>>(
+export function refined<A extends Brand<any>>(
+  f: (unbranded: Brand.Unbranded<A>) => Option.Option<Brand.BrandErrors>
+): Brand.Constructor<A>
+export function refined<A extends Brand<any>>(
   refinement: Predicate<Brand.Unbranded<A>>,
-  onFailure: (a: Brand.Unbranded<A>) => Brand.BrandErrors
-) => Brand.Constructor<A> = <A extends Brand<any>>(
-  refinement: Predicate<Brand.Unbranded<A>>,
-  onFailure: (a: Brand.Unbranded<A>) => Brand.BrandErrors
-): Brand.Constructor<A> => {
-  const either = (args: Brand.Unbranded<A>): Either.Either<A, Brand.BrandErrors> =>
-    refinement(args) ? Either.right(args as A) : Either.left(onFailure(args))
-  // @ts-expect-error
-  return Object.assign((args) =>
-    Either.match(either(args), {
-      onLeft: (e) => {
-        throw e
-      },
-      onRight: identity
-    }), {
+  onFailure: (unbranded: Brand.Unbranded<A>) => Brand.BrandErrors
+): Brand.Constructor<A>
+export function refined<A extends Brand<any>>(
+  ...args: [(unbranded: Brand.Unbranded<A>) => Option.Option<Brand.BrandErrors>] | [
+    Predicate<Brand.Unbranded<A>>,
+    (unbranded: Brand.Unbranded<A>) => Brand.BrandErrors
+  ]
+): Brand.Constructor<A> {
+  const either: (unbranded: Brand.Unbranded<A>) => Either.Either<A, Brand.BrandErrors> = args.length === 2 ?
+    (unbranded) => args[0](unbranded) ? Either.right(unbranded as A) : Either.left(args[1](unbranded)) :
+    (unbranded) => {
+      return Option.match(args[0](unbranded), {
+        onNone: () => Either.right(unbranded as A),
+        onSome: Either.left
+      })
+    }
+  return Object.assign((unbranded: Brand.Unbranded<A>) => Either.getOrThrowWith(either(unbranded), identity), {
     [RefinedConstructorsTypeId]: RefinedConstructorsTypeId,
     option: (args: any) => Option.getRight(either(args)),
     either,
     is: (args: any): args is Brand.Unbranded<A> & A => Either.isRight(either(args))
-  })
+  }) as any
 }
 
 /**
@@ -242,7 +247,7 @@ export const refined: <A extends Brand<any>>(
  * If you also want to perform some validation, see {@link refined}.
  *
  * @example
- * import * as Brand from "effect/Brand"
+ * import { Brand } from "effect"
  *
  * type UserId = number & Brand.Brand<"UserId">
  *
@@ -253,7 +258,7 @@ export const refined: <A extends Brand<any>>(
  * @since 2.0.0
  * @category constructors
  */
-export const nominal: <A extends Brand<any>>() => Brand.Constructor<A> = <A extends Brand<any>>(): Brand.Constructor<
+export const nominal = <A extends Brand<any>>(): Brand.Constructor<
   A
 > => {
   // @ts-expect-error
@@ -270,7 +275,7 @@ export const nominal: <A extends Brand<any>>() => Brand.Constructor<A> = <A exte
  * This API is useful when you want to validate that the input data passes multiple brand validators.
  *
  * @example
- * import * as Brand from "effect/Brand"
+ * import { Brand } from "effect"
  *
  * type Int = number & Brand.Brand<"Int">
  * const Int = Brand.refined<Int>(

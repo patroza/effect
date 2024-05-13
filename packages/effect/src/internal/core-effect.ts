@@ -1,3 +1,4 @@
+import * as Arr from "../Array.js"
 import type * as Cause from "../Cause.js"
 import * as Chunk from "../Chunk.js"
 import * as Clock from "../Clock.js"
@@ -21,19 +22,20 @@ import type * as MetricLabel from "../MetricLabel.js"
 import * as Option from "../Option.js"
 import * as Predicate from "../Predicate.js"
 import type * as Random from "../Random.js"
-import * as ReadonlyArray from "../ReadonlyArray.js"
 import * as Ref from "../Ref.js"
 import type * as runtimeFlagsPatch from "../RuntimeFlagsPatch.js"
 import * as Tracer from "../Tracer.js"
-import type { MergeRecord, NoInfer } from "../Types.js"
+import type { NoInfer } from "../Types.js"
+import { yieldWrapGet } from "../Utils.js"
 import * as internalCause from "./cause.js"
+import { clockTag } from "./clock.js"
 import * as core from "./core.js"
 import * as defaultServices from "./defaultServices.js"
+import * as doNotation from "./doNotation.js"
 import * as fiberRefsPatch from "./fiberRefs/patch.js"
-import { internalize } from "./internalize.js"
+import type { FiberRuntime } from "./fiberRuntime.js"
 import * as metricLabel from "./metric/label.js"
 import * as runtimeFlags from "./runtimeFlags.js"
-import * as SingleShotGen from "./singleShotGen.js"
 import * as internalTracer from "./tracer.js"
 
 /* @internal */
@@ -342,7 +344,7 @@ export const allowInterrupt: Effect.Effect<void> = descriptorWith(
   (descriptor) =>
     HashSet.size(descriptor.interruptors) > 0
       ? core.interrupt
-      : core.unit
+      : core.void
 )
 
 /* @internal */
@@ -368,56 +370,39 @@ export const Do: Effect.Effect<{}> = core.succeed({})
 
 /* @internal */
 export const bind: {
-  <N extends string, K, A, E2, R2>(
-    tag: Exclude<N, keyof K>,
-    f: (_: K) => Effect.Effect<A, E2, R2>
-  ): <E, R>(self: Effect.Effect<K, E, R>) => Effect.Effect<MergeRecord<K, { [k in N]: A }>, E2 | E, R2 | R>
-  <K, E, R, N extends string, A, E2, R2>(
-    self: Effect.Effect<K, E, R>,
-    tag: Exclude<N, keyof K>,
-    f: (_: K) => Effect.Effect<A, E2, R2>
-  ): Effect.Effect<MergeRecord<K, { [k in N]: A }>, E2 | E, R2 | R>
-} = dual(3, <K, E, R, N extends string, A, E2, R2>(
-  self: Effect.Effect<K, E, R>,
-  tag: Exclude<N, keyof K>,
-  f: (_: K) => Effect.Effect<A, E2, R2>
-): Effect.Effect<MergeRecord<K, { [k in N]: A }>, E2 | E, R2 | R> =>
-  core.flatMap(self, (k) =>
-    core.map(
-      f(k),
-      (a): MergeRecord<K, { [k in N]: A }> => ({ ...k, [tag]: a } as any)
-    )))
+  <N extends string, A extends object, B, E2, R2>(
+    name: Exclude<N, keyof A>,
+    f: (a: A) => Effect.Effect<B, E2, R2>
+  ): <E1, R1>(
+    self: Effect.Effect<A, E1, R1>
+  ) => Effect.Effect<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, E2 | E1, R2 | R1>
+  <A extends object, N extends string, E1, R1, B, E2, R2>(
+    self: Effect.Effect<A, E1, R1>,
+    name: Exclude<N, keyof A>,
+    f: (a: A) => Effect.Effect<B, E2, R2>
+  ): Effect.Effect<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, E1 | E2, R1 | R2>
+} = doNotation.bind<Effect.EffectTypeLambda>(core.map, core.flatMap)
 
 /* @internal */
 export const bindTo: {
-  <N extends string>(tag: N): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<Record<N, A>, E, R>
-  <A, E, R, N extends string>(self: Effect.Effect<A, E, R>, tag: N): Effect.Effect<Record<N, A>, E, R>
-} = dual(
-  2,
-  <A, E, R, N extends string>(self: Effect.Effect<A, E, R>, tag: N): Effect.Effect<Record<N, A>, E, R> =>
-    core.map(self, (a) => ({ [tag]: a } as Record<N, A>))
-)
+  <N extends string>(name: N): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<{ [K in N]: A }, E, R>
+  <A, E, R, N extends string>(self: Effect.Effect<A, E, R>, name: N): Effect.Effect<{ [K in N]: A }, E, R>
+} = doNotation.bindTo<Effect.EffectTypeLambda>(core.map)
 
 /* @internal */
 export const let_: {
-  <N extends string, K, A>(
-    tag: Exclude<N, keyof K>,
-    f: (_: K) => A
-  ): <E, R>(self: Effect.Effect<K, E, R>) => Effect.Effect<MergeRecord<K, { [k in N]: A }>, E, R>
-  <K, E, R, N extends string, A>(
-    self: Effect.Effect<K, E, R>,
-    tag: Exclude<N, keyof K>,
-    f: (_: K) => A
-  ): Effect.Effect<MergeRecord<K, { [k in N]: A }>, E, R>
-} = dual(3, <K, E, R, N extends string, A>(
-  self: Effect.Effect<K, E, R>,
-  tag: Exclude<N, keyof K>,
-  f: (_: K) => A
-): Effect.Effect<MergeRecord<K, { [k in N]: A }>, E, R> =>
-  core.map(
-    self,
-    (k): MergeRecord<K, { [k in N]: A }> => ({ ...k, [tag]: f(k) } as any)
-  ))
+  <N extends string, A extends object, B>(
+    name: Exclude<N, keyof A>,
+    f: (a: A) => B
+  ): <E, R>(
+    self: Effect.Effect<A, E, R>
+  ) => Effect.Effect<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, E, R>
+  <A extends object, N extends string, E, R, B>(
+    self: Effect.Effect<A, E, R>,
+    name: Exclude<N, keyof A>,
+    f: (a: A) => B
+  ): Effect.Effect<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, E, R>
+} = doNotation.let_<Effect.EffectTypeLambda>(core.map)
 
 /* @internal */
 export const dropUntil: {
@@ -501,17 +486,17 @@ export const eventually = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect
 
 /* @internal */
 export const filterMap = dual<
-  <A, B>(
-    pf: (a: A) => Option.Option<B>
-  ) => <E, R>(elements: Iterable<Effect.Effect<A, E, R>>) => Effect.Effect<Array<B>, E, R>,
-  <A, E, R, B>(
-    elements: Iterable<Effect.Effect<A, E, R>>,
-    pf: (a: A) => Option.Option<B>
-  ) => Effect.Effect<Array<B>, E, R>
+  <Eff extends Effect.Effect<any, any, any>, B>(
+    pf: (a: Effect.Effect.Success<Eff>) => Option.Option<B>
+  ) => (elements: Iterable<Eff>) => Effect.Effect<Array<B>, Effect.Effect.Error<Eff>, Effect.Effect.Context<Eff>>,
+  <Eff extends Effect.Effect<any, any, any>, B>(
+    elements: Iterable<Eff>,
+    pf: (a: Effect.Effect.Success<Eff>) => Option.Option<B>
+  ) => Effect.Effect<Array<B>, Effect.Effect.Error<Eff>, Effect.Effect.Context<Eff>>
 >(2, (elements, pf) =>
   core.map(
     core.forEachSequential(elements, identity),
-    ReadonlyArray.filterMap(pf)
+    Arr.filterMap(pf)
   ))
 
 /* @internal */
@@ -605,6 +590,12 @@ export const filterOrFail: {
     predicate: Predicate.Predicate<NoInfer<A>>,
     orFailWith: (a: NoInfer<A>) => E2
   ): <E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E2 | E, R>
+  <A, B extends A>(
+    refinement: Predicate.Refinement<NoInfer<A>, B>
+  ): <E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<B, Cause.NoSuchElementException | E, R>
+  <A>(
+    predicate: Predicate.Predicate<NoInfer<A>>
+  ): <E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, Cause.NoSuchElementException | E, R>
   <A, E, R, B extends A, E2>(
     self: Effect.Effect<A, E, R>,
     refinement: Predicate.Refinement<A, B>,
@@ -615,11 +606,25 @@ export const filterOrFail: {
     predicate: Predicate.Predicate<A>,
     orFailWith: (a: A) => E2
   ): Effect.Effect<A, E | E2, R>
-} = dual(3, <A, E, R, E2>(
+  <A, E, R, B extends A>(
+    self: Effect.Effect<A, E, R>,
+    refinement: Predicate.Refinement<A, B>
+  ): Effect.Effect<B, E | Cause.NoSuchElementException, R>
+  <A, E, R>(
+    self: Effect.Effect<A, E, R>,
+    predicate: Predicate.Predicate<A>
+  ): Effect.Effect<A, E | Cause.NoSuchElementException, R>
+} = dual((args) => core.isEffect(args[0]), <A, E, R, E2>(
   self: Effect.Effect<A, E, R>,
   predicate: Predicate.Predicate<A>,
-  orFailWith: (a: A) => E2
-): Effect.Effect<A, E | E2, R> => filterOrElse(self, predicate, (a) => core.failSync(() => orFailWith(a))))
+  orFailWith?: (a: A) => E2
+): Effect.Effect<A, E | E2 | Cause.NoSuchElementException, R> =>
+  filterOrElse(
+    self,
+    predicate,
+    (a): Effect.Effect<never, E2 | Cause.NoSuchElementException, never> =>
+      orFailWith === undefined ? core.fail(new core.NoSuchElementException()) : core.failSync(() => orFailWith(a))
+  ))
 
 /* @internal */
 export const findFirst: {
@@ -664,7 +669,9 @@ const findLoop = <A, E, R>(
   })
 
 /* @internal */
-export const firstSuccessOf = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>): Effect.Effect<A, E, R> =>
+export const firstSuccessOf = <Eff extends Effect.Effect<any, any, any>>(
+  effects: Iterable<Eff>
+): Effect.Effect<Effect.Effect.Success<Eff>, Effect.Effect.Error<Eff>, Effect.Effect.Context<Eff>> =>
   core.suspend(() => {
     const list = Chunk.fromIterable(effects)
     if (!Chunk.isNonEmpty(list)) {
@@ -672,7 +679,7 @@ export const firstSuccessOf = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>
     }
     return pipe(
       Chunk.tailNonEmpty(list),
-      ReadonlyArray.reduce(Chunk.headNonEmpty(list), (left, right) => core.orElse(left, () => right))
+      Arr.reduce(Chunk.headNonEmpty(list), (left, right) => core.orElse(left, () => right) as Eff)
     )
   })
 
@@ -751,23 +758,6 @@ export const forever = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<ne
   return loop
 }
 
-/** @internal */
-class EffectGen {
-  constructor(readonly value: Effect.Effect<any, any, any>) {
-  }
-  [Symbol.iterator]() {
-    return new SingleShotGen.SingleShotGen(this)
-  }
-}
-
-const adapter = function() {
-  let x = arguments[0]
-  for (let i = 1; i < arguments.length; i++) {
-    x = arguments[i](x)
-  }
-  return new EffectGen(x) as any
-}
-
 /**
  * Inspired by https://github.com/tusharmath/qio/pull/22 (revised)
   @internal */
@@ -778,18 +768,16 @@ export const gen: typeof Effect.gen = function() {
   } else {
     f = arguments[1].bind(arguments[0])
   }
-  internalize(f)
   return core.suspend(() => {
-    const iterator = f(adapter)
+    const iterator = f(pipe)
     const state = iterator.next()
     const run = (
       state: IteratorYieldResult<any> | IteratorReturnResult<any>
-    ): Effect.Effect<any, any, any> => (state.done
-      ? core.succeed(state.value)
-      : pipe(
-        state.value.value as unknown as Effect.Effect<any, any, any>,
-        core.flatMap((val: any) => run(iterator.next(val)))
-      ))
+    ): Effect.Effect<any, any, any> => {
+      return (state.done
+        ? core.succeed(state.value)
+        : core.flatMap(yieldWrapGet(state.value) as any, (val: any) => run(iterator.next(val))))
+    }
     return run(state)
   })
 }
@@ -820,7 +808,7 @@ export const ignore = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<voi
 export const ignoreLogged = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<void, never, R> =>
   core.matchCauseEffect(self, {
     onFailure: (cause) => logDebug(cause, "An error was silently ignored because it is not anticipated to be useful"),
-    onSuccess: () => core.unit
+    onSuccess: () => core.void
   })
 
 /* @internal */
@@ -865,68 +853,71 @@ export const iterate: {
     return core.succeed(initial)
   })
 
-const logWithLevel = (level?: LogLevel.LogLevel) =>
-<A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
+/** @internal */
+export const logWithLevel = (level?: LogLevel.LogLevel) =>
+(
+  ...message: ReadonlyArray<any>
 ): Effect.Effect<void> => {
   const levelOption = Option.fromNullable(level)
-  let message: unknown
-  let cause: Cause.Cause<unknown>
-  if (internalCause.isCause(messageOrCause)) {
-    cause = messageOrCause
-    message = (supplementary as unknown) ?? ""
-  } else {
-    message = messageOrCause
-    cause = (supplementary as Cause.Cause<unknown>) ?? internalCause.empty
+  let cause: Cause.Cause<unknown> | undefined = undefined
+  for (let i = 0, len = message.length; i < len; i++) {
+    const msg = message[i]
+    if (internalCause.isCause(msg)) {
+      if (cause !== undefined) {
+        cause = internalCause.sequential(cause, msg)
+      } else {
+        cause = msg
+      }
+      message = [...message.slice(0, i), ...message.slice(i + 1)]
+      i--
+    }
+  }
+  if (message.length === 0) {
+    message = "" as any
+  } else if (message.length === 1) {
+    message = message[0]
+  }
+  if (cause === undefined) {
+    cause = internalCause.empty
   }
   return core.withFiberRuntime((fiberState) => {
     fiberState.log(message, cause, levelOption)
-    return core.unit
+    return core.void
   })
 }
 
 /** @internal */
-export const log: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel()
+export const log: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel()
 
 /** @internal */
-export const logTrace: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel(LogLevel.Trace)
+export const logTrace: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel(
+  LogLevel.Trace
+)
 
 /** @internal */
-export const logDebug: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel(LogLevel.Debug)
+export const logDebug: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel(
+  LogLevel.Debug
+)
 
 /** @internal */
-export const logInfo: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel(LogLevel.Info)
+export const logInfo: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel(
+  LogLevel.Info
+)
 
 /** @internal */
-export const logWarning: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel(LogLevel.Warning)
+export const logWarning: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel(
+  LogLevel.Warning
+)
 
 /** @internal */
-export const logError: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel(LogLevel.Error)
+export const logError: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel(
+  LogLevel.Error
+)
 
 /** @internal */
-export const logFatal: <A>(
-  messageOrCause: A,
-  supplementary?: A extends Cause.Cause<any> ? unknown : Cause.Cause<unknown>
-) => Effect.Effect<void> = logWithLevel(LogLevel.Fatal)
+export const logFatal: (...message: ReadonlyArray<any>) => Effect.Effect<void, never, never> = logWithLevel(
+  LogLevel.Fatal
+)
 
 /* @internal */
 export const withLogSpan = dual<
@@ -995,7 +986,7 @@ export const loop: {
 ): any =>
   options.discard
     ? loopDiscard(initial, options.while, options.step, options.body)
-    : core.map(loopInternal(initial, options.while, options.step, options.body), Array.from)
+    : core.map(loopInternal(initial, options.while, options.step, options.body), Arr.fromIterable)
 
 const loopInternal = <Z, A, E, R>(
   initial: Z,
@@ -1025,7 +1016,7 @@ const loopDiscard = <S, X, E, R>(
         body(initial),
         () => loopDiscard(inc(initial), cont, inc, body)
       )
-      : core.unit
+      : core.void
   )
 
 /* @internal */
@@ -1052,8 +1043,9 @@ export const mapAccum: {
     let i = 0
     while (!(next = iterator.next()).done) {
       const index = i++
+      const value = next.value
       result = core.flatMap(result, (state) =>
-        core.map(f(state, next.value, index), ([z, b]) => {
+        core.map(f(state, value, index), ([z, b]) => {
           builder.push(b)
           return z
         }))
@@ -1120,7 +1112,7 @@ export const none = <A, E, R>(
   core.flatMap(self, (option) => {
     switch (option._tag) {
       case "None":
-        return core.unit
+        return core.void
       case "Some":
         return core.fail(new core.NoSuchElementException())
     }
@@ -1132,7 +1124,7 @@ export const once = <A, E, R>(
 ): Effect.Effect<Effect.Effect<void, E, R>> =>
   core.map(
     Ref.make(true),
-    (ref) => core.asUnit(core.whenEffect(self, Ref.getAndSet(ref, false)))
+    (ref) => core.asVoid(core.whenEffect(self, Ref.getAndSet(ref, false)))
   )
 
 /* @internal */
@@ -1158,7 +1150,7 @@ export const orElseSucceed = dual<
 export const parallelErrors = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, Array<E>, R> =>
   core.matchCauseEffect(self, {
     onFailure: (cause) => {
-      const errors = Array.from(internalCause.failures(cause))
+      const errors = Arr.fromIterable(internalCause.failures(cause))
       return errors.length === 0
         ? core.failCause(cause as Cause.Cause<never>)
         : core.fail(errors)
@@ -1171,17 +1163,15 @@ export const patchFiberRefs = (patch: FiberRefsPatch.FiberRefsPatch): Effect.Eff
   updateFiberRefs((fiberId, fiberRefs) => pipe(patch, fiberRefsPatch.patch(fiberId, fiberRefs)))
 
 /* @internal */
-export const promise = <A>(evaluate: (signal: AbortSignal) => Promise<A>): Effect.Effect<A> =>
+export const promise = <A>(evaluate: (signal: AbortSignal) => PromiseLike<A>): Effect.Effect<A> =>
   evaluate.length >= 1
     ? core.async((resolve, signal) => {
       evaluate(signal)
-        .then((a) => resolve(core.exitSucceed(a)))
-        .catch((e) => resolve(core.exitDie(e)))
+        .then((a) => resolve(core.exitSucceed(a)), (e) => resolve(core.exitDie(e)))
     })
     : core.async((resolve) => {
-      ;(evaluate as LazyArg<Promise<A>>)()
-        .then((a) => resolve(core.exitSucceed(a)))
-        .catch((e) => resolve(core.exitDie(e)))
+      ;(evaluate as LazyArg<PromiseLike<A>>)()
+        .then((a) => resolve(core.exitSucceed(a)), (e) => resolve(core.exitDie(e)))
     })
 
 /* @internal */
@@ -1254,7 +1244,7 @@ export const reduce = dual<
     zero: Z,
     f: (z: Z, a: A, i: number) => Effect.Effect<Z, E, R>
   ) =>
-    ReadonlyArray.fromIterable(elements).reduce(
+    Arr.fromIterable(elements).reduce(
       (acc, el, i) => core.flatMap(acc, (a) => f(a, el, i)),
       core.succeed(zero) as Effect.Effect<Z, E, R>
     )
@@ -1274,7 +1264,7 @@ export const reduceRight = dual<
 >(
   3,
   <A, Z, R, E>(elements: Iterable<A>, zero: Z, f: (a: A, z: Z, i: number) => Effect.Effect<Z, E, R>) =>
-    ReadonlyArray.fromIterable(elements).reduceRight(
+    Arr.fromIterable(elements).reduceRight(
       (acc, el, i) => core.flatMap(acc, (a) => f(el, a, i)),
       core.succeed(zero) as Effect.Effect<Z, E, R>
     )
@@ -1411,7 +1401,7 @@ export const labelMetrics = dual<
   <A, E, R>(self: Effect.Effect<A, E, R>, labels: Iterable<MetricLabel.MetricLabel>) => Effect.Effect<A, E, R>
 >(
   2,
-  (self, labels) => core.fiberRefLocallyWith(self, core.currentMetricLabels, (old) => ReadonlyArray.union(old, labels))
+  (self, labels) => core.fiberRefLocallyWith(self, core.currentMetricLabels, (old) => Arr.union(old, labels))
 )
 
 /* @internal */
@@ -1572,7 +1562,7 @@ export const tapErrorTag = dual<
     if (Predicate.isTagged(e, k)) {
       return f(e as any)
     }
-    return core.unit as any
+    return core.void as any
   }))
 
 /* @internal */
@@ -1620,23 +1610,23 @@ export const tracer: Effect.Effect<Tracer.Tracer> = tracerWith(core.succeed)
 export const tryPromise: {
   <A, E>(
     options: {
-      readonly try: (signal: AbortSignal) => Promise<A>
+      readonly try: (signal: AbortSignal) => PromiseLike<A>
       readonly catch: (error: unknown) => E
     }
   ): Effect.Effect<A, E>
-  <A>(try_: (signal: AbortSignal) => Promise<A>): Effect.Effect<A, Cause.UnknownException>
+  <A>(try_: (signal: AbortSignal) => PromiseLike<A>): Effect.Effect<A, Cause.UnknownException>
 } = <A, E>(
-  arg: ((signal: AbortSignal) => Promise<A>) | {
-    readonly try: (signal: AbortSignal) => Promise<A>
+  arg: ((signal: AbortSignal) => PromiseLike<A>) | {
+    readonly try: (signal: AbortSignal) => PromiseLike<A>
     readonly catch: (error: unknown) => E
   }
 ): Effect.Effect<A, E | Cause.UnknownException> => {
-  let evaluate: (signal?: AbortSignal) => Promise<A>
+  let evaluate: (signal?: AbortSignal) => PromiseLike<A>
   let catcher: ((error: unknown) => E) | undefined = undefined
   if (typeof arg === "function") {
-    evaluate = arg as (signal?: AbortSignal) => Promise<A>
+    evaluate = arg as (signal?: AbortSignal) => PromiseLike<A>
   } else {
-    evaluate = arg.try as (signal?: AbortSignal) => Promise<A>
+    evaluate = arg.try as (signal?: AbortSignal) => PromiseLike<A>
     catcher = arg.catch
   }
 
@@ -1644,12 +1634,10 @@ export const tryPromise: {
     return core.async((resolve, signal) => {
       try {
         evaluate(signal)
-          .then((a) => resolve(core.exitSucceed(a)))
-          .catch((e) =>
+          .then((a) => resolve(core.exitSucceed(a)), (e) =>
             resolve(core.fail(
               catcher ? catcher(e) : new core.UnknownException(e)
-            ))
-          )
+            )))
       } catch (e) {
         resolve(core.fail(
           catcher ? catcher(e) : new core.UnknownException(e)
@@ -1661,12 +1649,10 @@ export const tryPromise: {
   return core.async((resolve) => {
     try {
       evaluate()
-        .then((a) => resolve(core.exitSucceed(a)))
-        .catch((e) =>
+        .then((a) => resolve(core.exitSucceed(a)), (e) =>
           resolve(core.fail(
             catcher ? catcher(e) : new core.UnknownException(e)
-          ))
-        )
+          )))
     } catch (e) {
       resolve(core.fail(
         catcher ? catcher(e) : new core.UnknownException(e)
@@ -1701,21 +1687,21 @@ export const tryMap = dual<
 export const tryMapPromise = dual<
   <A, B, E1>(
     options: {
-      readonly try: (a: A, signal: AbortSignal) => Promise<B>
+      readonly try: (a: A, signal: AbortSignal) => PromiseLike<B>
       readonly catch: (error: unknown) => E1
     }
   ) => <E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<B, E | E1, R>,
   <A, E, R, B, E1>(
     self: Effect.Effect<A, E, R>,
     options: {
-      readonly try: (a: A, signal: AbortSignal) => Promise<B>
+      readonly try: (a: A, signal: AbortSignal) => PromiseLike<B>
       readonly catch: (error: unknown) => E1
     }
   ) => Effect.Effect<B, E | E1, R>
 >(2, <A, E, R, B, E1>(
   self: Effect.Effect<A, E, R>,
   options: {
-    readonly try: (a: A, signal: AbortSignal) => Promise<B>
+    readonly try: (a: A, signal: AbortSignal) => PromiseLike<B>
     readonly catch: (error: unknown) => E1
   }
 ) =>
@@ -1723,7 +1709,7 @@ export const tryMapPromise = dual<
     tryPromise({
       try: options.try.length >= 1
         ? (signal) => options.try(a, signal)
-        : () => (options.try as (a: A) => Promise<B>)(a),
+        : () => (options.try as (a: A) => PromiseLike<B>)(a),
       catch: options.catch
     })))
 
@@ -1759,7 +1745,7 @@ export const updateFiberRefs = (
 ): Effect.Effect<void> =>
   core.withFiberRuntime((state) => {
     state.setFiberRefs(f(state.id(), state.getFiberRefs()))
-    return core.unit
+    return core.void
   })
 
 /* @internal */
@@ -1871,10 +1857,10 @@ export const serviceFunction = <T extends Effect.Effect<any, any, any>, Args ext
 export const serviceFunctions = <S, SE, SR>(
   getService: Effect.Effect<S, SE, SR>
 ): {
-  [k in { [k in keyof S]: S[k] extends (...args: Array<any>) => Effect.Effect<any, any, any> ? k : never }[keyof S]]:
-    S[k] extends (...args: infer Args) => Effect.Effect<infer A, infer E, infer R>
-      ? (...args: Args) => Effect.Effect<A, E | SE, R | SR>
-      : never
+  [k in keyof S as S[k] extends (...args: Array<any>) => Effect.Effect<any, any, any> ? k : never]: S[k] extends
+    (...args: infer Args) => Effect.Effect<infer A, infer E, infer R>
+    ? (...args: Args) => Effect.Effect<A, E | SE, R | SR>
+    : never
 } =>
   new Proxy({} as any, {
     get(_target: any, prop: any, _receiver) {
@@ -1899,10 +1885,10 @@ export const serviceConstants = <S, SE, SR>(
 /** @internal */
 export const serviceMembers = <S, SE, SR>(getService: Effect.Effect<S, SE, SR>): {
   functions: {
-    [k in { [k in keyof S]: S[k] extends (...args: Array<any>) => Effect.Effect<any, any, any> ? k : never }[keyof S]]:
-      S[k] extends (...args: infer Args) => Effect.Effect<infer A, infer E, infer R>
-        ? (...args: Args) => Effect.Effect<A, E | SE, R | SR>
-        : never
+    [k in keyof S as S[k] extends (...args: Array<any>) => Effect.Effect<any, any, any> ? k : never]: S[k] extends
+      (...args: infer Args) => Effect.Effect<infer A, infer E, infer R>
+      ? (...args: Args) => Effect.Effect<A, E | SE, R | SR>
+      : never
   }
   constants: {
     [k in { [k in keyof S]: k }[keyof S]]: S[k] extends Effect.Effect<infer A, infer E, infer R> ?
@@ -1910,7 +1896,7 @@ export const serviceMembers = <S, SE, SR>(getService: Effect.Effect<S, SE, SR>):
       Effect.Effect<S[k], SE, SR>
   }
 } => ({
-  functions: serviceFunctions(getService),
+  functions: serviceFunctions(getService) as any,
   constants: serviceConstants(getService)
 })
 
@@ -1977,7 +1963,7 @@ export const annotateSpans = dual<
 )
 
 /** @internal */
-export const currentParentSpan: Effect.Effect<Tracer.ParentSpan, Cause.NoSuchElementException> = serviceOptional(
+export const currentParentSpan: Effect.Effect<Tracer.AnySpan, Cause.NoSuchElementException> = serviceOptional(
   internalTracer.spanTag
 )
 
@@ -1985,29 +1971,22 @@ export const currentParentSpan: Effect.Effect<Tracer.ParentSpan, Cause.NoSuchEle
 export const currentSpan: Effect.Effect<Tracer.Span, Cause.NoSuchElementException> = core.flatMap(
   core.context<never>(),
   (context) => {
-    const span = context.unsafeMap.get(internalTracer.spanTag.key) as Tracer.ParentSpan | undefined
+    const span = context.unsafeMap.get(internalTracer.spanTag.key) as Tracer.AnySpan | undefined
     return span !== undefined && span._tag === "Span"
       ? core.succeed(span)
       : core.fail(new core.NoSuchElementException())
   }
 )
 
-const bigint0 = BigInt(0)
-/** @internal */
-export const currentTimeNanosTracing = core.fiberRefGetWith(
-  core.currentTracerTimingEnabled,
-  (enabled) => enabled ? Clock.currentTimeNanos : core.succeed(bigint0)
-)
-
 /* @internal */
 export const linkSpans = dual<
   (
-    span: Tracer.ParentSpan,
+    span: Tracer.AnySpan,
     attributes?: Record<string, unknown>
   ) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
   <A, E, R>(
     self: Effect.Effect<A, E, R>,
-    span: Tracer.ParentSpan,
+    span: Tracer.AnySpan,
     attributes?: Record<string, unknown>
   ) => Effect.Effect<A, E, R>
 >(
@@ -2026,60 +2005,69 @@ export const linkSpans = dual<
     )
 )
 
+const bigint0 = BigInt(0)
+
+/** @internal */
+export const unsafeMakeSpan = <XA, XE>(
+  fiber: FiberRuntime<XA, XE>,
+  name: string,
+  options?: Tracer.SpanOptions
+) => {
+  const enabled = fiber.getFiberRef(core.currentTracerEnabled)
+  if (enabled === false) {
+    return core.noopSpan(name)
+  }
+
+  const context = fiber.getFiberRef(core.currentContext)
+  const services = fiber.getFiberRef(defaultServices.currentServices)
+
+  const tracer = Context.get(services, internalTracer.tracerTag)
+  const clock = Context.get(services, Clock.Clock)
+  const timingEnabled = fiber.getFiberRef(core.currentTracerTimingEnabled)
+
+  const fiberRefs = fiber.getFiberRefs()
+  const annotationsFromEnv = FiberRefs.get(fiberRefs, core.currentTracerSpanAnnotations)
+  const linksFromEnv = FiberRefs.get(fiberRefs, core.currentTracerSpanLinks)
+
+  const parent = options?.parent
+    ? Option.some(options.parent)
+    : options?.root
+    ? Option.none()
+    : Context.getOption(context, internalTracer.spanTag)
+
+  const links = linksFromEnv._tag === "Some" ?
+    options?.links !== undefined ?
+      [
+        ...Chunk.toReadonlyArray(linksFromEnv.value),
+        ...(options?.links ?? [])
+      ] :
+      Chunk.toReadonlyArray(linksFromEnv.value) :
+    options?.links ?? Arr.empty()
+
+  const span = tracer.span(
+    name,
+    parent,
+    options?.context ?? Context.empty(),
+    links,
+    timingEnabled ? clock.unsafeCurrentTimeNanos() : bigint0,
+    options?.kind ?? "internal"
+  )
+
+  if (annotationsFromEnv._tag === "Some") {
+    HashMap.forEach(annotationsFromEnv.value, (value, key) => span.attribute(key, value))
+  }
+  if (options?.attributes !== undefined) {
+    Object.entries(options.attributes).forEach(([k, v]) => span.attribute(k, v))
+  }
+
+  return span
+}
+
 /** @internal */
 export const makeSpan = (
   name: string,
-  options?: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-  }
-): Effect.Effect<Tracer.Span> =>
-  core.flatMap(fiberRefs, (fiberRefs) =>
-    core.sync(() => {
-      const context = FiberRefs.getOrDefault(fiberRefs, core.currentContext)
-      const services = FiberRefs.getOrDefault(fiberRefs, defaultServices.currentServices)
-
-      const tracer = Context.get(services, internalTracer.tracerTag)
-      const clock = Context.get(services, Clock.Clock)
-      const timingEnabled = FiberRefs.getOrDefault(fiberRefs, core.currentTracerTimingEnabled)
-      const annotationsFromEnv = FiberRefs.get(fiberRefs, core.currentTracerSpanAnnotations)
-      const linksFromEnv = FiberRefs.get(fiberRefs, core.currentTracerSpanLinks)
-
-      const parent = options?.parent
-        ? Option.some(options.parent)
-        : options?.root
-        ? Option.none()
-        : Context.getOption(context, internalTracer.spanTag)
-
-      const links = linksFromEnv._tag === "Some" ?
-        options?.links !== undefined ?
-          [
-            ...Chunk.toReadonlyArray(linksFromEnv.value),
-            ...(options?.links ?? [])
-          ] :
-          Chunk.toReadonlyArray(linksFromEnv.value) :
-        options?.links ?? ReadonlyArray.empty()
-
-      const span = tracer.span(
-        name,
-        parent,
-        options?.context ?? Context.empty(),
-        links,
-        timingEnabled ? clock.unsafeCurrentTimeNanos() : bigint0
-      )
-
-      if (annotationsFromEnv._tag === "Some") {
-        HashMap.forEach(annotationsFromEnv.value, (value, key) => span.attribute(key, value))
-      }
-      if (options?.attributes) {
-        Object.entries(options.attributes).forEach(([k, v]) => span.attribute(k, v))
-      }
-
-      return span
-    }))
+  options?: Tracer.SpanOptions
+): Effect.Effect<Tracer.Span> => core.withFiberRuntime((fiber) => core.succeed(unsafeMakeSpan(fiber, name, options)))
 
 /* @internal */
 export const spanAnnotations: Effect.Effect<HashMap.HashMap<string, unknown>> = core
@@ -2092,13 +2080,11 @@ export const spanLinks: Effect.Effect<Chunk.Chunk<Tracer.SpanLink>> = core
 /** @internal */
 export const useSpan: {
   <A, E, R>(name: string, evaluate: (span: Tracer.Span) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
-  <A, E, R>(name: string, options: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-  }, evaluate: (span: Tracer.Span) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
+  <A, E, R>(
+    name: string,
+    options: Tracer.SpanOptions,
+    evaluate: (span: Tracer.Span) => Effect.Effect<A, E, R>
+  ): Effect.Effect<A, E, R>
 } = <A, E, R>(
   name: string,
   ...args: [evaluate: (span: Tracer.Span) => Effect.Effect<A, E, R>] | [
@@ -2106,50 +2092,42 @@ export const useSpan: {
     evaluate: (span: Tracer.Span) => Effect.Effect<A, E, R>
   ]
 ) => {
-  const options: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-  } | undefined = args.length === 1 ? undefined : args[0]
+  const options: Tracer.SpanOptions | undefined = args.length === 1 ? undefined : args[0]
   const evaluate: (span: Tracer.Span) => Effect.Effect<A, E, R> = args[args.length - 1]
 
-  return core.acquireUseRelease(
-    makeSpan(name, options),
-    evaluate,
-    (span, exit) =>
-      core.flatMap(
-        currentTimeNanosTracing,
-        (endTime) => core.sync(() => span.end(endTime, exit))
-      )
-  )
+  return core.withFiberRuntime<A, E, R>((fiber) => {
+    const span = unsafeMakeSpan(fiber, name, options)
+    const timingEnabled = fiber.getFiberRef(core.currentTracerTimingEnabled)
+    const clock = Context.get(fiber.getFiberRef(defaultServices.currentServices), clockTag)
+    return core.onExit(evaluate(span), (exit) =>
+      core.sync(() => {
+        if (span.status._tag === "Ended") {
+          return
+        }
+        span.end(timingEnabled ? clock.unsafeCurrentTimeNanos() : bigint0, exit)
+      }))
+  })
 }
 
 /** @internal */
 export const withParentSpan = dual<
   (
-    span: Tracer.ParentSpan
+    span: Tracer.AnySpan
   ) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>,
-  <A, E, R>(self: Effect.Effect<A, E, R>, span: Tracer.ParentSpan) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>
+  <A, E, R>(self: Effect.Effect<A, E, R>, span: Tracer.AnySpan) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>
 >(2, (self, span) => provideService(self, internalTracer.spanTag, span))
 
 /** @internal */
 export const withSpan = dual<
-  (name: string, options?: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-  }) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>,
-  <A, E, R>(self: Effect.Effect<A, E, R>, name: string, options?: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-  }) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>
+  (
+    name: string,
+    options?: Tracer.SpanOptions
+  ) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>,
+  <A, E, R>(
+    self: Effect.Effect<A, E, R>,
+    name: string,
+    options?: Tracer.SpanOptions
+  ) => Effect.Effect<A, E, Exclude<R, Tracer.ParentSpan>>
 >(
   (args) => typeof args[0] !== "string",
   (self, name, options) =>

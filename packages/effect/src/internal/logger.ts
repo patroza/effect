@@ -1,6 +1,7 @@
 import type { LazyArg } from "../Function.js"
 import { constVoid, dual, pipe } from "../Function.js"
 import * as HashMap from "../HashMap.js"
+import * as Inspectable from "../Inspectable.js"
 import * as List from "../List.js"
 import type * as Logger from "../Logger.js"
 import type * as LogLevel from "../LogLevel.js"
@@ -167,11 +168,21 @@ export const stringLogger: Logger.Logger<unknown, string> = makeLogger<unknown, 
     ]
 
     let output = outputArray.join(" ")
-    const stringMessage = serializeUnknown(message)
 
-    if (stringMessage.length > 0) {
-      output = output + " message="
-      output = appendQuoted(stringMessage, output)
+    if (Array.isArray(message)) {
+      for (let i = 0; i < message.length; i++) {
+        const stringMessage = Inspectable.toStringUnknown(message[i])
+        if (stringMessage.length > 0) {
+          output = output + " message="
+          output = appendQuoted(stringMessage, output)
+        }
+      }
+    } else {
+      const stringMessage = Inspectable.toStringUnknown(message)
+      if (stringMessage.length > 0) {
+        output = output + " message="
+        output = appendQuoted(stringMessage, output)
+      }
     }
 
     if (cause != null && cause._tag !== "Empty") {
@@ -205,21 +216,13 @@ export const stringLogger: Logger.Logger<unknown, string> = makeLogger<unknown, 
         }
         output = output + filterKeyName(key)
         output = output + "="
-        output = appendQuoted(serializeUnknown(value), output)
+        output = appendQuoted(Inspectable.toStringUnknown(value), output)
       }
     }
 
     return output
   }
 )
-
-export const serializeUnknown = (u: unknown): string => {
-  try {
-    return typeof u === "object" ? JSON.stringify(u) : String(u)
-  } catch (_) {
-    return String(u)
-  }
-}
 
 /** @internal */
 const escapeDoubleQuotes = (str: string) => `"${str.replace(/\\([\s\S])|(")/g, "\\$1$2")}"`
@@ -242,11 +245,21 @@ export const logfmtLogger = makeLogger<unknown, string>(
     ]
 
     let output = outputArray.join(" ")
-    const stringMessage = serializeUnknown(message)
 
-    if (stringMessage.length > 0) {
-      output = output + " message="
-      output = appendQuotedLogfmt(stringMessage, output)
+    if (Array.isArray(message)) {
+      for (let i = 0; i < message.length; i++) {
+        const stringMessage = Inspectable.toStringUnknown(message[i], 0)
+        if (stringMessage.length > 0) {
+          output = output + " message="
+          output = appendQuotedLogfmt(stringMessage, output)
+        }
+      }
+    } else {
+      const stringMessage = Inspectable.toStringUnknown(message, 0)
+      if (stringMessage.length > 0) {
+        output = output + " message="
+        output = appendQuotedLogfmt(stringMessage, output)
+      }
     }
 
     if (cause != null && cause._tag !== "Empty") {
@@ -280,13 +293,68 @@ export const logfmtLogger = makeLogger<unknown, string>(
         }
         output = output + filterKeyName(key)
         output = output + "="
-        output = appendQuotedLogfmt(serializeUnknown(value), output)
+        output = appendQuotedLogfmt(Inspectable.toStringUnknown(value, 0), output)
       }
     }
 
     return output
   }
 )
+
+/** @internal */
+export const structuredLogger = makeLogger<unknown, {
+  readonly logLevel: string
+  readonly fiberId: string
+  readonly timestamp: string
+  readonly message: unknown
+  readonly cause: string | undefined
+  readonly annotations: Record<string, unknown>
+  readonly spans: Record<string, number>
+}>(
+  ({ annotations, cause, date, fiberId, logLevel, message, spans }) => {
+    const now = date.getTime()
+    const annotationsObj: Record<string, unknown> = {}
+    const spansObj: Record<string, number> = {}
+
+    if (HashMap.size(annotations) > 0) {
+      for (const [k, v] of annotations) {
+        annotationsObj[k] = structuredMessage(v)
+      }
+    }
+
+    if (List.isCons(spans)) {
+      for (const span of spans) {
+        spansObj[span.label] = now - span.startTime
+      }
+    }
+
+    return {
+      message: structuredMessage(message),
+      logLevel: logLevel.label,
+      timestamp: date.toISOString(),
+      cause: Cause.isEmpty(cause) ? undefined : Cause.pretty(cause),
+      annotations: annotationsObj,
+      spans: spansObj,
+      fiberId: _fiberId.threadName(fiberId)
+    }
+  }
+)
+
+export const structuredMessage = (u: unknown): unknown => {
+  switch (typeof u) {
+    case "bigint":
+    case "function":
+    case "symbol": {
+      return String(u)
+    }
+    default: {
+      return u
+    }
+  }
+}
+
+/** @internal */
+export const jsonLogger = map(structuredLogger, Inspectable.stringifyCircular)
 
 /** @internal */
 const filterKeyName = (key: string) => key.replace(/[\s="]/g, "_")
@@ -302,4 +370,9 @@ const appendQuotedLogfmt = (label: string, output: string): string =>
 const renderLogSpanLogfmt = (now: number) => (self: LogSpan.LogSpan): string => {
   const label = filterKeyName(self.label)
   return `${label}=${now - self.startTime}ms`
+}
+
+/** @internal */
+export const isLogger = (u: unknown): u is Logger.Logger<unknown, unknown> => {
+  return typeof u === "object" && u != null && LoggerTypeId in u
 }

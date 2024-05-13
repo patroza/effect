@@ -1,17 +1,17 @@
 {
   "name": "@effect/printer",
-  "version": "0.31.10",
+  "version": "0.33.11",
   "type": "module",
   "license": "MIT",
-  "description": "Unified interfaces for common platform-specific services",
+  "description": "An easy to use, extensible pretty-printer for rendering documents",
   "homepage": "https://effect.website",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effect-ts/effect.git",
+    "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/printer"
   },
   "bugs": {
-    "url": "https://github.com/effect-ts/effect/issues"
+    "url": "https://github.com/Effect-TS/effect/issues"
   },
   "tags": [
     "typescript",
@@ -26,7 +26,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",

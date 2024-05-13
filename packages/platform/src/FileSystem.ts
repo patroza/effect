@@ -3,7 +3,10 @@
  */
 import * as Brand from "effect/Brand"
 import type { Tag } from "effect/Context"
+import * as Context from "effect/Context"
+import * as Data from "effect/Data"
 import type * as Effect from "effect/Effect"
+import type { Layer } from "effect/Layer"
 import type { Option } from "effect/Option"
 import type { Scope } from "effect/Scope"
 import type { Sink } from "effect/Sink"
@@ -162,9 +165,6 @@ export interface FileSystem {
   ) => Effect.Effect<string, PlatformError>
   /**
    * Remove a file or directory.
-   *
-   * By setting the `recursive` option to `true`, you can recursively remove
-   * nested directories.
    */
   readonly remove: (
     path: string,
@@ -229,6 +229,10 @@ export interface FileSystem {
     atime: Date | number,
     mtime: Date | number
   ) => Effect.Effect<void, PlatformError>
+  /**
+   * Watch a directory or file for changes
+   */
+  readonly watch: (path: string) => Stream<WatchEvent, PlatformError>
   /**
    * Write data to a file at `path`.
    */
@@ -383,7 +387,14 @@ export interface ReadDirectoryOptions {
  * @category options
  */
 export interface RemoveOptions {
+  /**
+   * When `true`, you can recursively remove nested directories.
+   */
   readonly recursive?: boolean
+  /**
+   * When `true`, exceptions will be ignored if `path` does not exist.
+   */
+  readonly force?: boolean
 }
 
 /**
@@ -434,6 +445,22 @@ export const FileSystem: Tag<FileSystem, FileSystem> = internal.tag
 export const make: (
   impl: Omit<FileSystem, "exists" | "readFileString" | "stream" | "sink" | "writeFileString">
 ) => FileSystem = internal.make
+
+/**
+ * Create a no-op file system that can be used for testing.
+ *
+ * @since 1.0.0
+ * @category constructor
+ */
+export const makeNoop: (fileSystem: Partial<FileSystem>) => FileSystem = internal.makeNoop
+
+/**
+ * Create a no-op file system that can be used for testing.
+ *
+ * @since 1.0.0
+ * @category layers
+ */
+export const layerNoop: (fileSystem: Partial<FileSystem>) => Layer<FileSystem> = internal.layerNoop
 
 /**
  * @since 1.0.0
@@ -528,3 +555,78 @@ export const FileDescriptor = Brand.nominal<File.Descriptor>()
  * @category model
  */
 export type SeekMode = "start" | "current"
+
+/**
+ * @since 1.0.0
+ * @category model
+ */
+export type WatchEvent = WatchEvent.Create | WatchEvent.Update | WatchEvent.Remove
+
+/**
+ * @since 1.0.0
+ * @category model
+ */
+export declare namespace WatchEvent {
+  /**
+   * @since 1.0.0
+   * @category model
+   */
+  export interface Create {
+    readonly _tag: "Create"
+    readonly path: string
+  }
+
+  /**
+   * @since 1.0.0
+   * @category model
+   */
+  export interface Update {
+    readonly _tag: "Update"
+    readonly path: string
+  }
+
+  /**
+   * @since 1.0.0
+   * @category model
+   */
+  export interface Remove {
+    readonly _tag: "Remove"
+    readonly path: string
+  }
+}
+
+/**
+ * @since 1.0.0
+ * @category constructor
+ */
+export const WatchEventCreate: Data.Case.Constructor<WatchEvent.Create, "_tag"> = Data.tagged<WatchEvent.Create>(
+  "Create"
+)
+
+/**
+ * @since 1.0.0
+ * @category constructor
+ */
+export const WatchEventUpdate: Data.Case.Constructor<WatchEvent.Update, "_tag"> = Data.tagged<WatchEvent.Update>(
+  "Update"
+)
+
+/**
+ * @since 1.0.0
+ * @category constructor
+ */
+export const WatchEventRemove: Data.Case.Constructor<WatchEvent.Remove, "_tag"> = Data.tagged<WatchEvent.Remove>(
+  "Remove"
+)
+
+/**
+ * @since 1.0.0
+ * @category file watcher
+ */
+export class WatchBackend extends Context.Tag("@effect/platform/FileSystem/WatchBackend")<
+  WatchBackend,
+  {
+    readonly register: (path: string, stat: File.Info) => Option<Stream<WatchEvent, PlatformError>>
+  }
+>() {
+}

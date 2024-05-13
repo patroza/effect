@@ -1,6 +1,10 @@
 /**
  * @since 1.0.0
  */
+import type * as Cause from "effect/Cause"
+import * as Data from "effect/Data"
+import * as Predicate from "effect/Predicate"
+import type { Simplify } from "effect/Types"
 import * as internal from "./internal/error.js"
 
 /**
@@ -17,9 +21,76 @@ export type PlatformErrorTypeId = typeof PlatformErrorTypeId
 
 /**
  * @since 1.0.0
+ * @category refinements
+ */
+export const isPlatformError = (u: unknown): u is PlatformError => Predicate.hasProperty(u, PlatformErrorTypeId)
+
+/**
+ * @since 1.0.0
  * @category error
  */
 export type PlatformError = BadArgument | SystemError
+
+/**
+ * @since 1.0.0
+ * @category error
+ */
+export const TypeIdError = <const TypeId extends symbol, const Tag extends string>(
+  typeId: TypeId,
+  tag: Tag
+): new<A extends Record<string, any>>(
+  args: Simplify<A>
+) =>
+  & Cause.YieldableError
+  & Record<TypeId, TypeId>
+  & { readonly _tag: Tag }
+  & Readonly<A> =>
+{
+  class Base extends Data.Error<{}> {
+    readonly _tag = tag
+  }
+  ;(Base.prototype as any)[typeId] = typeId
+  ;(Base.prototype as any).name = tag
+  return Base as any
+}
+
+/**
+ * @since 1.0.0
+ * @category error
+ */
+export const RefailError = <const TypeId extends symbol, const Tag extends string>(
+  typeId: TypeId,
+  tag: Tag
+): new<A extends Record<string, any>>(
+  args: Simplify<A & { readonly error: unknown }>
+) =>
+  & Cause.YieldableError
+  & Record<TypeId, TypeId>
+  & { readonly _tag: Tag; readonly error: unknown }
+  & Readonly<A> =>
+{
+  class Base extends Data.Error<{
+    readonly error: unknown
+  }> {
+    readonly _tag = tag
+    constructor(props: any) {
+      super(props)
+      if (Predicate.hasProperty(this.error, "stack")) {
+        ;(this as any).stack = this.error.stack
+      }
+    }
+    get message() {
+      return Predicate.hasProperty(this.error, "message")
+        ? this.error.message as string
+        : Predicate.hasProperty(this.error, "toJSON") && typeof this.error.toJSON === "function"
+        ? JSON.stringify(this.error.toJSON())
+        : String(this.error)
+    }
+  }
+  ;(Base.prototype as any)[typeId] = typeId
+  ;(Base.prototype as any).name = tag
+  return Base as any
+}
 
 /**
  * @since 1.0.0

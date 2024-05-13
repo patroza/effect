@@ -57,7 +57,7 @@ export declare namespace Request {
    * @category models
    */
   export interface Constructor<R extends Request<any, any>, T extends keyof R = never> {
-    (args: Omit<R, T | keyof (Request.Variance<Request.Error<R>, Request.Success<R>>)>): R
+    (args: Omit<R, T | keyof (Request.Variance<Request.Success<R>, Request.Error<R>>)>): R
   }
 
   /**
@@ -125,19 +125,19 @@ export const tagged: <R extends Request<any, any> & { _tag: string }>(
  * Provides a constructor for a Request Class.
  *
  * @example
- * import * as Request from "effect/Request"
+ * import { Request } from "effect"
  *
- * type Error = never
  * type Success = string
+ * type Error = never
  *
- * class MyRequest extends Request.Class<Error, Success, {
+ * class MyRequest extends Request.Class<Success, Error, {
  *   readonly id: string
  * }> {}
  *
  * @since 2.0.0
  * @category constructors
  */
-export const Class: new<Error, Success, A extends Record<string, any>>(
+export const Class: new<Success, Error, A extends Record<string, any>>(
   args: Types.Equals<Omit<A, keyof Request<unknown, unknown>>, {}> extends true ? void
     : { readonly [P in keyof A as P extends keyof Request<unknown, unknown> ? never : P]: A[P] }
 ) => Request<Success, Error> & Readonly<A> = internal.Class as any
@@ -146,12 +146,12 @@ export const Class: new<Error, Success, A extends Record<string, any>>(
  * Provides a Tagged constructor for a Request Class.
  *
  * @example
- * import * as Request from "effect/Request"
+ * import { Request } from "effect"
  *
- * type Error = never
  * type Success = string
+ * type Error = never
  *
- * class MyRequest extends Request.TaggedClass("MyRequest")<Error, Success, {
+ * class MyRequest extends Request.TaggedClass("MyRequest")<Success, Error, {
  *   readonly name: string
  * }> {}
  *
@@ -160,7 +160,7 @@ export const Class: new<Error, Success, A extends Record<string, any>>(
  */
 export const TaggedClass: <Tag extends string>(
   tag: Tag
-) => new<Error, Success, A extends Record<string, any>>(
+) => new<Success, Error, A extends Record<string, any>>(
   args: Types.Equals<Omit<A, keyof Request<unknown, unknown>>, {}> extends true ? void
     : { readonly [P in keyof A as P extends "_tag" | keyof Request<unknown, unknown> ? never : P]: A[P] }
 ) => Request<Success, Error> & Readonly<A> & { readonly _tag: Tag } = internal.TaggedClass as any
@@ -245,6 +245,7 @@ export const succeed: {
 export interface Listeners {
   readonly count: number
   readonly observers: Set<(count: number) => void>
+  interrupted: boolean
   addObserver(f: (count: number) => void): void
   removeObserver(f: (count: number) => void): void
   increment(): void
@@ -256,7 +257,7 @@ export interface Listeners {
  * @since 2.0.0
  */
 export interface Cache extends
-  _Cache.ConsumerCache<Request<any, any>, never, {
+  _Cache.ConsumerCache<Request<any, any>, {
     listeners: Listeners
     handle: Deferred<unknown, unknown>
   }>
@@ -282,7 +283,7 @@ export const makeCache = (
  * @since 2.0.0
  * @category symbols
  */
-export const EntryTypeId = Symbol.for("effect/RequestBlock.Entry")
+export const EntryTypeId: unique symbol = Symbol.for("effect/RequestBlock.Entry")
 
 /**
  * @since 2.0.0
@@ -309,7 +310,7 @@ export interface Entry<out R> extends Entry.Variance<R> {
   readonly listeners: Listeners
   readonly ownerId: FiberId
   readonly state: {
-    completed: boolean // TODO: mutable by design?
+    completed: boolean
   }
 }
 

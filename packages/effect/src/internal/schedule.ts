@@ -247,7 +247,7 @@ export const as = dual<
 >(2, (self, out) => map(self, () => out))
 
 /** @internal */
-export const asUnit = <Out, In, R>(
+export const asVoid = <Out, In, R>(
   self: Schedule.Schedule<Out, In, R>
 ): Schedule.Schedule<void, In, R> => map(self, constVoid)
 
@@ -1951,12 +1951,12 @@ export const retryOrElse_Effect = dual<
   <A1, E, R1, A2, E2, R2>(
     policy: Schedule.Schedule<A1, Types.NoInfer<E>, R1>,
     orElse: (e: Types.NoInfer<E>, out: A1) => Effect.Effect<A2, E2, R2>
-  ) => <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A | A2, E | E2, R | R1 | R2>,
+  ) => <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A | A2, E2, R | R1 | R2>,
   <A, E, R, A1, R1, A2, E2, R2>(
     self: Effect.Effect<A, E, R>,
     policy: Schedule.Schedule<A1, Types.NoInfer<E>, R1>,
     orElse: (e: Types.NoInfer<E>, out: A1) => Effect.Effect<A2, E2, R2>
-  ) => Effect.Effect<A | A2, E | E2, R | R1 | R2>
+  ) => Effect.Effect<A | A2, E2, R | R1 | R2>
 >(3, (self, policy, orElse) =>
   core.flatMap(
     driver(policy),
@@ -1968,7 +1968,7 @@ const retryOrElse_EffectLoop = <A, E, R, R1, A1, A2, E2, R2>(
   self: Effect.Effect<A, E, R>,
   driver: Schedule.ScheduleDriver<A1, E, R1>,
   orElse: (e: E, out: A1) => Effect.Effect<A2, E2, R2>
-): Effect.Effect<A | A2, E | E2, R | R1 | R2> => {
+): Effect.Effect<A | A2, E2, R | R1 | R2> => {
   return core.catchAll(
     self,
     (e) =>
@@ -2060,7 +2060,7 @@ export const elapsed: Schedule.Schedule<Duration.Duration> = makeWithState(
 export const forever: Schedule.Schedule<number> = unfold(0, (n) => n + 1)
 
 /** @internal */
-export const once: Schedule.Schedule<void> = asUnit(recurs(1))
+export const once: Schedule.Schedule<void> = asVoid(recurs(1))
 
 /** @internal */
-export const stop: Schedule.Schedule<void> = asUnit(recurs(0))
+export const stop: Schedule.Schedule<void> = asVoid(recurs(0))

@@ -1,4 +1,5 @@
 import * as Util from "effect-test/util"
+import * as RA from "effect/Array"
 import * as Chunk from "effect/Chunk"
 import * as Duration from "effect/Duration"
 import * as E from "effect/Either"
@@ -8,7 +9,6 @@ import * as N from "effect/Number"
 import * as Option from "effect/Option"
 import * as Order from "effect/Order"
 import type { Predicate } from "effect/Predicate"
-import * as RA from "effect/ReadonlyArray"
 import * as fc from "fast-check"
 import { assert, describe, expect, it } from "vitest"
 
@@ -731,11 +731,13 @@ describe("Chunk", () => {
 
   it("filter", () => {
     Util.deepStrictEqual(Chunk.filter(Chunk.make(1, 2, 3), (n) => n % 2 === 1), Chunk.make(1, 3))
-    expect(Chunk.filter(Chunk.make(Option.some(3), Option.some(2), Option.some(1)), Option.isSome)).toEqual(
-      Chunk.make(Option.some(3), Option.some(2), Option.some(1))
+    assert.deepStrictEqual(
+      Chunk.filter(Chunk.make(Option.some(3), Option.some(2), Option.some(1)), Option.isSome),
+      Chunk.make(Option.some(3), Option.some(2), Option.some(1)) as any
     )
-    expect(Chunk.filter(Chunk.make(Option.some(3), Option.none(), Option.some(1)), Option.isSome)).toEqual(
-      Chunk.make(Option.some(3), Option.some(1))
+    assert.deepStrictEqual(
+      Chunk.filter(Chunk.make(Option.some(3), Option.none(), Option.some(1)), Option.isSome),
+      Chunk.make(Option.some(3), Option.some(1)) as any
     )
   })
 

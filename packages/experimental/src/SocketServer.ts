@@ -1,16 +1,16 @@
 /**
  * @since 1.0.0
  */
+import type * as Socket from "@effect/platform/Socket"
 import * as Context from "effect/Context"
 import * as Data from "effect/Data"
 import type * as Effect from "effect/Effect"
-import type * as Socket from "./Socket.js"
 
 /**
  * @since 1.0.0
  * @category type ids
  */
-export const SocketServerTypeId = Symbol.for("@effect/experimental/SocketServer")
+export const SocketServerTypeId: unique symbol = Symbol.for("@effect/experimental/SocketServer")
 
 /**
  * @since 1.0.0

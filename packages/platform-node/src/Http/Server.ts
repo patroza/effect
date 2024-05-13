@@ -38,19 +38,19 @@ export const make: (
  */
 export const makeHandler: {
   <R, E>(
-    httpApp: App.Default<R, E>
+    httpApp: App.Default<E, R>
   ): Effect.Effect<
-    Exclude<R, Scope.Scope | ServerRequest.ServerRequest>,
+    (nodeRequest: Http.IncomingMessage, nodeResponse: Http.ServerResponse<Http.IncomingMessage>) => void,
     never,
-    (nodeRequest: Http.IncomingMessage, nodeResponse: Http.ServerResponse<Http.IncomingMessage>) => void
+    Exclude<R, Scope.Scope | ServerRequest.ServerRequest>
   >
   <R, E, App extends App.Default<any, any>>(
-    httpApp: App.Default<R, E>,
-    middleware: Middleware.Middleware.Applied<R, E, App>
+    httpApp: App.Default<E, R>,
+    middleware: Middleware.Middleware.Applied<App, E, R>
   ): Effect.Effect<
-    Exclude<Effect.Effect.Context<App>, Scope.Scope | ServerRequest.ServerRequest>,
+    (nodeRequest: Http.IncomingMessage, nodeResponse: Http.ServerResponse<Http.IncomingMessage>) => void,
     never,
-    (nodeRequest: Http.IncomingMessage, nodeResponse: Http.ServerResponse<Http.IncomingMessage>) => void
+    Exclude<Effect.Effect.Context<App>, Scope.Scope | ServerRequest.ServerRequest>
   >
 } = internal.makeHandler
 
@@ -68,7 +68,7 @@ export const layerServer: (
  * @category layers
  */
 export const layer: (
-  evaluate: LazyArg<Http.Server>,
+  evaluate: LazyArg<Http.Server<typeof Http.IncomingMessage, typeof Http.ServerResponse>>,
   options: Net.ListenOptions
 ) => Layer.Layer<Platform.Platform | Etag.Generator | NodeContext.NodeContext | Server.Server, ServeError> =
   internal.layer
@@ -78,9 +78,9 @@ export const layer: (
  * @category layers
  */
 export const layerConfig: (
-  evaluate: LazyArg<Http.Server>,
+  evaluate: LazyArg<Http.Server<typeof Http.IncomingMessage, typeof Http.ServerResponse>>,
   options: Config.Config.Wrap<Net.ListenOptions>
 ) => Layer.Layer<
   Platform.Platform | Etag.Generator | NodeContext.NodeContext | Server.Server,
-  ServeError | ConfigError.ConfigError
+  ConfigError.ConfigError | ServeError
 > = internal.layerConfig

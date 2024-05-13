@@ -1,44 +1,45 @@
 import * as AST from "@effect/schema/AST"
 import * as S from "@effect/schema/Schema"
-import { describe, expect, it } from "vitest"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
-describe("AST/getCardinality", () => {
+describe("getCardinality", () => {
   it("order", () => {
-    const struct = S.struct({ a: S.string })
+    const struct = S.Struct({ a: S.String })
     const actual = [
       struct.ast,
-      S.unknown.ast,
-      S.any.ast,
-      S.object.ast,
-      S.symbolFromSelf.ast,
-      S.bigintFromSelf.ast,
-      S.number.ast,
-      S.string.ast,
-      S.boolean.ast,
-      S.uniqueSymbol(Symbol.for("a")).ast,
-      S.undefined.ast,
-      S.void.ast,
-      S.literal("a").ast,
-      S.never.ast
+      S.Unknown.ast,
+      S.Any.ast,
+      S.Object.ast,
+      S.SymbolFromSelf.ast,
+      S.BigIntFromSelf.ast,
+      S.Number.ast,
+      S.String.ast,
+      S.Boolean.ast,
+      S.UniqueSymbolFromSelf(Symbol.for("a")).ast,
+      S.Undefined.ast,
+      S.Void.ast,
+      S.Literal("a").ast,
+      S.Never.ast
     ].map(
       AST.getCardinality
     )
       .sort()
     const expected = [
-      S.never.ast,
-      S.uniqueSymbol(Symbol.for("a")).ast,
-      S.undefined.ast,
-      S.void.ast,
-      S.literal("a").ast,
-      S.boolean.ast,
-      S.symbolFromSelf.ast,
-      S.bigintFromSelf.ast,
-      S.number.ast,
-      S.string.ast,
+      S.Never.ast,
+      S.UniqueSymbolFromSelf(Symbol.for("a")).ast,
+      S.Undefined.ast,
+      S.Void.ast,
+      S.Literal("a").ast,
+      S.Boolean.ast,
+      S.SymbolFromSelf.ast,
+      S.BigIntFromSelf.ast,
+      S.Number.ast,
+      S.String.ast,
       struct.ast,
-      S.object.ast,
-      S.unknown.ast,
-      S.any.ast
+      S.Object.ast,
+      S.Unknown.ast,
+      S.Any.ast
     ].map(AST.getCardinality)
     expect(actual).toEqual(expected)
   })

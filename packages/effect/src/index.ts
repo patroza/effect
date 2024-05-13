@@ -30,6 +30,13 @@ export {
 } from "./Function.js"
 
 /**
+ * This module provides utility functions for working with arrays in TypeScript.
+ *
+ * @since 2.0.0
+ */
+export * as Array from "./Array.js"
+
+/**
  * This module provides utility functions and type class instances for working with the `BigDecimal` type in TypeScript.
  * It includes functions for basic arithmetic operations, as well as type class instances for `Equivalence` and `Order`.
  *
@@ -258,6 +265,11 @@ export * as Fiber from "./Fiber.js"
 /**
  * @since 2.0.0
  */
+export * as FiberHandle from "./FiberHandle.js"
+
+/**
+ * @since 2.0.0
+ */
 export * as FiberId from "./FiberId.js"
 
 /**
@@ -331,6 +343,13 @@ export * as HashSet from "./HashSet.js"
 export * as Inspectable from "./Inspectable.js"
 
 /**
+ * This module provides utility functions for working with Iterables in TypeScript.
+ *
+ * @since 2.0.0
+ */
+export * as Iterable from "./Iterable.js"
+
+/**
  * @since 2.0.0
  */
 export * as KeyedPool from "./KeyedPool.js"
@@ -384,6 +403,11 @@ export * as LogSpan from "./LogSpan.js"
  * @since 2.0.0
  */
 export * as Logger from "./Logger.js"
+
+/**
+ * @since 2.0.0
+ */
+export * as ManagedRuntime from "./ManagedRuntime.js"
 
 /**
  * @since 1.0.0
@@ -507,6 +531,21 @@ export * as Number from "./Number.js"
 export * as Option from "./Option.js"
 
 /**
+ * This module provides an implementation of the `Order` type class which is used to define a total ordering on some type `A`.
+ * An order is defined by a relation `<=`, which obeys the following laws:
+ *
+ * - either `x <= y` or `y <= x` (totality)
+ * - if `x <= y` and `y <= x`, then `x == y` (antisymmetry)
+ * - if `x <= y` and `y <= z`, then `x <= z` (transitivity)
+ *
+ * The truth table for compare is defined as follows:
+ *
+ * | `x <= y` | `x >= y` | Ordering |                       |
+ * | -------- | -------- | -------- | --------------------- |
+ * | `true`   | `true`   | `0`      | corresponds to x == y |
+ * | `true`   | `false`  | `< 0`    | corresponds to x < y  |
+ * | `false`  | `true`   | `> 0`    | corresponds to x > y  |
+ *
  * @since 2.0.0
  */
 export * as Order from "./Order.js"
@@ -559,18 +598,16 @@ export * as Random from "./Random.js"
 export * as RateLimiter from "./RateLimiter.js"
 
 /**
- * This module provides utility functions for working with arrays in TypeScript.
- *
  * @since 2.0.0
  */
-export * as ReadonlyArray from "./ReadonlyArray.js"
+export * as Readable from "./Readable.js"
 
 /**
  * This module provides utility functions for working with records in TypeScript.
  *
  * @since 2.0.0
  */
-export * as ReadonlyRecord from "./ReadonlyRecord.js"
+export * as Record from "./Record.js"
 
 /**
  * @since 2.0.0
@@ -581,6 +618,13 @@ export * as RedBlackTree from "./RedBlackTree.js"
  * @since 2.0.0
  */
 export * as Ref from "./Ref.js"
+
+/**
+ * This module provides utility functions for working with RegExp in TypeScript.
+ *
+ * @since 2.0.0
+ */
+export * as RegExp from "./RegExp.js"
 
 /**
  * @since 2.0.0
@@ -727,6 +771,11 @@ export * as String from "./String.js"
  * @since 2.0.0
  */
 export * as Struct from "./Struct.js"
+
+/**
+ * @since 2.0.0
+ */
+export * as Subscribable from "./Subscribable.js"
 
 /**
  * @since 2.0.0
@@ -913,3 +962,8 @@ export * as UpstreamPullStrategy from "./UpstreamPullStrategy.js"
  * @since 2.0.0
  */
 export * as Utils from "./Utils.js"
+
+/**
+ * useful in e.g frontend projects that do not use tsplus, but still has the most useful extensions installed.
+ */
+export * as fluentExtensions from "./fluentExtensions.js"

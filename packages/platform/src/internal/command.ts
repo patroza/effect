@@ -1,10 +1,11 @@
+import type * as ReadonlyArray from "effect/Array"
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import { dual } from "effect/Function"
 import * as HashMap from "effect/HashMap"
+import * as Inspectable from "effect/Inspectable"
 import * as Option from "effect/Option"
 import { pipeArguments } from "effect/Pipeable"
-import type * as ReadonlyArray from "effect/ReadonlyArray"
 import type { Scope } from "effect/Scope"
 import * as Stream from "effect/Stream"
 import type * as Command from "../Command.js"
@@ -20,15 +21,21 @@ export const isCommand = (u: unknown): u is Command.Command => typeof u === "obj
 
 /** @internal */
 export const env: {
-  (environment: Record<string, string>): (self: Command.Command) => Command.Command
-  (self: Command.Command, environment: Record<string, string>): Command.Command
+  (environment: Record<string, string | undefined>): (self: Command.Command) => Command.Command
+  (self: Command.Command, environment: Record<string, string | undefined>): Command.Command
 } = dual<
-  (environment: Record<string, string>) => (self: Command.Command) => Command.Command,
-  (self: Command.Command, environment: Record<string, string>) => Command.Command
+  (environment: Record<string, string | undefined>) => (self: Command.Command) => Command.Command,
+  (self: Command.Command, environment: Record<string, string | undefined>) => Command.Command
 >(2, (self, environment) => {
   switch (self._tag) {
     case "StandardCommand": {
-      return { ...self, env: HashMap.union(self.env, HashMap.fromIterable(Object.entries(environment))) }
+      return makeStandard({
+        ...self,
+        env: HashMap.union(
+          self.env,
+          HashMap.fromIterable(Object.entries(environment).filter(([v]) => v !== undefined))
+        ) as HashMap.HashMap<string, string>
+      })
     }
     case "PipedCommand": {
       return pipeTo(env(self.left, environment), env(self.right, environment))
@@ -76,7 +83,7 @@ export const runInShell = dual<
 >(2, (self: Command.Command, shell: boolean | string): Command.Command => {
   switch (self._tag) {
     case "StandardCommand": {
-      return { ...self, shell }
+      return makeStandard({ ...self, shell })
     }
     case "PipedCommand": {
       return pipeTo(
@@ -94,40 +101,75 @@ export const lines = (
 ): Effect.Effect<ReadonlyArray<string>, PlatformError, CommandExecutor.CommandExecutor> =>
   Effect.flatMap(commandExecutor.CommandExecutor, (executor) => executor.lines(command, encoding))
 
-/** @internal */
-export const make = (command: string, ...args: Array<string>): Command.Command => ({
+const Proto = {
   [CommandTypeId]: CommandTypeId,
-  _tag: "StandardCommand",
-  command,
-  args,
-  env: HashMap.empty(),
-  cwd: Option.none(),
-  shell: false,
-  // The initial process input here does not matter, we just want the child
-  // process to default to `"pipe"` for the stdin stream.
-  stdin: Option.some(Stream.empty),
-  stdout: "pipe",
-  stderr: "pipe",
-  gid: Option.none(),
-  uid: Option.none(),
   pipe() {
     return pipeArguments(this, arguments)
+  },
+  ...Inspectable.BaseProto
+}
+
+const StandardProto = {
+  ...Proto,
+  _tag: "StandardCommand",
+  toJSON(this: Command.StandardCommand) {
+    return {
+      _id: "@effect/platform/Command",
+      _tag: this._tag,
+      command: this.command,
+      args: this.args,
+      env: Object.fromEntries(this.env),
+      cwd: this.cwd.toJSON(),
+      shell: this.shell,
+      gid: this.gid.toJSON(),
+      uid: this.uid.toJSON()
+    }
   }
-})
+}
+
+const makeStandard = (options: Omit<Command.StandardCommand, keyof Command.Command.Proto>): Command.StandardCommand =>
+  Object.assign(Object.create(StandardProto), options)
+
+const PipedProto = {
+  ...Proto,
+  _tag: "PipedCommand",
+  toJSON(this: Command.PipedCommand) {
+    return {
+      _id: "@effect/platform/Command",
+      _tag: this._tag,
+      left: this.left.toJSON(),
+      right: this.right.toJSON()
+    }
+  }
+}
+
+const makePiped = (options: Omit<Command.PipedCommand, keyof Command.Command.Proto>): Command.PipedCommand =>
+  Object.assign(Object.create(PipedProto), options)
+
+/** @internal */
+export const make = (command: string, ...args: Array<string>): Command.Command =>
+  makeStandard({
+    command,
+    args,
+    env: HashMap.empty(),
+    cwd: Option.none(),
+    shell: false,
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+    gid: Option.none(),
+    uid: Option.none()
+  })
 
 /** @internal */
 export const pipeTo = dual<
   (into: Command.Command) => (self: Command.Command) => Command.Command,
   (self: Command.Command, into: Command.Command) => Command.Command
->(2, (self, into) => ({
-  [CommandTypeId]: CommandTypeId,
-  _tag: "PipedCommand",
-  left: self,
-  right: into,
-  pipe() {
-    return pipeArguments(this, arguments)
-  }
-}))
+>(2, (self, into) =>
+  makePiped({
+    left: self,
+    right: into
+  }))
 
 /** @internal */
 export const stderr: {
@@ -139,12 +181,12 @@ export const stderr: {
 >(2, (self, output) => {
   switch (self._tag) {
     case "StandardCommand": {
-      return { ...self, stderr: output }
+      return makeStandard({ ...self, stderr: output })
     }
     // For piped commands it only makes sense to provide `stderr` for the
     // right-most command as the rest will be piped in.
     case "PipedCommand": {
-      return { ...self, right: stderr(self.right, output) }
+      return makePiped({ ...self, right: stderr(self.right, output) })
     }
   }
 })
@@ -159,12 +201,12 @@ export const stdin: {
 >(2, (self, input) => {
   switch (self._tag) {
     case "StandardCommand": {
-      return { ...self, stdin: Option.some(input) }
+      return makeStandard({ ...self, stdin: input })
     }
     // For piped commands it only makes sense to provide `stdin` for the
     // left-most command as the rest will be piped in.
     case "PipedCommand": {
-      return { ...self, left: stdin(self.left, input) }
+      return makePiped({ ...self, left: stdin(self.left, input) })
     }
   }
 })
@@ -179,12 +221,12 @@ export const stdout: {
 >(2, (self, output) => {
   switch (self._tag) {
     case "StandardCommand": {
-      return { ...self, stdout: output }
+      return makeStandard({ ...self, stdout: output })
     }
     // For piped commands it only makes sense to provide `stderr` for the
     // right-most command as the rest will be piped in.
     case "PipedCommand": {
-      return { ...self, right: stdout(self.right, output) }
+      return makePiped({ ...self, right: stdout(self.right, output) })
     }
   }
 })
@@ -229,7 +271,7 @@ export const workingDirectory: {
 >(2, (self, cwd) => {
   switch (self._tag) {
     case "StandardCommand": {
-      return { ...self, cwd: Option.some(cwd) }
+      return makeStandard({ ...self, cwd: Option.some(cwd) })
     }
     case "PipedCommand": {
       return pipeTo(workingDirectory(self.left, cwd), workingDirectory(self.right, cwd))

@@ -1,15 +1,17 @@
 import * as AST from "@effect/schema/AST"
+import type * as ParseResult from "@effect/schema/ParseResult"
 import * as Pretty from "@effect/schema/Pretty"
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
-import { describe, expect, it } from "vitest"
+import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
-describe("Schema > annotations", () => {
-  it("annotations", () => {
-    const schema = S.string.pipe(S.annotations({
+describe(".annotations()", () => {
+  it("should return a Schema", () => {
+    const schema = S.String.annotations({
       [AST.TitleAnnotationId]: "MyString",
       [AST.DescriptionAnnotationId]: "a string"
-    }))
+    })
     expect(schema.ast.annotations).toEqual({
       [AST.TitleAnnotationId]: "MyString",
       [AST.DescriptionAnnotationId]: "a string"
@@ -18,7 +20,7 @@ describe("Schema > annotations", () => {
   })
 
   it("title", () => {
-    const schema = S.string.pipe(S.title("MyString"))
+    const schema = S.String.annotations({ title: "MyString" })
     expect(schema.ast.annotations).toEqual({
       [AST.TitleAnnotationId]: "MyString",
       [AST.DescriptionAnnotationId]: "a string"
@@ -27,7 +29,7 @@ describe("Schema > annotations", () => {
   })
 
   it("description", () => {
-    const schema = S.string.pipe(S.description("description"))
+    const schema = S.String.annotations({ description: "description" })
     expect(schema.ast.annotations).toEqual({
       [AST.DescriptionAnnotationId]: "description",
       [AST.TitleAnnotationId]: "string"
@@ -36,7 +38,7 @@ describe("Schema > annotations", () => {
   })
 
   it("examples", () => {
-    const schema = S.string.pipe(S.examples(["example"]))
+    const schema = S.String.annotations({ examples: ["example"] })
     expect(schema.ast.annotations).toEqual({
       [AST.ExamplesAnnotationId]: ["example"],
       [AST.TitleAnnotationId]: "string",
@@ -46,7 +48,7 @@ describe("Schema > annotations", () => {
   })
 
   it("default", () => {
-    const schema = S.string.pipe(S.default("a"))
+    const schema = S.String.annotations({ default: "a" })
     expect(schema.ast.annotations).toEqual({
       [AST.DefaultAnnotationId]: "a",
       [AST.TitleAnnotationId]: "string",
@@ -56,7 +58,7 @@ describe("Schema > annotations", () => {
   })
 
   it("documentation", () => {
-    const schema = S.string.pipe(S.documentation("documentation"))
+    const schema = S.String.annotations({ documentation: "documentation" })
     expect(schema.ast.annotations).toEqual({
       [AST.DocumentationAnnotationId]: "documentation",
       [AST.TitleAnnotationId]: "string",
@@ -66,50 +68,68 @@ describe("Schema > annotations", () => {
   })
 
   it("concurrency", () => {
-    const schema = S.struct({ a: S.string }).pipe(S.concurrency(1))
+    const schema = S.Struct({ a: S.String }).annotations({ concurrency: 1 })
     expect(schema.ast.annotations).toEqual({
       [AST.ConcurrencyAnnotationId]: 1
     })
   })
 
   it("batching", () => {
-    const schema = S.struct({ a: S.string }).pipe(S.batching("inherit"))
+    const schema = S.Struct({ a: S.String }).annotations({ batching: "inherit" })
     expect(schema.ast.annotations).toEqual({
       [AST.BatchingAnnotationId]: "inherit"
     })
   })
 
+  it("parseIssueTitle", async () => {
+    const getOrderId = ({ actual }: ParseResult.ParseIssue) => {
+      if (S.is(S.Struct({ id: S.Number }))(actual)) {
+        return `Order with ID ${actual.id}`
+      }
+    }
+
+    const Order = S.Struct({
+      id: S.Number,
+      name: S.String,
+      totalPrice: S.Number
+    }).annotations({
+      identifier: "Order",
+      parseIssueTitle: getOrderId
+    })
+
+    await Util.expectDecodeUnknownFailure(
+      Order,
+      {},
+      `Order
+└─ ["id"]
+   └─ is missing`
+    )
+    await Util.expectDecodeUnknownFailure(
+      Order,
+      { id: 1 },
+      `Order with ID 1
+└─ ["name"]
+   └─ is missing`
+    )
+  })
+
   it("message as annotation options", async () => {
     const schema =
       // initial schema, a string
-      S.string.pipe(
+      S.String
         // add an error message for non-string values
-        S.message(() => "not a string"),
-        // add a constraint to the schema, only non-empty strings are valid
-        S.nonEmpty({ message: () => "required" }),
-        // add a constraint to the schema, only strings with a length less or equal than 10 are valid
-        S.maxLength(10, { message: (issue) => `${issue.actual} is too long` })
-      )
+        .annotations({ message: () => "not a string" }).pipe(
+          // add a constraint to the schema, only non-empty strings are valid
+          S.nonEmpty({ message: () => "required" }),
+          // add a constraint to the schema, only strings with a length less or equal than 10 are valid
+          S.maxLength(10, { message: (issue) => `${issue.actual} is too long` })
+        )
 
     expect(S.isSchema(schema)).toEqual(true)
     await Util.expectDecodeUnknownFailure(schema, null, "not a string")
     await Util.expectDecodeUnknownFailure(schema, "", "required")
     await Util.expectDecodeUnknownSuccess(schema, "a", "a")
     await Util.expectDecodeUnknownFailure(schema, "aaaaaaaaaaaaaa", "aaaaaaaaaaaaaa is too long")
-  })
-
-  describe("message as annotation", () => {
-    it("primitives", async () => {
-      const schema = S.string.pipe(S.nonEmpty(), S.message(() => "custom message"))
-      expect(S.isSchema(schema)).toEqual(true)
-      await Util.expectDecodeUnknownFailure(schema, "", "custom message")
-    })
-
-    it("transformations", async () => {
-      const schema = S.NumberFromString.pipe(S.message(() => "custom message"))
-      expect(S.isSchema(schema)).toEqual(true)
-      await Util.expectDecodeUnknownFailure(schema, "", "custom message")
-    })
   })
 
   it("pretty", () => {

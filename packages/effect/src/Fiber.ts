@@ -451,7 +451,7 @@ export const join: <A, E>(self: Fiber<A, E>) => Effect.Effect<A, E> = internal.j
  * @since 2.0.0
  * @category destructors
  */
-export const joinAll: <A, E>(fibers: Iterable<Fiber<A, E>>) => Effect.Effect<void, E> = fiberRuntime.fiberJoinAll
+export const joinAll: <A, E>(fibers: Iterable<Fiber<A, E>>) => Effect.Effect<Array<A>, E> = fiberRuntime.fiberJoinAll
 
 /**
  * Maps over the value the Fiber computes.
@@ -602,13 +602,16 @@ export const status: <A, E>(self: RuntimeFiber<A, E>) => Effect.Effect<FiberStat
  */
 export const succeed: <A>(value: A) => Fiber<A> = internal.succeed
 
-/**
- * A fiber that has already succeeded with unit.
- *
- * @since 2.0.0
- * @category constructors
- */
-export const unit: Fiber<void> = internal.unit
+const void_: Fiber<void> = internal.void
+export {
+  /**
+   * A fiber that has already succeeded with unit.
+   *
+   * @since 2.0.0
+   * @category constructors
+   */
+  void_ as void
+}
 
 /**
  * Zips this fiber and the specified fiber together, producing a tuple of

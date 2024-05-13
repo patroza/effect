@@ -26,14 +26,16 @@ export type WorkerErrorTypeId = typeof WorkerErrorTypeId
 export const isWorkerError = (u: unknown): u is WorkerError => Predicate.hasProperty(u, WorkerErrorTypeId)
 
 const causeDefectPretty: Schema.Schema<unknown> = Schema.transform(
-  Schema.unknown,
-  Schema.unknown,
-  identity,
-  (defect) => {
-    if (Predicate.isObject(defect)) {
-      return Cause.pretty(Cause.die(defect))
+  Schema.Unknown,
+  Schema.Unknown,
+  {
+    decode: identity,
+    encode: (defect) => {
+      if (Predicate.isObject(defect)) {
+        return Cause.pretty(Cause.die(defect))
+      }
+      return String(defect)
     }
-    return String(defect)
   }
 )
 
@@ -42,7 +44,7 @@ const causeDefectPretty: Schema.Schema<unknown> = Schema.transform(
  * @category errors
  */
 export class WorkerError extends Schema.TaggedError<WorkerError>()("WorkerError", {
-  reason: Schema.literal("spawn", "decode", "send", "unknown", "encode"),
+  reason: Schema.Literal("spawn", "decode", "send", "unknown", "encode"),
   error: causeDefectPretty
 }) {
   /**
@@ -55,28 +57,31 @@ export class WorkerError extends Schema.TaggedError<WorkerError>()("WorkerError"
    */
   static readonly Cause: Schema.Schema<
     Cause.Cause<WorkerError>,
-    Schema.CauseFrom<WorkerErrorFrom>
-  > = Schema.cause({ defect: causeDefectPretty, error: this })
+    Schema.CauseEncoded<WorkerErrorFrom>
+  > = Schema.Cause({ defect: causeDefectPretty, error: this })
 
   /**
    * @since 1.0.0
    */
-  static readonly encodeCause: (a: Cause.Cause<WorkerError>) => Schema.CauseFrom<WorkerErrorFrom> = Schema.encodeSync(
-    this.Cause
-  )
+  static readonly encodeCause: (a: Cause.Cause<WorkerError>) => Schema.CauseEncoded<WorkerErrorFrom> = Schema
+    .encodeSync(
+      this.Cause
+    )
 
   /**
    * @since 1.0.0
    */
-  static readonly decodeCause: (u: Schema.CauseFrom<WorkerErrorFrom>) => Cause.Cause<WorkerError> = Schema.decodeSync(
-    this.Cause
-  )
+  static readonly decodeCause: (u: Schema.CauseEncoded<WorkerErrorFrom>) => Cause.Cause<WorkerError> = Schema
+    .decodeSync(
+      this.Cause
+    )
 
   /**
    * @since 1.0.0
    */
   get message() {
-    return `${this.reason}: ${String(this.error)}`
+    const message = this.error instanceof Error ? this.error.message : String(this.error)
+    return `${this.reason}: ${message}`
   }
 }
 

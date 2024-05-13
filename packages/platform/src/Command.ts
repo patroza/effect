@@ -1,11 +1,12 @@
 /**
  * @since 1.0.0
  */
+import type { NonEmptyReadonlyArray } from "effect/Array"
 import type { Effect } from "effect/Effect"
 import type { HashMap } from "effect/HashMap"
+import type { Inspectable } from "effect/Inspectable"
 import type { Option } from "effect/Option"
 import type { Pipeable } from "effect/Pipeable"
-import type { NonEmptyReadonlyArray } from "effect/ReadonlyArray"
 import type { Scope } from "effect/Scope"
 import type { Sink } from "effect/Sink"
 import type { Stream } from "effect/Stream"
@@ -37,8 +38,9 @@ export declare namespace Command {
    * @since 1.0.0
    * @category models
    */
-  export interface Proto {
+  export interface Proto extends Pipeable, Inspectable {
     readonly [CommandTypeId]: CommandTypeId
+    readonly _tag: string
   }
   /**
    * Configures the pipe that is established between the parent and child
@@ -62,14 +64,18 @@ export declare namespace Command {
  * Configures the pipe that is established between the parent and child
  * processes' `stdin` stream.
  *
+ * Defaults to "pipe"
+ *
  * @since 1.0.0
  * @category models
  */
-export type CommandInput = Stream<Uint8Array, PlatformError>
+export type CommandInput = "inherit" | "pipe" | Stream<Uint8Array, PlatformError>
 
 /**
  * Configures the pipes that are established between the parent and child
  * processes `stderr` and `stdout` streams.
+ *
+ * Defaults to "pipe"
  *
  * @since 1.0.0
  * @category models
@@ -80,14 +86,14 @@ export type CommandOutput = "inherit" | "pipe" | Sink<Uint8Array, Uint8Array>
  * @since 1.0.0
  * @category models
  */
-export interface StandardCommand extends Command.Proto, Pipeable {
+export interface StandardCommand extends Command.Proto {
   readonly _tag: "StandardCommand"
   readonly command: string
   readonly args: ReadonlyArray<string>
   readonly env: HashMap<string, string>
   readonly cwd: Option<string>
   readonly shell: boolean | string
-  readonly stdin: Option<Command.Input>
+  readonly stdin: Command.Input
   readonly stdout: Command.Output
   readonly stderr: Command.Output
   readonly gid: Option<number>
@@ -98,7 +104,7 @@ export interface StandardCommand extends Command.Proto, Pipeable {
  * @since 1.0.0
  * @category models
  */
-export interface PipedCommand extends Command.Proto, Pipeable {
+export interface PipedCommand extends Command.Proto {
   readonly _tag: "PipedCommand"
   readonly left: Command
   readonly right: Command
@@ -120,8 +126,8 @@ export const isCommand: (u: unknown) => u is Command = internal.isCommand
  * @category combinators
  */
 export const env: {
-  (environment: Record<string, string>): (self: Command) => Command
-  (self: Command, environment: Record<string, string>): Command
+  (environment: Record<string, string | undefined>): (self: Command) => Command
+  (self: Command, environment: Record<string, string | undefined>): Command
 } = internal.env
 
 /**

@@ -2,8 +2,10 @@
  * @since 2.0.0
  */
 import { identity } from "./Function.js"
+import { globalValue } from "./GlobalValue.js"
 import type { Kind, TypeLambda } from "./HKT.js"
-import { isNullable } from "./Predicate.js"
+import { getBugErrorMessage } from "./internal/errors.js"
+import { isNullable, isObject } from "./Predicate.js"
 import type * as Types from "./Types.js"
 
 /*
@@ -23,7 +25,7 @@ import type * as Types from "./Types.js"
  * @category symbols
  * @since 2.0.0
  */
-export const GenKindTypeId = Symbol.for("effect/Gen/GenKind")
+export const GenKindTypeId: unique symbol = Symbol.for("effect/Gen/GenKind")
 
 /**
  * @category symbols
@@ -40,6 +42,12 @@ export interface GenKind<F extends TypeLambda, R, O, E, A> extends Variance<F, R
 
   [Symbol.iterator](): Generator<GenKind<F, R, O, E, A>, A>
 }
+
+/**
+ * @category predicates
+ * @since 3.0.6
+ */
+export const isGenKind = (u: unknown): u is GenKind<any, any, any, any, any> => isObject(u) && GenKindTypeId in u
 
 /**
  * @category constructors
@@ -168,14 +176,24 @@ export interface Variance<in out F extends TypeLambda, in R, out O, out E> {
  * @category models
  * @since 2.0.0
  */
+/**
+ * @category models
+ * @since 2.0.0
+ */
 export interface Gen<F extends TypeLambda, Z> {
-  <K extends Variance<F, any, any, any>, A>(
-    body: (resume: Z) => Generator<K, A>
+  <K extends Variance<F, any, any, any> | YieldWrap<Kind<F, any, any, any, any>>, A>(
+    body: (resume: Z) => Generator<K, A, never>
   ): Kind<
     F,
-    [K] extends [Variance<F, infer R, any, any>] ? R : never,
-    [K] extends [Variance<F, any, infer O, any>] ? O : never,
-    [K] extends [Variance<F, any, any, infer E>] ? E : never,
+    [K] extends [Variance<F, infer R, any, any>] ? R
+      : [K] extends [YieldWrap<Kind<F, infer R, any, any, any>>] ? R
+      : never,
+    [K] extends [Variance<F, any, infer O, any>] ? O
+      : [K] extends [YieldWrap<Kind<F, any, infer O, any, any>>] ? O
+      : never,
+    [K] extends [Variance<F, any, any, infer E>] ? E
+      : [K] extends [YieldWrap<Kind<F, any, any, infer E, any>>] ? E
+      : never,
     A
   >
 }
@@ -457,13 +475,12 @@ export interface Adapter<Z extends TypeLambda> {
  * @category adapters
  * @since 2.0.0
  */
-export const adapter: <F extends TypeLambda>() => Adapter<F> = () => // @ts-expect-error
-(function() {
+export const adapter: <F extends TypeLambda>() => Adapter<F> = () => (function() {
   let x = arguments[0]
   for (let i = 1; i < arguments.length; i++) {
     x = arguments[i](x)
   }
-  return new GenKindImpl(x)
+  return new GenKindImpl(x) as any
 })
 
 const defaultIncHi = 0x14057b7e
@@ -695,4 +712,75 @@ function add64(
   }
   out[0] = hi
   out[1] = lo
+}
+
+/**
+ * @since 3.0.6
+ */
+export const YieldWrapTypeId: unique symbol = Symbol.for("effect/Utils/YieldWrap")
+
+/**
+ * @since 3.0.6
+ */
+export class YieldWrap<T> {
+  /**
+   * @since 3.0.6
+   */
+  readonly #value: T
+  constructor(value: T) {
+    this.#value = value
+  }
+  /**
+   * @since 3.0.6
+   */
+  [YieldWrapTypeId](): T {
+    return this.#value
+  }
+}
+
+/**
+ * @since 3.0.6
+ */
+export function yieldWrapGet<T>(self: YieldWrap<T>): T {
+  if (typeof self === "object" && self !== null && YieldWrapTypeId in self) {
+    return self[YieldWrapTypeId]()
+  }
+  throw new Error(getBugErrorMessage("yieldWrapGet"))
+}
+
+/**
+ * Note: this is an experimental feature made available to allow custom matchers in tests, not to be directly used yet in user code
+ *
+ * @since 3.1.1
+ * @status experimental
+ * @category modifiers
+ */
+export const structuralRegionState = globalValue(
+  "effect/Utils/isStructuralRegion",
+  (): { enabled: boolean; tester: ((a: unknown, b: unknown) => boolean) | undefined } => ({
+    enabled: false,
+    tester: undefined
+  })
+)
+
+/**
+ * Note: this is an experimental feature made available to allow custom matchers in tests, not to be directly used yet in user code
+ *
+ * @since 3.1.1
+ * @status experimental
+ * @category modifiers
+ */
+export const structuralRegion = <A>(body: () => A, tester?: (a: unknown, b: unknown) => boolean): A => {
+  const current = structuralRegionState.enabled
+  const currentTester = structuralRegionState.tester
+  structuralRegionState.enabled = true
+  if (tester) {
+    structuralRegionState.tester = tester
+  }
+  try {
+    return body()
+  } finally {
+    structuralRegionState.enabled = current
+    structuralRegionState.tester = currentTester
+  }
 }

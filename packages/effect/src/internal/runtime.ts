@@ -1,4 +1,5 @@
 import { equals } from "effect/Equal"
+import type * as ReadonlyArray from "../Array.js"
 import type * as Cause from "../Cause.js"
 import * as Context from "../Context.js"
 import type * as Effect from "../Effect.js"
@@ -8,11 +9,10 @@ import * as FiberId from "../FiberId.js"
 import type * as FiberRef from "../FiberRef.js"
 import * as FiberRefs from "../FiberRefs.js"
 import { dual, pipe } from "../Function.js"
-import { format, NodeInspectSymbol } from "../Inspectable.js"
+import * as Inspectable from "../Inspectable.js"
 import * as Option from "../Option.js"
 import { pipeArguments } from "../Pipeable.js"
 import * as Predicate from "../Predicate.js"
-import type * as ReadonlyArray from "../ReadonlyArray.js"
 import type * as Runtime from "../Runtime.js"
 import type * as RuntimeFlags from "../RuntimeFlags.js"
 import * as _scheduler from "../Scheduler.js"
@@ -22,7 +22,6 @@ import * as core from "./core.js"
 import * as executionStrategy from "./executionStrategy.js"
 import * as FiberRuntime from "./fiberRuntime.js"
 import * as fiberScope from "./fiberScope.js"
-import { internalize } from "./internalize.js"
 import * as OpCodes from "./opCodes/effect.js"
 import * as runtimeFlags from "./runtimeFlags.js"
 import * as _supervisor from "./supervisor.js"
@@ -67,7 +66,7 @@ export const unsafeFork = <R>(runtime: Runtime.Runtime<R>) =>
           core.scopeAddFinalizer(
             closeableScope,
             core.fiberIdWith((id) =>
-              equals(id, fiberRuntime.id()) ? core.unit : core.interruptAsFiber(fiberRuntime, id)
+              equals(id, fiberRuntime.id()) ? core.void : core.interruptAsFiber(fiberRuntime, id)
             )
           ),
           core.onExit(self, (exit) => _scope.close(closeableScope, exit))
@@ -126,44 +125,28 @@ export const unsafeRunCallback = <R>(runtime: Runtime.Runtime<R>) =>
 export const unsafeRunSync = <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): A => {
   const result = unsafeRunSyncExit(runtime)(effect)
   if (result._tag === "Failure") {
-    throw fiberFailure(result.i0)
+    throw fiberFailure(result.effect_instruction_i0)
   } else {
-    return result.i0
+    return result.effect_instruction_i0
+  }
+}
+
+class AsyncFiberExceptionImpl<A, E = never> extends Error implements Runtime.AsyncFiberException<A, E> {
+  readonly _tag = "AsyncFiberException"
+  constructor(readonly fiber: Fiber.RuntimeFiber<A, E>) {
+    super(
+      `Fiber #${fiber.id().id} cannot be resolved synchronously. This is caused by using runSync on an effect that performs async work`
+    )
+    this.name = this._tag
+    this.stack = this.message
   }
 }
 
 const asyncFiberException = <A, E>(fiber: Fiber.RuntimeFiber<A, E>): Runtime.AsyncFiberException<A, E> => {
   const limit = Error.stackTraceLimit
   Error.stackTraceLimit = 0
-  const error = (new Error()) as any
+  const error = new AsyncFiberExceptionImpl(fiber)
   Error.stackTraceLimit = limit
-  const message =
-    `Fiber #${fiber.id().id} cannot be be resolved synchronously, this is caused by using runSync on an effect that performs async work`
-  const _tag = "AsyncFiberException"
-  Object.defineProperties(error, {
-    _tag: {
-      value: _tag
-    },
-    fiber: {
-      value: fiber
-    },
-    message: {
-      value: message
-    },
-    name: {
-      value: _tag
-    },
-    toString: {
-      get() {
-        return () => message
-      }
-    },
-    [NodeInspectSymbol]: {
-      get() {
-        return () => message
-      }
-    }
-  })
   return error
 }
 
@@ -178,37 +161,46 @@ export const FiberFailureCauseId: Runtime.FiberFailureCauseId = Symbol.for(
   "effect/Runtime/FiberFailure/Cause"
 ) as any
 
-type Mutable<A> = {
-  -readonly [k in keyof A]: A[k]
+class FiberFailureImpl extends Error implements Runtime.FiberFailure {
+  readonly [FiberFailureId]: Runtime.FiberFailureId
+  readonly [FiberFailureCauseId]: Cause.Cause<unknown>
+  constructor(cause: Cause.Cause<unknown>) {
+    super()
+
+    this[FiberFailureId] = FiberFailureId
+    this[FiberFailureCauseId] = cause
+
+    const prettyErrors = InternalCause.prettyErrors(cause)
+    if (prettyErrors.length > 0) {
+      const head = prettyErrors[0]
+      this.name = head.message.split(":")[0]
+      this.message = head.message.substring(this.name.length + 2)
+      this.stack = InternalCause.pretty(cause)
+    }
+
+    this.name = `(FiberFailure) ${this.name}`
+  }
+
+  toJSON(): unknown {
+    return {
+      _id: "FiberFailure",
+      cause: this[FiberFailureCauseId].toJSON()
+    }
+  }
+  toString(): string {
+    return "(FiberFailure) " + InternalCause.pretty(this[FiberFailureCauseId])
+  }
+  [Inspectable.NodeInspectSymbol](): unknown {
+    return this.toString()
+  }
 }
 
 /** @internal */
 export const fiberFailure = <E>(cause: Cause.Cause<E>): Runtime.FiberFailure => {
   const limit = Error.stackTraceLimit
   Error.stackTraceLimit = 0
-  const error = (new Error()) as Mutable<Runtime.FiberFailure>
+  const error = new FiberFailureImpl(cause)
   Error.stackTraceLimit = limit
-  const prettyErrors = InternalCause.prettyErrors(cause)
-  if (prettyErrors.length > 0) {
-    const head = prettyErrors[0]
-    error.name = head.message.split(":")[0]
-    error.message = head.message.substring(error.name.length + 2)
-    error.stack = InternalCause.pretty(cause)
-  }
-  error[FiberFailureId] = FiberFailureId
-  error[FiberFailureCauseId] = cause
-  error.toJSON = () => {
-    return {
-      _id: "FiberFailure",
-      cause: cause.toJSON()
-    }
-  }
-  error.toString = () => {
-    return format(error.toJSON())
-  }
-  error[NodeInspectSymbol] = () => {
-    return error.toJSON()
-  }
   return error
 }
 
@@ -257,31 +249,51 @@ export const unsafeRunSyncExit =
   }
 
 /** @internal */
-export const unsafeRunPromise =
-  <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): Promise<A> =>
-    unsafeRunPromiseExit(runtime)(effect).then((result) => {
-      switch (result._tag) {
-        case OpCodes.OP_SUCCESS: {
-          return result.i0
-        }
-        case OpCodes.OP_FAILURE: {
-          throw fiberFailure(result.i0)
-        }
+export const unsafeRunPromise = <R>(runtime: Runtime.Runtime<R>) =>
+<A, E>(
+  effect: Effect.Effect<A, E, R>,
+  options?: {
+    readonly signal?: AbortSignal | undefined
+  } | undefined
+): Promise<A> =>
+  unsafeRunPromiseExit(runtime)(effect, options).then((result) => {
+    switch (result._tag) {
+      case OpCodes.OP_SUCCESS: {
+        return result.effect_instruction_i0
       }
-    })
+      case OpCodes.OP_FAILURE: {
+        throw fiberFailure(result.effect_instruction_i0)
+      }
+    }
+  })
 
 /** @internal */
-export const unsafeRunPromiseExit =
-  <R>(runtime: Runtime.Runtime<R>) => <A, E>(effect: Effect.Effect<A, E, R>): Promise<Exit.Exit<A, E>> =>
-    new Promise((resolve) => {
-      const op = fastPath(effect)
-      if (op) {
-        resolve(op)
-      }
-      unsafeFork(runtime)(effect).addObserver((exit) => {
-        resolve(exit)
-      })
+export const unsafeRunPromiseExit = <R>(runtime: Runtime.Runtime<R>) =>
+<A, E>(
+  effect: Effect.Effect<A, E, R>,
+  options?: {
+    readonly signal?: AbortSignal | undefined
+  } | undefined
+): Promise<Exit.Exit<A, E>> =>
+  new Promise((resolve) => {
+    const op = fastPath(effect)
+    if (op) {
+      resolve(op)
+    }
+    const fiber = unsafeFork(runtime)(effect)
+    fiber.addObserver((exit) => {
+      resolve(exit)
     })
+    if (options?.signal !== undefined) {
+      if (options.signal.aborted) {
+        fiber.unsafeInterruptAsFork(fiber.id())
+      } else {
+        options.signal.addEventListener("abort", () => {
+          fiber.unsafeInterruptAsFork(fiber.id())
+        })
+      }
+    }
+  })
 
 /** @internal */
 export class RuntimeImpl<in R> implements Runtime.Runtime<R> {
@@ -457,7 +469,6 @@ export const asyncEffect = <A, E, R, R3, E2, R2>(
   ) => Effect.Effect<Effect.Effect<void, never, R3> | void, E2, R2>
 ): Effect.Effect<A, E | E2, R | R2 | R3> =>
   core.suspend(() => {
-    internalize(register)
     let cleanup: Effect.Effect<void, never, R3> | void = undefined
     return core.flatMap(
       core.deferredMake<A, E | E2>(),
@@ -472,12 +483,12 @@ export const asyncEffect = <A, E, R, R3, E2, R2>(
                     onFailure: (cause) => core.deferredFailCause(deferred, cause),
                     onSuccess: (cleanup_) => {
                       cleanup = cleanup_
-                      return core.unit
+                      return core.void
                     }
                   }
                 )
               )),
-              restore(core.onInterrupt(core.deferredAwait(deferred), () => cleanup ?? core.unit))
+              restore(core.onInterrupt(core.deferredAwait(deferred), () => cleanup ?? core.void))
             )
           ))
     )

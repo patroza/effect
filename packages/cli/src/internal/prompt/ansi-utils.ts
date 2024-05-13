@@ -1,7 +1,7 @@
 import * as Doc from "@effect/printer-ansi/AnsiDoc"
+import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 
 const defaultFigures = {
   arrowUp: Doc.text("↑"),
@@ -62,7 +62,7 @@ export const lines = (prompt: string, columns: number): number => {
   return columns === 0
     ? lines.length
     : pipe(
-      ReadonlyArray.map(lines, (line) => Math.ceil(line.length / columns)),
-      ReadonlyArray.reduce(0, (left, right) => left + right)
+      Arr.map(lines, (line) => Math.ceil(line.length / columns)),
+      Arr.reduce(0, (left, right) => left + right)
     )
 }

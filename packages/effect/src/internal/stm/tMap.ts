@@ -1,3 +1,4 @@
+import * as RA from "../../Array.js"
 import * as Chunk from "../../Chunk.js"
 import * as Equal from "../../Equal.js"
 import type { LazyArg } from "../../Function.js"
@@ -6,7 +7,6 @@ import * as Hash from "../../Hash.js"
 import * as HashMap from "../../HashMap.js"
 import * as Option from "../../Option.js"
 import { hasProperty } from "../../Predicate.js"
-import * as RA from "../../ReadonlyArray.js"
 import * as STM from "../../STM.js"
 import type * as TArray from "../../TArray.js"
 import type * as TMap from "../../TMap.js"
@@ -187,7 +187,7 @@ export const forEach = dual<
   reduceSTM(
     self,
     void 0 as void,
-    (_, value, key) => stm.asUnit(f(key, value))
+    (_, value, key) => stm.asVoid(f(key, value))
   ))
 
 /** @internal */
@@ -501,7 +501,7 @@ export const setIfAbsent = dual<
     get(self, key),
     Option.match({
       onNone: () => set(self, key, value),
-      onSome: () => stm.unit
+      onSome: () => stm.void
     })
   ))
 

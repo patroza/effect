@@ -1,14 +1,18 @@
-import * as Cause from "effect/Cause"
+import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as FiberRef from "effect/FiberRef"
 import { constFalse, dual } from "effect/Function"
 import { globalValue } from "effect/GlobalValue"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import type * as Predicate from "effect/Predicate"
+import type * as App from "../../Http/App.js"
 import * as Headers from "../../Http/Headers.js"
-import * as IncomingMessage from "../../Http/IncomingMessage.js"
 import type * as Middleware from "../../Http/Middleware.js"
 import * as ServerError from "../../Http/ServerError.js"
 import * as ServerRequest from "../../Http/ServerRequest.js"
+import type { ServerResponse } from "../../Http/ServerResponse.js"
+import * as TraceContext from "../../Http/TraceContext.js"
 
 /** @internal */
 export const make = <M extends Middleware.Middleware>(middleware: M): M => middleware
@@ -36,6 +40,17 @@ export const currentTracerDisabledWhen = globalValue(
 export const withTracerDisabledWhen = dual<
   (
     predicate: Predicate.Predicate<ServerRequest.ServerRequest>
+  ) => <R, E, A>(layer: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>,
+  <R, E, A>(
+    layer: Layer.Layer<A, E, R>,
+    predicate: Predicate.Predicate<ServerRequest.ServerRequest>
+  ) => Layer.Layer<A, E, R>
+>(2, (self, pred) => Layer.locally(self, currentTracerDisabledWhen, pred))
+
+/** @internal */
+export const withTracerDisabledWhenEffect = dual<
+  (
+    predicate: Predicate.Predicate<ServerRequest.ServerRequest>
   ) => <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>,
   <R, E, A>(
     effect: Effect.Effect<A, E, R>,
@@ -44,65 +59,117 @@ export const withTracerDisabledWhen = dual<
 >(2, (self, pred) => Effect.locally(self, currentTracerDisabledWhen, pred))
 
 /** @internal */
+export const withTracerDisabledForUrls = dual<
+  (
+    urls: ReadonlyArray<string>
+  ) => <R, E, A>(layer: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>,
+  <R, E, A>(
+    layer: Layer.Layer<A, E, R>,
+    urls: ReadonlyArray<string>
+  ) => Layer.Layer<A, E, R>
+>(2, (self, urls) => Layer.locally(self, currentTracerDisabledWhen, (req) => urls.includes(req.url)))
+
+/** @internal */
 export const logger = make((httpApp) => {
   let counter = 0
-  return Effect.flatMap(
-    ServerRequest.ServerRequest,
-    (request) =>
-      Effect.withLogSpan(
-        Effect.onExit(httpApp, (exit) =>
-          Effect.flatMap(
-            FiberRef.get(loggerDisabled),
-            (disabled) => {
-              if (disabled) {
-                return Effect.unit
-              }
-              return exit._tag === "Failure" ?
-                Effect.annotateLogs(Effect.log(exit.cause), {
-                  "http.method": request.method,
-                  "http.url": request.url,
-                  "http.status": Cause.isInterruptedOnly(exit.cause)
-                    ? ServerError.isClientAbortCause(exit.cause)
-                      ? 499
-                      : 503
-                    : 500
-                }) :
-                Effect.annotateLogs(Effect.log(""), {
-                  "http.method": request.method,
-                  "http.url": request.url,
-                  "http.status": exit.value.status
-                })
-            }
-          )),
-        `http.span.${++counter}`
-      )
-  )
+  return Effect.withFiberRuntime((fiber) => {
+    const context = fiber.getFiberRef(FiberRef.currentContext)
+    const request = Context.unsafeGet(context, ServerRequest.ServerRequest)
+    return Effect.withLogSpan(
+      Effect.flatMap(Effect.exit(httpApp), (exit) => {
+        if (fiber.getFiberRef(loggerDisabled)) {
+          return exit
+        }
+        return Effect.zipRight(
+          exit._tag === "Failure" ?
+            Effect.annotateLogs(Effect.log(exit.cause), {
+              "http.method": request.method,
+              "http.url": request.url,
+              "http.status": ServerError.causeStatusCode(exit.cause)
+            }) :
+            Effect.annotateLogs(Effect.log("Sent HTTP response"), {
+              "http.method": request.method,
+              "http.url": request.url,
+              "http.status": exit.value.status
+            }),
+          exit
+        )
+      }),
+      `http.span.${++counter}`
+    )
+  })
 })
 
 /** @internal */
-export const tracer = make((httpApp) => {
-  const appWithStatus = Effect.tap(
-    httpApp,
-    (response) => Effect.annotateCurrentSpan("http.status", response.status)
-  )
-  return Effect.flatMap(
-    Effect.zip(ServerRequest.ServerRequest, FiberRef.get(currentTracerDisabledWhen)),
-    ([request, disabledWhen]) =>
-      Effect.flatMap(
-        request.headers["x-b3-traceid"] || request.headers["b3"] ?
-          Effect.orElseSucceed(IncomingMessage.schemaExternalSpan(request), () => undefined) :
-          Effect.succeed(undefined),
-        (parent) =>
-          disabledWhen(request) ?
-            httpApp :
-            Effect.withSpan(
-              appWithStatus,
-              `http ${request.method}`,
-              { attributes: { "http.method": request.method, "http.url": request.url }, parent }
-            )
-      )
-  )
-})
+export const tracer = make((httpApp) =>
+  Effect.withFiberRuntime((fiber) => {
+    const context = fiber.getFiberRef(FiberRef.currentContext)
+    const request = Context.unsafeGet(context, ServerRequest.ServerRequest)
+    const disabled = fiber.getFiberRef(currentTracerDisabledWhen)(request)
+    if (disabled) {
+      return httpApp
+    }
+    const host = request.headers["host"] ?? "localhost"
+    const protocol = request.headers["x-forwarded-proto"] === "https" ? "https" : "http"
+    let url: URL | undefined = undefined
+    try {
+      url = new URL(request.url, `${protocol}://${host}`)
+      if (url.username !== "" || url.password !== "") {
+        url.username = "REDACTED"
+        url.password = "REDACTED"
+      }
+    } catch (_) {
+      //
+    }
+    const redactedHeaderNames = fiber.getFiberRef(Headers.currentRedactedNames)
+    const redactedHeaders = Headers.redact(request.headers, redactedHeaderNames)
+    return Effect.useSpan(
+      `http.server ${request.method}`,
+      { parent: Option.getOrUndefined(TraceContext.fromHeaders(request.headers)), kind: "server" },
+      (span) => {
+        span.attribute("http.method", request.method)
+        span.attribute("http.request.method", request.method)
+        if (url !== undefined) {
+          span.attribute("http.url", url.toString())
+          span.attribute("url.full", url.toString())
+          span.attribute("url.path", url.pathname)
+          const query = url.search.slice(1)
+          if (query !== "") {
+            span.attribute("url.query", url.search.slice(1))
+          }
+          span.attribute("url.scheme", url.protocol.slice(0, -1))
+        }
+        if (request.headers["user-agent"] !== undefined) {
+          span.attribute("user_agent.original", request.headers["user-agent"])
+        }
+        for (const name in redactedHeaders) {
+          span.attribute(`http.request.header.${name}`, String(redactedHeaders[name]))
+        }
+        if (request.remoteAddress._tag === "Some") {
+          span.attribute("client.address", request.remoteAddress.value)
+        }
+        return Effect.flatMap(
+          Effect.exit(Effect.withParentSpan(httpApp, span)),
+          (exit) => {
+            if (exit._tag === "Failure") {
+              span.attribute("http.response.status_code", ServerError.causeStatusCode(exit.cause))
+              span.attribute("http.status_code", ServerError.causeStatusCode(exit.cause))
+            } else {
+              const response = exit.value
+              span.attribute("http.response.status_code", response.status)
+              span.attribute("http.status_code", response.status)
+              const redactedHeaders = Headers.redact(response.headers, redactedHeaderNames)
+              for (const name in redactedHeaders) {
+                span.attribute(`http.response.header.${name}`, String(redactedHeaders[name]))
+              }
+            }
+            return exit
+          }
+        )
+      }
+    )
+  })
+)
 
 /** @internal */
 export const xForwardedHeaders = make((httpApp) =>
@@ -118,3 +185,20 @@ export const xForwardedHeaders = make((httpApp) =>
       })
       : request)
 )
+
+/** @internal */
+export const searchParamsParser = <E, R>(httpApp: App.Default<E, R>) =>
+  Effect.withFiberRuntime<
+    ServerResponse,
+    E,
+    ServerRequest.ServerRequest | Exclude<R, ServerRequest.ParsedSearchParams>
+  >((fiber) => {
+    const context = fiber.getFiberRef(FiberRef.currentContext)
+    const request = Context.unsafeGet(context, ServerRequest.ServerRequest)
+    const params = ServerRequest.searchParamsFromURL(new URL(request.url))
+    return Effect.locally(
+      httpApp,
+      FiberRef.currentContext,
+      Context.add(context, ServerRequest.ParsedSearchParams, params)
+    ) as any
+  })

@@ -1,13 +1,13 @@
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
+import * as Util from "@effect/schema/test/TestUtils"
 import { describe, it } from "vitest"
 
-describe("Schema > validateOption", () => {
+describe("validateOption", () => {
   it("should return none on async", () => {
     Util.expectNone(S.validateOption(Util.AsyncDeclaration)("a"))
   })
 
-  const schema = S.struct({ a: Util.NumberFromChar })
+  const schema = S.Struct({ a: Util.NumberFromChar })
 
   it("should return None on invalid values", () => {
     Util.expectSome(S.validateOption(schema)({ a: 1 }), { a: 1 })

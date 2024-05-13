@@ -1,12 +1,12 @@
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
+import * as Util from "@effect/schema/test/TestUtils"
 import { describe, it } from "vitest"
 
-describe("Schema > `errors` option", () => {
+describe("`errors` option", () => {
   describe("decoding", () => {
     describe("tuple", () => {
       it("e r e", async () => {
-        const schema = S.tuple(S.string).pipe(S.rest(S.number), S.element(S.boolean))
+        const schema = S.Tuple([S.String], S.Number, S.Boolean)
         await Util.expectDecodeUnknownFailure(
           schema,
           [true],
@@ -20,7 +20,7 @@ describe("Schema > `errors` option", () => {
       })
 
       it("missing element", async () => {
-        const schema = S.tuple(S.string, S.number)
+        const schema = S.Tuple(S.String, S.Number)
         await Util.expectDecodeUnknownFailure(
           schema,
           [],
@@ -34,7 +34,7 @@ describe("Schema > `errors` option", () => {
       })
 
       it("unexpected indexes", async () => {
-        const schema = S.tuple()
+        const schema = S.Tuple()
         await Util.expectDecodeUnknownFailure(
           schema,
           ["a", "b"],
@@ -48,7 +48,7 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for elements", async () => {
-        const schema = S.tuple(S.string, S.number)
+        const schema = S.Tuple(S.String, S.Number)
         await Util.expectDecodeUnknownFailure(
           schema,
           [1, "b"],
@@ -62,7 +62,7 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for rest", async () => {
-        const schema = S.tuple(S.string).pipe(S.rest(S.number))
+        const schema = S.Tuple([S.String], S.Number)
         await Util.expectDecodeUnknownFailure(
           schema,
           ["a", "b", "c"],
@@ -76,7 +76,7 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for post rest elements", async () => {
-        const schema = S.array(S.boolean).pipe(S.element(S.number), S.element(S.number))
+        const schema = S.Tuple([], S.Boolean, S.Number, S.Number)
         await Util.expectDecodeUnknownFailure(
           schema,
           ["a", "b"],
@@ -92,11 +92,11 @@ describe("Schema > `errors` option", () => {
 
     describe("struct", () => {
       it("missing keys", async () => {
-        const schema = S.struct({ a: S.string, b: S.number })
+        const schema = S.Struct({ a: S.String, b: S.Number })
         await Util.expectDecodeUnknownFailure(
           schema,
           {},
-          `{ a: string; b: number }
+          `{ readonly a: string; readonly b: number }
 ├─ ["a"]
 │  └─ is missing
 └─ ["b"]
@@ -106,11 +106,11 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for values", async () => {
-        const schema = S.struct({ a: S.string, b: S.number })
+        const schema = S.Struct({ a: S.String, b: S.Number })
         await Util.expectDecodeUnknownFailure(
           schema,
           { a: 1, b: "b" },
-          `{ a: string; b: number }
+          `{ readonly a: string; readonly b: number }
 ├─ ["a"]
 │  └─ Expected a string, actual 1
 └─ ["b"]
@@ -120,11 +120,11 @@ describe("Schema > `errors` option", () => {
       })
 
       it("unexpected keys", async () => {
-        const schema = S.struct({ a: S.number })
+        const schema = S.Struct({ a: S.Number })
         await Util.expectDecodeUnknownFailure(
           schema,
           { a: 1, b: "b", c: "c" },
-          `{ a: number }
+          `{ readonly a: number }
 ├─ ["b"]
 │  └─ is unexpected, expected "a"
 └─ ["c"]
@@ -136,11 +136,11 @@ describe("Schema > `errors` option", () => {
 
     describe("record", () => {
       it("all key errors", async () => {
-        const schema = S.record(S.string.pipe(S.minLength(2)), S.number)
+        const schema = S.Record(S.String.pipe(S.minLength(2)), S.Number)
         await Util.expectDecodeUnknownFailure(
           schema,
           { a: 1, b: 2 },
-          `{ [x: string]: number }
+          `{ readonly [x: string]: number }
 ├─ ["a"]
 │  └─ is unexpected, expected a string at least 2 character(s) long
 └─ ["b"]
@@ -150,11 +150,11 @@ describe("Schema > `errors` option", () => {
       })
 
       it("all value errors", async () => {
-        const schema = S.record(S.string, S.number)
+        const schema = S.Record(S.String, S.Number)
         await Util.expectDecodeUnknownFailure(
           schema,
           { a: "a", b: "b" },
-          `{ [x: string]: number }
+          `{ readonly [x: string]: number }
 ├─ ["a"]
 │  └─ Expected a number, actual "a"
 └─ ["b"]
@@ -168,7 +168,7 @@ describe("Schema > `errors` option", () => {
   describe("encoding", () => {
     describe("tuple", () => {
       it("unexpected indexes", async () => {
-        const schema = S.tuple()
+        const schema = S.Tuple()
         await Util.expectEncodeFailure(
           schema,
           [1, 1] as any,
@@ -182,20 +182,20 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for elements", async () => {
-        const schema = S.tuple(Util.NumberFromChar, Util.NumberFromChar)
+        const schema = S.Tuple(Util.NumberFromChar, Util.NumberFromChar)
         await Util.expectEncodeFailure(
           schema,
           [10, 10],
           `readonly [NumberFromChar, NumberFromChar]
 ├─ [0]
 │  └─ NumberFromChar
-│     └─ From side transformation failure
+│     └─ Encoded side transformation failure
 │        └─ Char
 │           └─ Predicate refinement failure
 │              └─ Expected Char (a single character), actual "10"
 └─ [1]
    └─ NumberFromChar
-      └─ From side transformation failure
+      └─ Encoded side transformation failure
          └─ Char
             └─ Predicate refinement failure
                └─ Expected Char (a single character), actual "10"`,
@@ -204,20 +204,20 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for rest", async () => {
-        const schema = S.array(Util.NumberFromChar)
+        const schema = S.Array(Util.NumberFromChar)
         await Util.expectEncodeFailure(
           schema,
           [10, 10],
           `ReadonlyArray<NumberFromChar>
 ├─ [0]
 │  └─ NumberFromChar
-│     └─ From side transformation failure
+│     └─ Encoded side transformation failure
 │        └─ Char
 │           └─ Predicate refinement failure
 │              └─ Expected Char (a single character), actual "10"
 └─ [1]
    └─ NumberFromChar
-      └─ From side transformation failure
+      └─ Encoded side transformation failure
          └─ Char
             └─ Predicate refinement failure
                └─ Expected Char (a single character), actual "10"`,
@@ -226,23 +226,20 @@ describe("Schema > `errors` option", () => {
       })
 
       it("wrong type for values post rest elements", async () => {
-        const schema = S.array(S.string).pipe(
-          S.element(Util.NumberFromChar),
-          S.element(Util.NumberFromChar)
-        )
+        const schema = S.Tuple([], S.String, Util.NumberFromChar, Util.NumberFromChar)
         await Util.expectEncodeFailure(
           schema,
           [10, 10],
           `readonly [...string[], NumberFromChar, NumberFromChar]
 ├─ [0]
 │  └─ NumberFromChar
-│     └─ From side transformation failure
+│     └─ Encoded side transformation failure
 │        └─ Char
 │           └─ Predicate refinement failure
 │              └─ Expected Char (a single character), actual "10"
 └─ [1]
    └─ NumberFromChar
-      └─ From side transformation failure
+      └─ Encoded side transformation failure
          └─ Char
             └─ Predicate refinement failure
                └─ Expected Char (a single character), actual "10"`,
@@ -253,20 +250,20 @@ describe("Schema > `errors` option", () => {
 
     describe("struct", () => {
       it("wrong type for values", async () => {
-        const schema = S.struct({ a: Util.NumberFromChar, b: Util.NumberFromChar })
+        const schema = S.Struct({ a: Util.NumberFromChar, b: Util.NumberFromChar })
         await Util.expectEncodeFailure(
           schema,
           { a: 10, b: 10 },
-          `{ a: NumberFromChar; b: NumberFromChar }
+          `{ readonly a: NumberFromChar; readonly b: NumberFromChar }
 ├─ ["a"]
 │  └─ NumberFromChar
-│     └─ From side transformation failure
+│     └─ Encoded side transformation failure
 │        └─ Char
 │           └─ Predicate refinement failure
 │              └─ Expected Char (a single character), actual "10"
 └─ ["b"]
    └─ NumberFromChar
-      └─ From side transformation failure
+      └─ Encoded side transformation failure
          └─ Char
             └─ Predicate refinement failure
                └─ Expected Char (a single character), actual "10"`,
@@ -277,11 +274,11 @@ describe("Schema > `errors` option", () => {
 
     describe("record", () => {
       it("all key errors", async () => {
-        const schema = S.record(S.Char, S.string)
+        const schema = S.Record(S.Char, S.String)
         await Util.expectEncodeFailure(
           schema,
           { aa: "a", bb: "bb" },
-          `{ [x: string]: string }
+          `{ readonly [x: string]: string }
 ├─ ["aa"]
 │  └─ is unexpected, expected Char (a single character)
 └─ ["bb"]
@@ -291,11 +288,11 @@ describe("Schema > `errors` option", () => {
       })
 
       it("all value errors", async () => {
-        const schema = S.record(S.string, S.Char)
+        const schema = S.Record(S.String, S.Char)
         await Util.expectEncodeFailure(
           schema,
           { a: "aa", b: "bb" },
-          `{ [x: string]: Char }
+          `{ readonly [x: string]: Char }
 ├─ ["a"]
 │  └─ Char
 │     └─ Predicate refinement failure

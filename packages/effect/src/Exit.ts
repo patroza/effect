@@ -40,7 +40,7 @@ export interface Failure<out A, out E> extends Effect.Effect<A, E>, Pipeable, In
   [Unify.unifySymbol]?: ExitUnify<this>
   [Unify.ignoreSymbol]?: ExitUnifyIgnore
   /** @internal */
-  readonly i0: Cause.Cause<E>
+  readonly effect_instruction_i0: Cause.Cause<E>
 }
 
 /**
@@ -74,7 +74,7 @@ export interface Success<out A, out E> extends Effect.Effect<A, E>, Pipeable, In
   [Unify.unifySymbol]?: ExitUnify<this>
   [Unify.ignoreSymbol]?: ExitUnifyIgnore
   /** @internal */
-  readonly i0: A
+  readonly effect_instruction_i0: A
 }
 
 /**
@@ -128,7 +128,7 @@ export const as: {
  * @since 2.0.0
  * @category mapping
  */
-export const asUnit: <A, E>(self: Exit<A, E>) => Exit<void, E> = core.exitAsUnit
+export const asVoid: <A, E>(self: Exit<A, E>) => Exit<void, E> = core.exitAsVoid
 
 /**
  * Returns a `Some<Cause<E>>` if the specified exit is a `Failure`, `None`
@@ -358,13 +358,16 @@ export const matchEffect: {
  */
 export const succeed: <A>(value: A) => Exit<A> = core.exitSucceed
 
-/**
- * Represents an `Exit` which succeeds with `undefined`.
- *
- * @since 2.0.0
- * @category constructors
- */
-export const unit: Exit<void> = core.exitUnit
+const void_: Exit<void> = core.exitVoid
+export {
+  /**
+   * Represents an `Exit` which succeeds with `undefined`.
+   *
+   * @since 2.0.0
+   * @category constructors
+   */
+  void_ as void
+}
 
 /**
  * Sequentially zips the this result with the specified result or else returns

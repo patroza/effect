@@ -32,13 +32,13 @@ export const PlatformRunner = Context.GenericTag<WorkerRunner.PlatformRunner>(
 /** @internal */
 export const make = <I, R, E, O>(
   process: (request: I) => Stream.Stream<O, E, R> | Effect.Effect<O, E, R>,
-  options?: WorkerRunner.Runner.Options<I, E, O>
+  options?: WorkerRunner.Runner.Options<I, O, E>
 ) =>
   Effect.gen(function*(_) {
     const scope = yield* _(Scope.fork(yield* _(Effect.scope), ExecutionStrategy.parallel))
     const fiber = Option.getOrThrow(Fiber.getCurrentFiber())
     const shutdown = Effect.zipRight(
-      Scope.close(scope, Exit.unit),
+      Scope.close(scope, Exit.void),
       Fiber.interruptFork(fiber)
     )
     const platform = yield* _(PlatformRunner)
@@ -51,19 +51,20 @@ export const make = <I, R, E, O>(
     yield* _(
       Queue.take(backing.queue),
       options?.decode ?
-        Effect.flatMap((req): Effect.Effect<Worker.Worker.Request<I>, WorkerError> => {
+        Effect.flatMap((msg): Effect.Effect<readonly [portId: number, Worker.Worker.Request<I>], WorkerError> => {
+          const req = msg[1]
           if (req[1] === 1) {
-            return Effect.succeed(req)
+            return Effect.succeed(msg)
           }
 
-          return Effect.map(options.decode!(req[2]), (data) => [req[0], req[1], data, req[3]])
+          return Effect.map(options.decode!(req[2]), (data) => [msg[0], [req[0], req[1], data, req[3]]])
         }) :
         identity,
-      Effect.tap((req) => {
+      Effect.tap(([portId, req]) => {
         const id = req[0]
         if (req[1] === 1) {
           const fiber = fiberMap.get(id)
-          if (!fiber) return Effect.unit
+          if (!fiber) return Effect.void
           return Fiber.interrupt(fiber)
         }
 
@@ -79,7 +80,7 @@ export const make = <I, R, E, O>(
                     ? Effect.provideService(options.encodeOutput(req[2], data), Transferable.Collector, collector)
                     : Effect.succeed(data),
                   Effect.flatMap((payload) =>
-                    backing.send([id, 0, [payload]], [
+                    backing.send(portId, [id, 0, [payload]], [
                       ...transfers,
                       ...collector.unsafeRead()
                     ])
@@ -93,7 +94,7 @@ export const make = <I, R, E, O>(
                   if (options?.encodeOutput === undefined) {
                     const payload = Chunk.toReadonlyArray(data)
                     const transfers = options?.transfers ? payload.flatMap(options.transfers) : undefined
-                    return backing.send([id, 0, payload], transfers)
+                    return backing.send(portId, [id, 0, payload], transfers)
                   }
 
                   const transfers: Array<unknown> = []
@@ -110,12 +111,12 @@ export const make = <I, R, E, O>(
                     Effect.provideService(Transferable.Collector, collector),
                     Effect.flatMap((payload) => {
                       collector.unsafeRead().forEach((transfer) => transfers.push(transfer))
-                      return backing.send([id, 0, payload], transfers)
+                      return backing.send(portId, [id, 0, payload], transfers)
                     })
                   )
                 }),
                 Stream.runDrain,
-                Effect.andThen(backing.send([id, 1]))
+                Effect.andThen(backing.send(portId, [id, 1]))
               )
 
             if (req[3]) {
@@ -131,7 +132,8 @@ export const make = <I, R, E, O>(
 
             return effect
           }),
-          Effect.catchIf(isWorkerError, (error) => backing.send([id, 3, WorkerError.encodeCause(Cause.fail(error))])),
+          Effect.catchIf(isWorkerError, (error) =>
+            backing.send(portId, [id, 3, WorkerError.encodeCause(Cause.fail(error))])),
           Effect.catchAllCause((cause) =>
             Either.match(Cause.failureOrCause(cause), {
               onLeft: (error) => {
@@ -146,15 +148,17 @@ export const make = <I, R, E, O>(
                     )
                     : Effect.succeed(error),
                   Effect.flatMap((payload) =>
-                    backing.send([id, 2, payload as any], [
+                    backing.send(portId, [id, 2, payload as any], [
                       ...transfers,
                       ...collector.unsafeRead()
                     ])
                   ),
-                  Effect.catchAllCause((cause) => backing.send([id, 3, WorkerError.encodeCause(cause)]))
+                  Effect.catchAllCause((cause) =>
+                    backing.send(portId, [id, 3, WorkerError.encodeCause(cause)])
+                  )
                 )
               },
-              onRight: (cause) => backing.send([id, 3, WorkerError.encodeCause(cause)])
+              onRight: (cause) => backing.send(portId, [id, 3, WorkerError.encodeCause(cause)])
             })
           ),
           Effect.ensuring(Effect.sync(() => fiberMap.delete(id))),
@@ -170,7 +174,7 @@ export const make = <I, R, E, O>(
 /** @internal */
 export const layer = <I, R, E, O>(
   process: (request: I) => Stream.Stream<O, E, R> | Effect.Effect<O, E, R>,
-  options?: WorkerRunner.Runner.Options<I, E, O>
+  options?: WorkerRunner.Runner.Options<I, O, E>
 ): Layer.Layer<never, WorkerError, WorkerRunner.PlatformRunner | R> => Layer.scopedDiscard(make(process, options))
 
 /** @internal */

@@ -17,8 +17,9 @@ import type { WorkerError } from "./WorkerError.js"
  * @category models
  */
 export interface BackingRunner<I, O> {
-  readonly queue: Queue.Dequeue<I>
+  readonly queue: Queue.Dequeue<readonly [portId: number, message: I]>
   readonly send: (
+    portId: number,
     message: O,
     transfers?: ReadonlyArray<unknown>
   ) => Effect.Effect<void>
@@ -74,7 +75,7 @@ export declare namespace Runner {
    * @since 1.0.0
    * @category models
    */
-  export interface Options<I, E, O> {
+  export interface Options<I, O, E> {
     readonly decode?: (
       message: unknown
     ) => Effect.Effect<I, WorkerError>
@@ -96,7 +97,7 @@ export declare namespace Runner {
  */
 export const make: <I, R, E, O>(
   process: (request: I) => Stream.Stream<O, E, R> | Effect.Effect<O, E, R>,
-  options?: Runner.Options<I, E, O> | undefined
+  options?: Runner.Options<I, O, E> | undefined
 ) => Effect.Effect<void, WorkerError, Scope.Scope | R | PlatformRunner> = internal.make
 
 /**
@@ -105,7 +106,7 @@ export const make: <I, R, E, O>(
  */
 export const layer: <I, R, E, O>(
   process: (request: I) => Stream.Stream<O, E, R> | Effect.Effect<O, E, R>,
-  options?: Runner.Options<I, E, O> | undefined
+  options?: Runner.Options<I, O, E> | undefined
 ) => Layer.Layer<never, WorkerError, R | PlatformRunner> = internal.layer
 
 /**
@@ -121,19 +122,19 @@ export declare namespace SerializedRunner {
       A,
       { readonly _tag: K }
     > extends Serializable.SerializableWithResult<
-      infer _RS,
-      infer _IS,
       infer S,
-      infer _RR,
-      infer _IE,
+      infer _SI,
+      infer _SR,
+      infer A,
+      infer _AI,
       infer E,
-      infer _IO,
-      infer O
+      infer _EI,
+      infer _RR
     > ? (
         _: S
       ) =>
-        | Stream.Stream<O, E, any>
-        | Effect.Effect<O, E, any>
+        | Stream.Stream<A, E, any>
+        | Effect.Effect<A, E, any>
         | Layer.Layer<any, E, any>
         | Layer.Layer<never, E, any>
       : never

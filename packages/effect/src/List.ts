@@ -21,6 +21,7 @@
  * Licensed under Apache License 2.0
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
+import * as Arr from "./Array.js"
 import * as Chunk from "./Chunk.js"
 import * as Either from "./Either.js"
 import * as Equal from "./Equal.js"
@@ -32,7 +33,6 @@ import * as Option from "./Option.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
 import { hasProperty, type Predicate, type Refinement } from "./Predicate.js"
-import * as ReadonlyArray from "./ReadonlyArray.js"
 import type { NoInfer } from "./Types.js"
 
 /**
@@ -85,14 +85,14 @@ export interface Cons<out A> extends Iterable<A>, Equal.Equal, Pipeable, Inspect
  * @category conversions
  * @since 2.0.0
  */
-export const toArray = <A>(self: List<A>): Array<A> => Array.from(self)
+export const toArray = <A>(self: List<A>): Array<A> => Arr.fromIterable(self)
 
 /**
  * @category equivalence
  * @since 2.0.0
  */
 export const getEquivalence = <A>(isEquivalent: Equivalence.Equivalence<A>): Equivalence.Equivalence<List<A>> =>
-  Equivalence.mapInput(ReadonlyArray.getEquivalence(isEquivalent), toArray<A>)
+  Equivalence.mapInput(Arr.getEquivalence(isEquivalent), toArray<A>)
 
 const _equivalence = getEquivalence(Equal.equals)
 
@@ -324,7 +324,7 @@ export const append: {
  * If either list is non-empty, the result is also a non-empty list.
  *
  * @example
- * import * as List from "effect/List"
+ * import { List } from "effect"
  *
  * assert.deepStrictEqual(
  *   List.make(1, 2).pipe(List.appendAll(List.make("a", "b")), List.toArray),
@@ -357,7 +357,7 @@ export const prepend: {
  * If either list is non-empty, the result is also a non-empty list.
  *
  * @example
- * import * as List from "effect/List"
+ * import { List } from "effect"
  *
  * assert.deepStrictEqual(
  *   List.make(1, 2).pipe(List.prependAll(List.make("a", "b")), List.toArray),
@@ -924,6 +924,8 @@ export const take: {
  */
 export const toChunk = <A>(self: List<A>): Chunk.Chunk<A> => Chunk.fromIterable(self)
 
+const getExpectedListToBeNonEmptyErrorMessage = "Expected List to be non-empty"
+
 /**
  * Unsafely returns the first element of the specified `List`.
  *
@@ -932,7 +934,7 @@ export const toChunk = <A>(self: List<A>): Chunk.Chunk<A> => Chunk.fromIterable(
  */
 export const unsafeHead = <A>(self: List<A>): A => {
   if (isNil(self)) {
-    throw new Error("Expected List to be non-empty")
+    throw new Error(getExpectedListToBeNonEmptyErrorMessage)
   }
   return self.head
 }
@@ -945,7 +947,7 @@ export const unsafeHead = <A>(self: List<A>): A => {
  */
 export const unsafeLast = <A>(self: List<A>): A => {
   if (isNil(self)) {
-    throw new Error("Expected List to be non-empty")
+    throw new Error(getExpectedListToBeNonEmptyErrorMessage)
   }
   let these = self
   let scout = self.tail
@@ -964,7 +966,7 @@ export const unsafeLast = <A>(self: List<A>): A => {
  */
 export const unsafeTail = <A>(self: List<A>): List<A> => {
   if (isNil(self)) {
-    throw new Error("Expected List to be non-empty")
+    throw new Error(getExpectedListToBeNonEmptyErrorMessage)
   }
   return self.tail
 }

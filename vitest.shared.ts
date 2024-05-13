@@ -8,13 +8,21 @@ const alias = (pkg: string) => ({
 
 // This is a workaround, see https://github.com/vitest-dev/vitest/issues/4744
 const config: UserConfig = {
+  esbuild: {
+    target: "es2020"
+  },
+  optimizeDeps: {
+    exclude: ["bun:sqlite"]
+  },
   test: {
+    setupFiles: [path.join(__dirname, "setupTests.ts")],
     fakeTimers: {
       toFake: undefined
     },
     sequence: {
       concurrent: true
     },
+    include: ["test/**/*.test.ts"],
     alias: {
       // TODO: Should we use `effect/test` instead of `effect-test`?
       "effect-test": path.join(__dirname, "packages/effect/test"),
@@ -32,7 +40,16 @@ const config: UserConfig = {
       ...alias("rpc"),
       ...alias("rpc-http"),
       ...alias("schema"),
-      ...alias("typeclass")
+      ...alias("sql"),
+      ...alias("sql-mssql"),
+      ...alias("sql-mysql2"),
+      ...alias("sql-pg"),
+      ...alias("sql-sqlite-bun"),
+      ...alias("sql-sqlite-node"),
+      ...alias("sql-sqlite-react-native"),
+      ...alias("sql-sqlite-wasm"),
+      ...alias("typeclass"),
+      ...alias("vitest")
     }
   }
 }

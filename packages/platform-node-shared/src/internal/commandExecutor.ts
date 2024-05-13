@@ -4,7 +4,8 @@ import type * as Error from "@effect/platform/Error"
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
-import { constUndefined, pipe } from "effect/Function"
+import { constUndefined, identity, pipe } from "effect/Function"
+import * as Inspectable from "effect/Inspectable"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import type * as Scope from "effect/Scope"
@@ -15,8 +16,8 @@ import { handleErrnoException } from "./error.js"
 import { fromWritable } from "./sink.js"
 import { fromReadable } from "./stream.js"
 
-const inputToStdioOption = (stdin: Option.Option<Command.Command.Input>): "pipe" | "inherit" =>
-  Option.match(stdin, { onNone: () => "inherit", onSome: () => "pipe" })
+const inputToStdioOption = (stdin: Command.Command.Input): "pipe" | "inherit" =>
+  typeof stdin === "string" ? stdin : "pipe"
 
 const outputToStdioOption = (output: Command.Command.Output): "pipe" | "inherit" =>
   typeof output === "string" ? output : "pipe"
@@ -37,6 +38,17 @@ const toPlatformError = (
 
 type ExitCode = readonly [code: number | null, signal: NodeJS.Signals | null]
 type ExitCodeDeferred = Deferred.Deferred<ExitCode>
+
+const ProcessProto = {
+  [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
+  ...Inspectable.BaseProto,
+  toJSON(this: CommandExecutor.Process) {
+    return {
+      _id: "@effect/platform/CommandExecutor/Process",
+      pid: this.pid
+    }
+  }
+}
 
 const runCommand =
   (fileSystem: FileSystem.FileSystem) =>
@@ -76,7 +88,7 @@ const runCommand =
         return pipe(
           // Validate that the directory is accessible
           Option.match(command.cwd, {
-            onNone: () => Effect.unit,
+            onNone: () => Effect.void,
             onSome: (dir) => fileSystem.access(dir)
           }),
           Effect.zipRight(
@@ -84,11 +96,11 @@ const runCommand =
               spawn,
               ([handle, exitCode]) =>
                 Effect.flatMap(Deferred.isDone(exitCode), (done) =>
-                  done ? Effect.unit : Effect.suspend(() => {
+                  done ? Effect.void : Effect.suspend(() => {
                     if (handle.kill("SIGTERM")) {
                       return Deferred.await(exitCode)
                     }
-                    return Effect.unit
+                    return Effect.void
                   }))
             )
           ),
@@ -126,7 +138,7 @@ const runCommand =
             const kill: CommandExecutor.Process["kill"] = (signal = "SIGTERM") =>
               Effect.suspend(() =>
                 handle.kill(signal)
-                  ? Effect.asUnit(Deferred.await(exitCodeDeferred))
+                  ? Effect.asVoid(Deferred.await(exitCodeDeferred))
                   : Effect.fail(toPlatformError("kill", new globalThis.Error("Failed to kill process"), command))
               )
 
@@ -146,8 +158,7 @@ const runCommand =
             if (typeof command.stdout !== "string") {
               stdout = Stream.transduce(stdout, command.stdout)
             }
-            return {
-              [CommandExecutor.ProcessTypeId]: CommandExecutor.ProcessTypeId,
+            return Object.assign(Object.create(ProcessProto), {
               pid,
               exitCode,
               isRunning,
@@ -155,14 +166,13 @@ const runCommand =
               stdin,
               stderr,
               stdout
-            }
-          }),
-          Effect.tap((process) =>
-            Option.match(command.stdin, {
-              onNone: () => Effect.unit,
-              onSome: (stdin) => Effect.forkDaemon(Stream.run(stdin, process.stdin))
             })
-          )
+          }),
+          typeof command.stdin === "string"
+            ? identity
+            : Effect.tap((process) =>
+              Effect.forkDaemon(Stream.run(command.stdin as Stream.Stream<Uint8Array>, process.stdin))
+            )
         )
       }
       case "PipedCommand": {

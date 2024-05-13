@@ -1,32 +1,34 @@
 {
   "name": "effect",
-  "version": "2.4.1",
+  "version": "3.1.2",
   "type": "module",
   "license": "MIT",
-  "description": "Functional programming in TypeScript",
+  "description": "The missing standard library for TypeScript, for writing production-grade software.",
   "homepage": "https://effect.website",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effect-ts/effect.git",
+    "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/effect"
   },
   "bugs": {
-    "url": "https://github.com/effect-ts/effect/issues"
+    "url": "https://github.com/Effect-TS/effect/issues"
   },
   "tags": [
     "typescript",
-    "algebraic-data-types",
-    "functional-programming"
+    "error-handling",
+    "concurrency",
+    "observability"
   ],
   "keywords": [
     "typescript",
-    "algebraic-data-types",
-    "functional-programming"
+    "error-handling",
+    "concurrency",
+    "observability"
   ],
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",
@@ -41,8 +43,8 @@
   },
   "devDependencies": {
     "@types/jscodeshift": "^0.11.11",
-    "@types/node": "^20.11.19",
+    "@types/node": "^20.12.7",
     "ast-types": "^0.14.2",
-    "jscodeshift": "^0.15.1"
+    "jscodeshift": "^0.15.2"
   }
 }

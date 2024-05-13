@@ -1,11 +1,14 @@
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as Schema from "@effect/schema/Schema"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
 import { dual } from "effect/Function"
+import * as Inspectable from "effect/Inspectable"
 import * as Stream from "effect/Stream"
 import type * as PlatformError from "../../Error.js"
 import type * as FileSystem from "../../FileSystem.js"
 import type * as Body from "../../Http/Body.js"
+import * as Cookies from "../../Http/Cookies.js"
 import * as Headers from "../../Http/Headers.js"
 import * as Platform from "../../Http/Platform.js"
 import type * as ServerResponse from "../../Http/ServerResponse.js"
@@ -25,6 +28,7 @@ class ServerResponseImpl extends Effectable.StructuralClass<ServerResponse.Serve
     readonly status: number,
     readonly statusText: string | undefined,
     headers: Headers.Headers,
+    readonly cookies: Cookies.Cookies,
     readonly body: Body.Body
   ) {
     super()
@@ -47,13 +51,22 @@ class ServerResponseImpl extends Effectable.StructuralClass<ServerResponse.Serve
     return Effect.succeed(this)
   }
 
+  [Inspectable.NodeInspectSymbol]() {
+    return this.toJSON()
+  }
+
+  toString(): string {
+    return Inspectable.format(this)
+  }
+
   toJSON() {
     return {
-      _id: "ServerResponse",
+      _id: "@effect/platform/Http/ServerResponse",
       status: this.status,
       statusText: this.statusText,
       headers: this.headers,
-      body: this.body
+      cookies: this.cookies.toJSON(),
+      body: this.body.toJSON()
     }
   }
 }
@@ -63,11 +76,12 @@ export const isServerResponse = (u: unknown): u is ServerResponse.ServerResponse
   typeof u === "object" && u !== null && TypeId in u
 
 /** @internal */
-export const empty = (options?: ServerResponse.Options.WithContent): ServerResponse.ServerResponse =>
+export const empty = (options?: ServerResponse.Options.WithContent | undefined): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
     options?.status ?? 204,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.empty
   )
 
@@ -80,6 +94,7 @@ export const uint8Array = (
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.uint8Array(body, getContentType(options))
   )
 
@@ -89,6 +104,7 @@ export const text = (body: string, options?: ServerResponse.Options.WithContentT
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.text(body, getContentType(options))
   )
 
@@ -141,42 +157,46 @@ export const htmlStream = <A extends ReadonlyArray<Template.InterpolatedWithStre
 /** @internal */
 export const json = (
   body: unknown,
-  options?: ServerResponse.Options.WithContent
+  options?: ServerResponse.Options.WithContent | undefined
 ): Effect.Effect<ServerResponse.ServerResponse, Body.BodyError> =>
   Effect.map(internalBody.json(body), (body) =>
     new ServerResponseImpl(
       options?.status ?? 200,
       options?.statusText,
       options?.headers ?? Headers.empty,
+      options?.cookies ?? Cookies.empty,
       body
     ))
 
 /** @internal */
 export const unsafeJson = (
   body: unknown,
-  options?: ServerResponse.Options.WithContent
+  options?: ServerResponse.Options.WithContent | undefined
 ): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.unsafeJson(body)
   )
 
 /** @internal */
 export const schemaJson = <A, I, R>(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => {
-  const encode = internalBody.jsonSchema(schema)
+  const encode = internalBody.jsonSchema(schema, options)
   return (
     body: A,
-    options?: ServerResponse.Options.WithContent
+    options?: ServerResponse.Options.WithContent | undefined
   ): Effect.Effect<ServerResponse.ServerResponse, Body.BodyError, R> =>
     Effect.map(encode(body), (body) =>
       new ServerResponseImpl(
         options?.status ?? 200,
         options?.statusText,
         options?.headers ?? Headers.empty,
+        options?.cookies ?? Cookies.empty,
         body
       ))
 }
@@ -184,7 +204,7 @@ export const schemaJson = <A, I, R>(
 /** @internal */
 export const file = (
   path: string,
-  options?: ServerResponse.Options & FileSystem.StreamOptions
+  options?: (ServerResponse.Options & FileSystem.StreamOptions) | undefined
 ): Effect.Effect<ServerResponse.ServerResponse, PlatformError.PlatformError, Platform.Platform> =>
   Effect.flatMap(
     Platform.Platform,
@@ -194,7 +214,7 @@ export const file = (
 /** @internal */
 export const fileWeb = (
   file: Body.Body.FileLike,
-  options?: ServerResponse.Options.WithContent & FileSystem.StreamOptions
+  options?: (ServerResponse.Options.WithContent & FileSystem.StreamOptions) | undefined
 ): Effect.Effect<ServerResponse.ServerResponse, never, Platform.Platform> =>
   Effect.flatMap(
     Platform.Platform,
@@ -204,50 +224,54 @@ export const fileWeb = (
 /** @internal */
 export const urlParams = (
   body: UrlParams.Input,
-  options?: ServerResponse.Options.WithContent
+  options?: ServerResponse.Options.WithContent | undefined
 ): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.text(UrlParams.toString(UrlParams.fromInput(body)), "application/x-www-form-urlencoded")
   )
 
 /** @internal */
-export const raw = (body: unknown, options?: ServerResponse.Options): ServerResponse.ServerResponse =>
+export const raw = (body: unknown, options?: ServerResponse.Options | undefined): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.raw(body)
   )
 
 /** @internal */
 export const formData = (
   body: FormData,
-  options?: ServerResponse.Options.WithContent
+  options?: ServerResponse.Options.WithContent | undefined
 ): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.formData(body)
   )
 
 /** @internal */
 export const stream = (
   body: Stream.Stream<Uint8Array, unknown>,
-  options?: ServerResponse.Options
+  options?: ServerResponse.Options | undefined
 ): ServerResponse.ServerResponse =>
   new ServerResponseImpl(
     options?.status ?? 200,
     options?.statusText,
     options?.headers ?? Headers.empty,
+    options?.cookies ?? Cookies.empty,
     internalBody.stream(body, getContentType(options), options?.contentLength)
   )
 
 /** @internal */
-export const getContentType = (options?: ServerResponse.Options): string | undefined => {
+export const getContentType = (options?: ServerResponse.Options | undefined): string | undefined => {
   if (options?.contentType) {
     return options.contentType
   } else if (options?.headers) {
@@ -266,8 +290,155 @@ export const setHeader = dual<
     self.status,
     self.statusText,
     Headers.set(self.headers, key, value),
+    self.cookies,
     self.body
   ))
+
+/** @internal */
+export const replaceCookies = dual<
+  (cookies: Cookies.Cookies) => (self: ServerResponse.ServerResponse) => ServerResponse.ServerResponse,
+  (self: ServerResponse.ServerResponse, cookies: Cookies.Cookies) => ServerResponse.ServerResponse
+>(2, (self, cookies) =>
+  new ServerResponseImpl(
+    self.status,
+    self.statusText,
+    self.headers,
+    cookies,
+    self.body
+  ))
+
+/** @internal */
+export const setCookie = dual<
+  (
+    name: string,
+    value: string,
+    options?: Cookies.Cookie["options"]
+  ) => (self: ServerResponse.ServerResponse) => Effect.Effect<ServerResponse.ServerResponse, Cookies.CookiesError>,
+  (
+    self: ServerResponse.ServerResponse,
+    name: string,
+    value: string,
+    options?: Cookies.Cookie["options"]
+  ) => Effect.Effect<ServerResponse.ServerResponse, Cookies.CookiesError>
+>(
+  (args) => isServerResponse(args[0]),
+  (self, name, value, options) =>
+    Effect.map(Cookies.set(self.cookies, name, value, options), (cookies) =>
+      new ServerResponseImpl(
+        self.status,
+        self.statusText,
+        self.headers,
+        cookies,
+        self.body
+      ))
+)
+
+/** @internal */
+export const unsafeSetCookie = dual<
+  (
+    name: string,
+    value: string,
+    options?: Cookies.Cookie["options"]
+  ) => (self: ServerResponse.ServerResponse) => ServerResponse.ServerResponse,
+  (
+    self: ServerResponse.ServerResponse,
+    name: string,
+    value: string,
+    options?: Cookies.Cookie["options"]
+  ) => ServerResponse.ServerResponse
+>(
+  (args) => isServerResponse(args[0]),
+  (self, name, value, options) =>
+    new ServerResponseImpl(
+      self.status,
+      self.statusText,
+      self.headers,
+      Cookies.unsafeSet(self.cookies, name, value, options),
+      self.body
+    )
+)
+
+/** @internal */
+export const updateCookies = dual<
+  (
+    f: (cookies: Cookies.Cookies) => Cookies.Cookies
+  ) => (self: ServerResponse.ServerResponse) => ServerResponse.ServerResponse,
+  (
+    self: ServerResponse.ServerResponse,
+    f: (cookies: Cookies.Cookies) => Cookies.Cookies
+  ) => ServerResponse.ServerResponse
+>(2, (self, f) =>
+  new ServerResponseImpl(
+    self.status,
+    self.statusText,
+    self.headers,
+    f(self.cookies),
+    self.body
+  ))
+
+/** @internal */
+export const setCookies = dual<
+  (
+    cookies: Iterable<readonly [name: string, value: string, options?: Cookies.Cookie["options"]]>
+  ) => (self: ServerResponse.ServerResponse) => Effect.Effect<ServerResponse.ServerResponse, Cookies.CookiesError>,
+  (
+    self: ServerResponse.ServerResponse,
+    cookies: Iterable<readonly [name: string, value: string, options?: Cookies.Cookie["options"]]>
+  ) => Effect.Effect<ServerResponse.ServerResponse, Cookies.CookiesError>
+>(
+  2,
+  (self, cookies) =>
+    Effect.map(Cookies.setAll(self.cookies, cookies), (cookies) =>
+      new ServerResponseImpl(
+        self.status,
+        self.statusText,
+        self.headers,
+        cookies,
+        self.body
+      ))
+)
+
+/** @internal */
+export const unsafeSetCookies = dual<
+  (
+    cookies: Iterable<readonly [name: string, value: string, options?: Cookies.Cookie["options"]]>
+  ) => (self: ServerResponse.ServerResponse) => ServerResponse.ServerResponse,
+  (
+    self: ServerResponse.ServerResponse,
+    cookies: Iterable<readonly [name: string, value: string, options?: Cookies.Cookie["options"]]>
+  ) => ServerResponse.ServerResponse
+>(
+  2,
+  (self, cookies) =>
+    new ServerResponseImpl(
+      self.status,
+      self.statusText,
+      self.headers,
+      Cookies.unsafeSetAll(self.cookies, cookies),
+      self.body
+    )
+)
+
+/** @internal */
+export const removeCookie = dual<
+  (
+    name: string
+  ) => (self: ServerResponse.ServerResponse) => ServerResponse.ServerResponse,
+  (
+    self: ServerResponse.ServerResponse,
+    name: string
+  ) => ServerResponse.ServerResponse
+>(
+  2,
+  (self, name) =>
+    new ServerResponseImpl(
+      self.status,
+      self.statusText,
+      self.headers,
+      Cookies.remove(self.cookies, name),
+      self.body
+    )
+)
 
 /** @internal */
 export const setHeaders = dual<
@@ -278,6 +449,7 @@ export const setHeaders = dual<
     self.status,
     self.statusText,
     Headers.setAll(self.headers, input),
+    self.cookies,
     self.body
   ))
 
@@ -290,6 +462,7 @@ export const setStatus = dual<
     status,
     statusText,
     self.headers,
+    self.cookies,
     self.body
   ))
 
@@ -306,17 +479,25 @@ export const setBody = dual<
     self.status,
     self.statusText,
     headers,
+    self.cookies,
     body
   )
 })
 
 /** @internal */
 export const toWeb = (response: ServerResponse.ServerResponse, withoutBody = false): Response => {
+  const headers = new globalThis.Headers(response.headers)
+  if (!Cookies.isEmpty(response.cookies)) {
+    const toAdd = Cookies.toSetCookieHeaders(response.cookies)
+    for (const header of toAdd) {
+      headers.append("set-cookie", header)
+    }
+  }
   if (withoutBody) {
     return new Response(undefined, {
       status: response.status,
       statusText: response.statusText as string,
-      headers: response.headers
+      headers
     })
   }
   const body = response.body
@@ -325,7 +506,7 @@ export const toWeb = (response: ServerResponse.ServerResponse, withoutBody = fal
       return new Response(undefined, {
         status: response.status,
         statusText: response.statusText as string,
-        headers: response.headers
+        headers
       })
     }
     case "Uint8Array":
@@ -333,21 +514,21 @@ export const toWeb = (response: ServerResponse.ServerResponse, withoutBody = fal
       return new Response(body.body as any, {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers
+        headers
       })
     }
     case "FormData": {
       return new Response(body.formData as any, {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers
+        headers
       })
     }
     case "Stream": {
       return new Response(Stream.toReadableStream(body.stream), {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers
+        headers
       })
     }
   }

@@ -6,9 +6,10 @@ import type * as ServerError from "@effect/platform/Http/ServerError"
 import * as ServerRequest from "@effect/platform/Http/ServerRequest"
 import * as ServerResponse from "@effect/platform/Http/ServerResponse"
 import * as Router from "@effect/rpc/Router"
-import type { ParseError } from "@effect/schema/ParseResult"
 import * as Chunk from "effect/Chunk"
+import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
+import * as FiberRef from "effect/FiberRef"
 import * as Stream from "effect/Stream"
 
 /**
@@ -16,40 +17,23 @@ import * as Stream from "effect/Stream"
  * @category conversions
  */
 export const toHttpApp = <R extends Router.Router<any, any>>(self: R): App.Default<
-  Router.Router.Context<R>,
-  ServerError.RequestError
+  ServerError.RequestError,
+  Router.Router.Context<R>
 > => {
   const handler = Router.toHandler(self)
-  return Effect.map(
-    Effect.flatMap(
-      ServerRequest.ServerRequest,
-      (request) => request.json
-    ),
-    (_) =>
+  return Effect.withFiberRuntime((fiber) => {
+    const context = fiber.getFiberRef(FiberRef.currentContext)
+    const request = Context.unsafeGet(context, ServerRequest.ServerRequest)
+    return Effect.map(request.json, (_) =>
       ServerResponse.stream(
         handler(_).pipe(
           Stream.chunks,
           Stream.map((_) => JSON.stringify(Chunk.toArray(_))),
           Stream.intersperse("\n"),
-          Stream.encodeText
+          Stream.encodeText,
+          Stream.provideContext(context)
         ),
         { contentType: "application/ndjson" }
-      )
-  )
-}
-
-/**
- * @since 1.0.0
- * @category conversions
- */
-export const toHttpAppEffect = <R extends Router.Router<any, any>>(self: R): App.Default<
-  Router.Router.Context<R>,
-  ServerError.RequestError | ParseError
-> => {
-  const handler = Router.toHandlerEffect(self)
-  return ServerRequest.ServerRequest.pipe(
-    Effect.flatMap((_) => _.json),
-    Effect.flatMap(handler),
-    Effect.map(ServerResponse.unsafeJson)
-  )
+      ))
+  })
 }

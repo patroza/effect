@@ -1,6 +1,7 @@
 /**
  * @since 2.0.0
  */
+import * as Arr from "./Array.js"
 import * as Either from "./Either.js"
 import * as Equal from "./Equal.js"
 import * as equivalence from "./Equivalence.js"
@@ -10,7 +11,6 @@ import { format, type Inspectable, NodeInspectSymbol } from "./Inspectable.js"
 import * as N from "./Number.js"
 import { type Pipeable, pipeArguments } from "./Pipeable.js"
 import { hasProperty } from "./Predicate.js"
-import * as ReadonlyArray from "./ReadonlyArray.js"
 import * as String from "./String.js"
 import type { Mutable } from "./Types.js"
 
@@ -46,11 +46,11 @@ const CronProto: Omit<Cron, "minutes" | "hours" | "days" | "months" | "weekdays"
   },
   [Hash.symbol](this: Cron): number {
     return pipe(
-      Hash.array(ReadonlyArray.fromIterable(this.minutes)),
-      Hash.combine(Hash.array(ReadonlyArray.fromIterable(this.hours))),
-      Hash.combine(Hash.array(ReadonlyArray.fromIterable(this.days))),
-      Hash.combine(Hash.array(ReadonlyArray.fromIterable(this.months))),
-      Hash.combine(Hash.array(ReadonlyArray.fromIterable(this.weekdays))),
+      Hash.array(Arr.fromIterable(this.minutes)),
+      Hash.combine(Hash.array(Arr.fromIterable(this.hours))),
+      Hash.combine(Hash.array(Arr.fromIterable(this.days))),
+      Hash.combine(Hash.array(Arr.fromIterable(this.months))),
+      Hash.combine(Hash.array(Arr.fromIterable(this.weekdays))),
       Hash.cached(this)
     )
   },
@@ -60,11 +60,11 @@ const CronProto: Omit<Cron, "minutes" | "hours" | "days" | "months" | "weekdays"
   toJSON(this: Cron) {
     return {
       _id: "Cron",
-      minutes: ReadonlyArray.fromIterable(this.minutes),
-      hours: ReadonlyArray.fromIterable(this.hours),
-      days: ReadonlyArray.fromIterable(this.days),
-      months: ReadonlyArray.fromIterable(this.months),
-      weekdays: ReadonlyArray.fromIterable(this.weekdays)
+      minutes: Arr.fromIterable(this.minutes),
+      hours: Arr.fromIterable(this.hours),
+      days: Arr.fromIterable(this.days),
+      months: Arr.fromIterable(this.months),
+      weekdays: Arr.fromIterable(this.weekdays)
     }
   },
   [NodeInspectSymbol](this: Cron) {
@@ -107,11 +107,11 @@ export const make = ({
   readonly weekdays: Iterable<number>
 }): Cron => {
   const o: Mutable<Cron> = Object.create(CronProto)
-  o.minutes = new Set(ReadonlyArray.sort(minutes, N.Order))
-  o.hours = new Set(ReadonlyArray.sort(hours, N.Order))
-  o.days = new Set(ReadonlyArray.sort(days, N.Order))
-  o.months = new Set(ReadonlyArray.sort(months, N.Order))
-  o.weekdays = new Set(ReadonlyArray.sort(weekdays, N.Order))
+  o.minutes = new Set(Arr.sort(minutes, N.Order))
+  o.hours = new Set(Arr.sort(hours, N.Order))
+  o.days = new Set(Arr.sort(days, N.Order))
+  o.months = new Set(Arr.sort(months, N.Order))
+  o.weekdays = new Set(Arr.sort(weekdays, N.Order))
   return o
 }
 
@@ -170,8 +170,7 @@ export const isParseError = (u: unknown): u is ParseError => hasProperty(u, Pars
  * @param cron - The cron expression to parse.
  *
  * @example
- * import * as Cron from "effect/Cron"
- * import * as Either from "effect/Either"
+ * import { Cron, Either } from "effect"
  *
  * // At 04:00 on every day-of-month from 8 through 14.
  * assert.deepStrictEqual(Cron.parse("0 4 8-14 * *"), Either.right(Cron.make({
@@ -208,8 +207,7 @@ export const parse = (cron: string): Either.Either<Cron, ParseError> => {
  * @param date - The `Date` to check against.
  *
  * @example
- * import * as Cron from "effect/Cron"
- * import * as Either from "effect/Either"
+ * import { Cron, Either } from "effect"
  *
  * const cron = Either.getOrThrow(Cron.parse("0 4 8-14 * *"))
  * assert.deepStrictEqual(Cron.match(cron, new Date("2021-01-08 04:00:00")), true)
@@ -258,8 +256,7 @@ export const match = (cron: Cron, date: Date): boolean => {
  * Uses the current time as a starting point if no value is provided for `now`.
  *
  * @example
- * import * as Cron from "effect/Cron"
- * import * as Either from "effect/Either"
+ * import { Cron, Either } from "effect"
  *
  * const after = new Date("2021-01-01 00:00:00")
  * const cron = Either.getOrThrow(Cron.parse("0 4 8-14 * *"))
@@ -364,7 +361,7 @@ export const Equivalence: equivalence.Equivalence<Cron> = equivalence.make((self
 
 const restrictionsArrayEquals = equivalence.array(equivalence.number)
 const restrictionsEquals = (self: ReadonlySet<number>, that: ReadonlySet<number>): boolean =>
-  restrictionsArrayEquals(ReadonlyArray.fromIterable(self), ReadonlyArray.fromIterable(that))
+  restrictionsArrayEquals(Arr.fromIterable(self), Arr.fromIterable(that))
 
 /**
  * Checks if two `Cron`s are equal.

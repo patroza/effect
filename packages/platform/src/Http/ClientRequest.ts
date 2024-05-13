@@ -1,14 +1,19 @@
 /**
  * @since 1.0.0
  */
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as Schema from "@effect/schema/Schema"
 import type * as Effect from "effect/Effect"
-import type { Pipeable } from "effect/Pipeable"
+import type { Inspectable } from "effect/Inspectable"
+import type { Scope } from "effect/Scope"
 import type * as Stream from "effect/Stream"
 import type * as PlatformError from "../Error.js"
 import type * as FileSystem from "../FileSystem.js"
 import * as internal from "../internal/http/clientRequest.js"
 import type * as Body from "./Body.js"
+import type { Client } from "./Client.js"
+import type { HttpClientError } from "./ClientError.js"
+import type { ClientResponse } from "./ClientResponse.js"
 import type * as Headers from "./Headers.js"
 import type { Method } from "./Method.js"
 import type * as UrlParams from "./UrlParams.js"
@@ -17,7 +22,7 @@ import type * as UrlParams from "./UrlParams.js"
  * @since 1.0.0
  * @category type ids
  */
-export const TypeId = Symbol.for("@effect/platform/Http/ClientRequest")
+export const TypeId: unique symbol = Symbol.for("@effect/platform/Http/ClientRequest")
 
 /**
  * @since 1.0.0
@@ -29,7 +34,9 @@ export type TypeId = typeof TypeId
  * @since 1.0.0
  * @category models
  */
-export interface ClientRequest extends Pipeable {
+export interface ClientRequest
+  extends Effect.Effect<ClientResponse, HttpClientError, Client.Default | Scope>, Inspectable
+{
   readonly [TypeId]: TypeId
   readonly method: Method
   readonly url: string
@@ -301,7 +308,8 @@ export const unsafeJsonBody: {
  * @category combinators
  */
 export const schemaBody: <A, I, R>(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => {
   (body: A): (self: ClientRequest) => Effect.Effect<ClientRequest, Body.BodyError, R>
   (self: ClientRequest, body: A): Effect.Effect<ClientRequest, Body.BodyError, R>

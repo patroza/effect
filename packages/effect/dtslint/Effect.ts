@@ -1,3 +1,4 @@
+import type { NonEmptyReadonlyArray } from "effect/Array"
 import type { Cause } from "effect/Cause"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
@@ -15,11 +16,11 @@ declare const numberArray: Array<number>
 declare const numberEffectIterable: Array<Effect.Effect<number>>
 
 // -------------------------------------------------------------------------------------
-// forEach
+// forEach - array
 // -------------------------------------------------------------------------------------
 
 // $ExpectType Effect<string[], "err-1", "dep-1">
-Effect.forEach(["a", "b"], (
+Effect.forEach(["a", "b"] as Array<string>, (
   // $ExpectType string
   _a,
   // $ExpectType number
@@ -27,7 +28,7 @@ Effect.forEach(["a", "b"], (
 ) => string)
 
 // $ExpectType Effect<void, "err-1", "dep-1">
-Effect.forEach(["a", "b"], (
+Effect.forEach(["a", "b"] as Array<string>, (
   // $ExpectType string
   _a,
   // $ExpectType number
@@ -50,6 +51,90 @@ pipe(
   ["a", "b"],
   Effect.forEach((
     // $ExpectType string
+    _a,
+    // $ExpectType number
+    _i
+  ) => string, { discard: true })
+)
+
+// -------------------------------------------------------------------------------------
+// forEach - nonempty
+// -------------------------------------------------------------------------------------
+
+// $ExpectType Effect<[string, ...string[]], "err-1", "dep-1">
+Effect.forEach(["a", "b"] as NonEmptyReadonlyArray<string>, (
+  // $ExpectType string
+  _a,
+  // $ExpectType number
+  _i
+) => string)
+
+// $ExpectType Effect<void, "err-1", "dep-1">
+Effect.forEach(["a", "b"], (
+  // $ExpectType string
+  _a,
+  // $ExpectType number
+  _i
+) => string, { discard: true })
+
+// $ExpectType Effect<[string, ...string[]], "err-1", "dep-1">
+pipe(
+  ["a", "b"] as NonEmptyReadonlyArray<string>,
+  Effect.forEach((
+    // $ExpectType string
+    _a,
+    // $ExpectType number
+    _i
+  ) => string)
+)
+
+// $ExpectType Effect<void, "err-1", "dep-1">
+pipe(
+  ["a", "b"] as NonEmptyReadonlyArray<string>,
+  Effect.forEach((
+    // $ExpectType string
+    _a,
+    // $ExpectType number
+    _i
+  ) => string, { discard: true })
+)
+
+// -------------------------------------------------------------------------------------
+// forEach - tuple as non empty array
+// -------------------------------------------------------------------------------------
+
+// $ExpectType Effect<[string, ...string[]], "err-1", "dep-1">
+Effect.forEach(["a", "b"] as const, (
+  // $ExpectType "a" | "b"
+  _a,
+  // $ExpectType number
+  _i
+) => string)
+
+// $ExpectType Effect<void, "err-1", "dep-1">
+Effect.forEach(["a", "b"] as const, (
+  // $ExpectType "a" | "b"
+  _a,
+  // $ExpectType number
+  _i
+) => string, { discard: true })
+
+// $ExpectType Effect<[string, ...string[]], "err-1", "dep-1">
+pipe(
+  ["a", "b"] as const,
+  Effect.forEach((
+    // $ExpectType "a" | "b"
+    _a,
+    // $ExpectType number
+    _i
+  ) => string)
+)
+
+// $ExpectType Effect<void, "err-1", "dep-1">
+pipe(
+  ["a", "b"] as const,
+  Effect.forEach((
+    // $ExpectType "a" | "b"
     _a,
     // $ExpectType number
     _i
@@ -976,16 +1061,46 @@ Effect.retry(string, {
 // retryOrElse
 // -------------------------------------------------------------------------------------
 
-// $ExpectType Effect<string | number, "err-1", "dep-1">
+// $ExpectType Effect<string | number, never, "dep-1">
 Effect.retryOrElse(string, Schedule.forever, (_e: string) => Effect.succeed(0))
 
 Effect.retryOrElse(string, Schedule.forever, (
   _e // $ExpectType "err-1"
 ) => Effect.succeed(0))
 
-// $ExpectType Effect<string | number, "err-1", "dep-1">
+// $ExpectType Effect<string | number, never, "dep-1">
 string.pipe(Effect.retryOrElse(Schedule.forever, (_e: string) => Effect.succeed(0)))
 
 string.pipe(Effect.retryOrElse(Schedule.forever, (
   _e // $ExpectType "err-1"
 ) => Effect.succeed(0)))
+
+// -------------------------------------------------------------------------------------
+// do notation
+// -------------------------------------------------------------------------------------
+
+// $ExpectType Effect<{ a: number; b: string; c: boolean; }, never, never>
+pipe(
+  Effect.Do,
+  Effect.bind("a", (
+    _scope // $ExpectType {}
+  ) => Effect.succeed(1)),
+  Effect.bind("b", (
+    _scope // $ExpectType { a: number; }
+  ) => Effect.succeed("b")),
+  Effect.let("c", (
+    _scope // $ExpectType { a: number; b: string; }
+  ) => true)
+)
+
+// $ExpectType Effect<{ a: number; b: string; c: boolean; }, never, never>
+pipe(
+  Effect.succeed(1),
+  Effect.bindTo("a"),
+  Effect.bind("b", (
+    _scope // $ExpectType { a: number; }
+  ) => Effect.succeed("b")),
+  Effect.let("c", (
+    _scope // $ExpectType { a: number; b: string; }
+  ) => true)
+)

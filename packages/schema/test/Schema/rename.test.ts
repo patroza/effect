@@ -1,11 +1,12 @@
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
-import { describe, expect, it } from "vitest"
+import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
-describe("Schema > rename", () => {
+describe("rename", () => {
   describe("Struct", () => {
     it("from string key to string key", async () => {
-      const schema = S.struct({ a: S.string, b: S.number })
+      const schema = S.Struct({ a: S.String, b: S.Number })
       const renamed = S.rename(schema, { a: "c" })
 
       await Util.expectDecodeUnknownSuccess(renamed, { a: "a", b: 1 }, { c: "a", b: 1 })
@@ -14,7 +15,7 @@ describe("Schema > rename", () => {
 
     it("from string key to symbol key", async () => {
       const c = Symbol.for("@effect/schema/test/c")
-      const schema = S.struct({ a: S.string, b: S.number })
+      const schema = S.Struct({ a: S.String, b: S.Number })
       const renamed = S.rename(schema, { a: c })
 
       await Util.expectDecodeUnknownSuccess(renamed, { a: "a", b: 1 }, { [c]: "a", b: 1 })
@@ -23,7 +24,7 @@ describe("Schema > rename", () => {
 
     it("from symbol key to string key", async () => {
       const a = Symbol.for("@effect/schema/test/a")
-      const schema = S.struct({ [a]: S.string, b: S.number })
+      const schema = S.Struct({ [a]: S.String, b: S.Number })
       const renamed = S.rename(schema, { [a]: "c" })
 
       await Util.expectDecodeUnknownSuccess(renamed, { [a]: "a", b: 1 }, { c: "a", b: 1 })
@@ -33,7 +34,7 @@ describe("Schema > rename", () => {
     it("from symbol key to symbol key", async () => {
       const a = Symbol.for("@effect/schema/test/a")
       const c = Symbol.for("@effect/schema/test/c")
-      const schema = S.struct({ [a]: S.string, b: S.number })
+      const schema = S.Struct({ [a]: S.String, b: S.Number })
       const renamed = S.rename(schema, { [a]: c })
 
       await Util.expectDecodeUnknownSuccess(renamed, { [a]: "a", b: 1 }, { [c]: "a", b: 1 })
@@ -42,7 +43,7 @@ describe("Schema > rename", () => {
   })
 
   it("Transform (renaming twice)", async () => {
-    const schema = S.struct({ a: S.string, b: S.number })
+    const schema = S.Struct({ a: S.String, b: S.Number })
     const renamed = S.rename(schema, { a: "c" })
     const renamed2 = S.rename(renamed, { c: "d" })
 
@@ -57,9 +58,9 @@ describe("Schema > rename", () => {
     }
     const schema: S.Schema<A> = S.suspend( // intended outer suspend
       () =>
-        S.struct({
-          a: S.string,
-          as: S.array(schema)
+        S.Struct({
+          a: S.String,
+          as: S.Array(schema)
         })
     )
     const renamed = S.rename(schema, { a: "c" })
@@ -75,7 +76,7 @@ describe("Schema > rename", () => {
   })
 
   it("pipe", async () => {
-    const renamed = S.struct({ a: S.string, b: S.number }).pipe(
+    const renamed = S.Struct({ a: S.String, b: S.Number }).pipe(
       S.rename({ a: "c" })
     )
 
@@ -84,13 +85,13 @@ describe("Schema > rename", () => {
   })
 
   it("should return the same ast if there are no mappings", () => {
-    const schema = S.struct({ a: S.string })
+    const schema = S.Struct({ a: S.String })
     const renamed = S.rename(schema, {})
     expect(schema.ast === renamed.ast).toBe(true)
   })
 
   it("field transformation", async () => {
-    const schema = S.struct({ a: S.string, b: S.NumberFromString })
+    const schema = S.Struct({ a: S.String, b: S.NumberFromString })
     const renamed = S.rename(schema, { a: "c" })
 
     await Util.expectDecodeUnknownSuccess(renamed, { a: "a", b: "1" }, { c: "a", b: 1 })

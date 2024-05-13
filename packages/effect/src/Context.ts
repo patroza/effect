@@ -27,15 +27,15 @@ export type TagTypeId = typeof TagTypeId
  * @since 2.0.0
  * @category models
  */
-export interface Tag<in out Identifier, in out Service> extends Pipeable, Inspectable {
+export interface Tag<in out Id, in out Value> extends Pipeable, Inspectable {
   readonly _tag: "Tag"
   readonly _op: "Tag"
   readonly [TagTypeId]: {
-    readonly _Service: Types.Invariant<Service>
-    readonly _Identifier: Types.Invariant<Identifier>
+    readonly _Service: Types.Invariant<Value>
+    readonly _Identifier: Types.Invariant<Id>
   }
-  of(self: Service): Service
-  context(self: Service): Context<Identifier>
+  of(self: Value): Value
+  context(self: Value): Context<Id>
   readonly stack?: string | undefined
   readonly key: string
   [Unify.typeSymbol]?: unknown
@@ -48,18 +48,17 @@ export interface Tag<in out Identifier, in out Service> extends Pipeable, Inspec
  * @category models
  */
 export interface TagClassShape<Id, Shape> {
-  readonly [TagTypeId]: {
-    readonly Id: Id
-    readonly Shape: Shape
-  }
+  readonly [TagTypeId]: TagTypeId
+  readonly Type: Shape
+  readonly Id: Id
 }
 
 /**
  * @since 2.0.0
  * @category models
  */
-export interface TagClass<Self, Id, Shape> extends Tag<Self, Shape> {
-  new(_: never): TagClassShape<Id, Shape>
+export interface TagClass<Self, Id, Type> extends Tag<Self, Type> {
+  new(_: never): TagClassShape<Id, Type>
 }
 
 /**
@@ -100,7 +99,7 @@ export declare namespace Tag {
  * @param key - A key that will be used to compare tags.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * assert.strictEqual(Context.GenericTag("PORT").key === Context.GenericTag("PORT").key, true)
  *
@@ -147,7 +146,7 @@ export const unsafeMake: <Services>(unsafeMap: Map<string, any>) => Context<Serv
  * @param input - The value to be checked if it is a `Context`.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * assert.strictEqual(Context.isContext(Context.empty()), true)
  *
@@ -162,7 +161,7 @@ export const isContext: (input: unknown) => input is Context<never> = internal.i
  * @param input - The value to be checked if it is a `Tag`.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * assert.strictEqual(Context.isTag(Context.GenericTag("Tag")), true)
  *
@@ -175,7 +174,7 @@ export const isTag: (input: unknown) => input is Tag<any, any> = internal.isTag
  * Returns an empty `Context`.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * assert.strictEqual(Context.isContext(Context.empty()), true)
  *
@@ -188,7 +187,7 @@ export const empty: () => Context<never> = internal.empty
  * Creates a new `Context` with a single service associated to the tag.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  *
@@ -206,8 +205,7 @@ export const make: <T extends Tag<any, any>>(tag: T, service: Tag.Service<T>) =>
  * Adds a service to a given `Context`.
  *
  * @example
- * import * as Context from "effect/Context"
- * import { pipe } from "effect/Function"
+ * import { Context, pipe } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  * const Timeout = Context.GenericTag<{ TIMEOUT: number }>("Timeout")
@@ -243,8 +241,7 @@ export const add: {
  * @param tag - The `Tag` of the service to retrieve.
  *
  * @example
- * import * as Context from "effect/Context"
- * import { pipe } from "effect/Function"
+ * import { pipe, Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  * const Timeout = Context.GenericTag<{ TIMEOUT: number }>("Timeout")
@@ -274,7 +271,7 @@ export const get: {
  * @param tag - The `Tag` of the service to retrieve.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  * const Timeout = Context.GenericTag<{ TIMEOUT: number }>("Timeout")
@@ -300,16 +297,15 @@ export const unsafeGet: {
  * @param tag - The `Tag` of the service to retrieve.
  *
  * @example
- * import * as Context from "effect/Context"
- * import * as O from "effect/Option"
+ * import { Context, Option } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  * const Timeout = Context.GenericTag<{ TIMEOUT: number }>("Timeout")
  *
  * const Services = Context.make(Port, { PORT: 8080 })
  *
- * assert.deepStrictEqual(Context.getOption(Services, Port), O.some({ PORT: 8080 }))
- * assert.deepStrictEqual(Context.getOption(Services, Timeout), O.none())
+ * assert.deepStrictEqual(Context.getOption(Services, Port), Option.some({ PORT: 8080 }))
+ * assert.deepStrictEqual(Context.getOption(Services, Timeout), Option.none())
  *
  * @since 2.0.0
  * @category getters
@@ -326,7 +322,7 @@ export const getOption: {
  * @param that - The second `Context` to merge.
  *
  * @example
- * import * as Context from "effect/Context"
+ * import { Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  * const Timeout = Context.GenericTag<{ TIMEOUT: number }>("Timeout")
@@ -353,9 +349,7 @@ export const merge: {
  * @param tags - The list of `Tag`s to be included in the new `Context`.
  *
  * @example
- * import * as Context from "effect/Context"
- * import { pipe } from "effect/Function"
- * import * as O from "effect/Option"
+ * import { pipe, Context, Option } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
  * const Timeout = Context.GenericTag<{ TIMEOUT: number }>("Timeout")
@@ -367,8 +361,8 @@ export const merge: {
  *
  * const Services = pipe(someContext, Context.pick(Port))
  *
- * assert.deepStrictEqual(Context.getOption(Services, Port), O.some({ PORT: 8080 }))
- * assert.deepStrictEqual(Context.getOption(Services, Timeout), O.none())
+ * assert.deepStrictEqual(Context.getOption(Services, Port), Option.some({ PORT: 8080 }))
+ * assert.deepStrictEqual(Context.getOption(Services, Timeout), Option.none())
  *
  * @since 2.0.0
  */

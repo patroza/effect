@@ -203,7 +203,7 @@ class MemoMapImpl implements Layer.MemoMap {
             acquire as Effect.Effect<readonly [FiberRefsPatch.FiberRefsPatch, Context.Context<ROut>], E>,
             core.flatMap(([patch, b]) => pipe(effect.patchFiberRefs(patch), core.as(b))),
             core.onExit(core.exitMatch({
-              onFailure: () => core.unit,
+              onFailure: () => core.void,
               onSuccess: () => core.scopeAddFinalizerExit(scope, release)
             }))
           )
@@ -216,7 +216,7 @@ class MemoMapImpl implements Layer.MemoMap {
               core.deferredMake<readonly [FiberRefsPatch.FiberRefsPatch, Context.Context<ROut>], E>(),
               core.flatMap((deferred) =>
                 pipe(
-                  ref.make<Scope.Scope.Finalizer>(() => core.unit),
+                  ref.make<Scope.Scope.Finalizer>(() => core.void),
                   core.map((finalizerRef) => {
                     const resource = core.uninterruptibleMask((restore) =>
                       pipe(
@@ -232,9 +232,9 @@ class MemoMapImpl implements Layer.MemoMap {
                               switch (exit._tag) {
                                 case EffectOpCodes.OP_FAILURE: {
                                   return pipe(
-                                    core.deferredFailCause(deferred, exit.i0),
+                                    core.deferredFailCause(deferred, exit.effect_instruction_i0),
                                     core.zipRight(core.scopeClose(innerScope, exit)),
-                                    core.zipRight(core.failCause(exit.i0))
+                                    core.zipRight(core.failCause(exit.effect_instruction_i0))
                                   )
                                 }
                                 case EffectOpCodes.OP_SUCCESS: {
@@ -245,7 +245,7 @@ class MemoMapImpl implements Layer.MemoMap {
                                         core.whenEffect(
                                           ref.modify(observers, (n) => [n === 1, n - 1] as const)
                                         ),
-                                        core.asUnit
+                                        core.asVoid
                                       )),
                                     core.zipRight(ref.update(observers, (n) => n + 1)),
                                     core.zipRight(
@@ -256,8 +256,8 @@ class MemoMapImpl implements Layer.MemoMap {
                                           core.flatMap((finalizer) => finalizer(exit))
                                         ))
                                     ),
-                                    core.zipRight(core.deferredSucceed(deferred, exit.i0)),
-                                    core.as(exit.i0[1])
+                                    core.zipRight(core.deferredSucceed(deferred, exit.effect_instruction_i0)),
+                                    core.as(exit.effect_instruction_i0[1])
                                   )
                                 }
                               }
@@ -270,7 +270,7 @@ class MemoMapImpl implements Layer.MemoMap {
                       pipe(
                         core.deferredAwait(deferred),
                         core.onExit(core.exitMatchEffect({
-                          onFailure: () => core.unit,
+                          onFailure: () => core.void,
                           onSuccess: () => ref.update(observers, (n) => n + 1)
                         }))
                       ),
@@ -311,6 +311,9 @@ export const makeMemoMap: Effect.Effect<Layer.MemoMap> = core.suspend(() =>
     (ref) => new MemoMapImpl(ref)
   )
 )
+
+/** @internal */
+export const unsafeMakeMemoMap = (): Layer.MemoMap => new MemoMapImpl(circular.unsafeMakeSynchronized(new Map()))
 
 /** @internal */
 export const build = <RIn, E, ROut>(
@@ -988,9 +991,9 @@ export const tapErrorCause = dual<
 /** @internal */
 export const toRuntime = <RIn, E, ROut>(
   self: Layer.Layer<ROut, E, RIn>
-): Effect.Effect<Runtime.Runtime<ROut>, E, RIn | Scope.Scope> => {
-  return pipe(
-    fiberRuntime.scopeWith((scope) => pipe(self, buildWithScope(scope))),
+): Effect.Effect<Runtime.Runtime<ROut>, E, RIn | Scope.Scope> =>
+  pipe(
+    fiberRuntime.scopeWith((scope) => buildWithScope(self, scope)),
     core.flatMap((context) =>
       pipe(
         runtime.runtime<ROut>(),
@@ -998,7 +1001,25 @@ export const toRuntime = <RIn, E, ROut>(
       )
     )
   )
-}
+
+/** @internal */
+export const toRuntimeWithMemoMap = dual<
+  (
+    memoMap: Layer.MemoMap
+  ) => <RIn, E, ROut>(self: Layer.Layer<ROut, E, RIn>) => Effect.Effect<Runtime.Runtime<ROut>, E, RIn | Scope.Scope>,
+  <RIn, E, ROut>(
+    self: Layer.Layer<ROut, E, RIn>,
+    memoMap: Layer.MemoMap
+  ) => Effect.Effect<Runtime.Runtime<ROut>, E, RIn | Scope.Scope>
+>(2, (self, memoMap) =>
+  core.flatMap(
+    fiberRuntime.scopeWith((scope) => buildWithMemoMap(self, memoMap, scope)),
+    (context) =>
+      pipe(
+        runtime.runtime<any>(),
+        core.provideContext(context)
+      )
+  ))
 
 /** @internal */
 export const provide = dual<
@@ -1093,26 +1114,23 @@ export const unwrapScoped = <A, E1, R1, E, R>(
 
 /** @internal */
 export const withSpan = dual<
-  (name: string, options?: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-    readonly onEnd?:
-      | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
-      | undefined
-  }) => <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>,
-  <A, E, R>(self: Layer.Layer<A, E, R>, name: string, options?: {
-    readonly attributes?: Record<string, unknown> | undefined
-    readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-    readonly parent?: Tracer.ParentSpan | undefined
-    readonly root?: boolean | undefined
-    readonly context?: Context.Context<never> | undefined
-    readonly onEnd?:
-      | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
-      | undefined
-  }) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
+  (
+    name: string,
+    options?: Tracer.SpanOptions & {
+      readonly onEnd?:
+        | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
+        | undefined
+    }
+  ) => <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>,
+  <A, E, R>(
+    self: Layer.Layer<A, E, R>,
+    name: string,
+    options?: Tracer.SpanOptions & {
+      readonly onEnd?:
+        | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
+        | undefined
+    }
+  ) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
 >((args) => isLayer(args[0]), (self, name, options) =>
   unwrapScoped(
     core.map(
@@ -1129,9 +1147,9 @@ export const withSpan = dual<
 /** @internal */
 export const withParentSpan = dual<
   (
-    span: Tracer.ParentSpan
+    span: Tracer.AnySpan
   ) => <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>,
-  <A, E, R>(self: Layer.Layer<A, E, R>, span: Tracer.ParentSpan) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
+  <A, E, R>(self: Layer.Layer<A, E, R>, span: Tracer.AnySpan) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
 >(2, (self, span) => provide(self, succeedContext(Context.make(tracer.spanTag, span))))
 
 // circular with Effect
@@ -1176,7 +1194,7 @@ const provideSomeRuntime = dual<
         core.withFiberRuntime((fiber) => {
           fiber.setFiberRefs(FiberRefsPatch.patch(fiber.id(), fiber.getFiberRefs())(rollbackRefs))
           fiber._runtimeFlags = runtimeFlags.patch(rollbackFlags)(fiber._runtimeFlags)
-          return core.unit
+          return core.void
         })
       )
     })

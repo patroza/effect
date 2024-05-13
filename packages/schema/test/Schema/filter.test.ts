@@ -1,14 +1,14 @@
 import * as AST from "@effect/schema/AST"
 import * as ParseResult from "@effect/schema/ParseResult"
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
-import * as TreeFormatter from "@effect/schema/TreeFormatter"
+import * as Util from "@effect/schema/test/TestUtils"
+import { jestExpect as expect } from "@jest/expect"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
+import { describe, it } from "vitest"
 
-describe("Schema > filter", () => {
+describe("filter", () => {
   it("annotation options", () => {
-    const schema = S.string.pipe(
+    const schema = S.String.pipe(
       S.filter((s): s is string => s.length === 1, {
         typeId: Symbol.for("Char"),
         description: "description",
@@ -36,13 +36,13 @@ describe("Schema > filter", () => {
   })
 
   it("Option overloading", async () => {
-    const schema = S.struct({ a: S.string, b: S.string }).pipe(
+    const schema = S.Struct({ a: S.String, b: S.String }).pipe(
       S.filter((o) =>
         o.b === o.a
           ? Option.none()
           : Option.some(
-            ParseResult.type(
-              S.literal(o.a).ast,
+            new ParseResult.Type(
+              S.Literal(o.a).ast,
               o.b,
               `b should be equal to a's value ("${o.a}")`
             )
@@ -54,31 +54,9 @@ describe("Schema > filter", () => {
     await Util.expectDecodeUnknownFailure(
       schema,
       { a: "a", b: "b" },
-      `<refinement schema>
+      `{ { readonly a: string; readonly b: string } | filter }
 └─ Predicate refinement failure
    └─ b should be equal to a's value ("a")`
     )
-  })
-
-  it("custom message", async () => {
-    const schema = S.string.pipe(S.filter((s): s is string => s.length === 1, {
-      message: (issue) => `invalid ${issue.actual}`
-    }))
-    await Util.expectDecodeUnknownFailure(schema, null, `invalid null`)
-  })
-
-  it("inner custom message", async () => {
-    const schema = S.string.pipe(
-      S.filter((s): s is string => s.length === 1, {
-        message: (issue) => {
-          if (issue._tag === "Refinement" && issue.kind === "From") {
-            return TreeFormatter.formatIssue(issue.error)
-          }
-          return `invalid ${issue.actual}`
-        }
-      })
-    )
-    await Util.expectDecodeUnknownFailure(schema, "aa", `invalid aa`)
-    await Util.expectDecodeUnknownFailure(schema, null, `Expected a string, actual null`)
   })
 })

@@ -2,23 +2,21 @@
  * @since 1.0.0
  */
 
+import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
-import * as ReadonlyArray from "effect/ReadonlyArray"
-import type * as FastCheck from "fast-check"
 import * as AST from "./AST.js"
-import * as Internal from "./internal/ast.js"
-import * as filters from "./internal/filters.js"
-import * as hooks from "./internal/hooks.js"
-import * as InternalSchema from "./internal/schema.js"
-import * as Parser from "./Parser.js"
+import * as FastCheck from "./FastCheck.js"
+import * as errors_ from "./internal/errors.js"
+import * as filters_ from "./internal/filters.js"
+import * as util_ from "./internal/util.js"
 import type * as Schema from "./Schema.js"
 
 /**
  * @category model
  * @since 1.0.0
  */
-export interface Arbitrary<A> {
+export interface LazyArbitrary<A> {
   (fc: typeof FastCheck): FastCheck.Arbitrary<A>
 }
 
@@ -26,7 +24,7 @@ export interface Arbitrary<A> {
  * @category hooks
  * @since 1.0.0
  */
-export const ArbitraryHookId: unique symbol = hooks.ArbitraryHookId
+export const ArbitraryHookId: unique symbol = Symbol.for("@effect/schema/ArbitraryHookId")
 
 /**
  * @category hooks
@@ -39,9 +37,16 @@ export type ArbitraryHookId = typeof ArbitraryHookId
  * @since 1.0.0
  */
 export const arbitrary =
-  <A>(handler: (...args: ReadonlyArray<Arbitrary<any>>) => Arbitrary<A>) =>
-  <I, R>(self: Schema.Schema<A, I, R>): Schema.Schema<A, I, R> =>
-    InternalSchema.make(AST.setAnnotation(self.ast, ArbitraryHookId, handler))
+  <A>(handler: (...args: ReadonlyArray<LazyArbitrary<any>>) => LazyArbitrary<A>) =>
+  <I, R>(self: Schema.Schema<A, I, R>): Schema.Schema<A, I, R> => self.annotations({ [ArbitraryHookId]: handler })
+
+/**
+ * Returns a LazyArbitrary for the `A` type of the provided schema.
+ *
+ * @category arbitrary
+ * @since 1.0.0
+ */
+export const makeLazy = <A, I, R>(schema: Schema.Schema<A, I, R>): LazyArbitrary<A> => go(schema.ast, {})
 
 /**
  * Returns a fast-check Arbitrary for the `A` type of the provided schema.
@@ -49,7 +54,7 @@ export const arbitrary =
  * @category arbitrary
  * @since 1.0.0
  */
-export const make = <A, I, R>(schema: Schema.Schema<A, I, R>): Arbitrary<A> => go(schema.ast, {})
+export const make = <A, I, R>(schema: Schema.Schema<A, I, R>): FastCheck.Arbitrary<A> => makeLazy(schema)(FastCheck)
 
 const depthSize = 1
 
@@ -75,7 +80,7 @@ const record = <K extends PropertyKey, V>(
 }
 
 const getHook = AST.getAnnotation<
-  (...args: ReadonlyArray<Arbitrary<any>>) => Arbitrary<any>
+  (...args: ReadonlyArray<LazyArbitrary<any>>) => LazyArbitrary<any>
 >(ArbitraryHookId)
 
 type Options = {
@@ -88,7 +93,7 @@ const getRefinementFromArbitrary = (ast: AST.Refinement, options: Options) => {
   return go(ast.from, constraints ? { ...options, constraints } : options)
 }
 
-const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
+const go = (ast: AST.AST, options: Options): LazyArbitrary<any> => {
   const hook = getHook(ast)
   if (Option.isSome(hook)) {
     switch (ast._tag) {
@@ -102,7 +107,7 @@ const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
   }
   switch (ast._tag) {
     case "Declaration": {
-      throw new Error(`cannot build an Arbitrary for a declaration without annotations (${AST.format(ast)})`)
+      throw new Error(errors_.getArbitraryErrorMessage(`a declaration without annotations (${ast})`))
     }
     case "Literal":
       return (fc) => fc.constant(ast.literal)
@@ -113,7 +118,7 @@ const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
       return (fc) => fc.constant(undefined)
     case "NeverKeyword":
       return () => {
-        throw new Error("cannot build an Arbitrary for `never`")
+        throw new Error(errors_.getArbitraryErrorMessage("`never`"))
       }
     case "UnknownKeyword":
     case "AnyKeyword":
@@ -172,8 +177,8 @@ const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
         return fc.tuple(...components).map((spans) => spans.join(""))
       }
     }
-    case "Tuple": {
-      const elements: Array<Arbitrary<any>> = []
+    case "TupleType": {
+      const elements: Array<LazyArbitrary<any>> = []
       let hasOptionals = false
       for (const element of ast.elements) {
         elements.push(go(element.type, options))
@@ -181,7 +186,7 @@ const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
           hasOptionals = true
         }
       }
-      const rest = Option.map(ast.rest, ReadonlyArray.map((e) => go(e, options)))
+      const rest = ast.rest.map((e) => go(e, options))
       return (fc) => {
         // ---------------------------------------------
         // handle elements
@@ -206,8 +211,8 @@ const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
         // ---------------------------------------------
         // handle rest element
         // ---------------------------------------------
-        if (Option.isSome(rest)) {
-          const [head, ...tail] = rest.value
+        if (Arr.isNonEmptyReadonlyArray(rest)) {
+          const [head, ...tail] = rest
           const arb = head(fc)
           const constraints = options.constraints
           output = output.chain((as) => {
@@ -274,87 +279,119 @@ const go = (ast: AST.AST, options: Options): Arbitrary<any> => {
     }
     case "Enums": {
       if (ast.enums.length === 0) {
-        throw new Error("cannot build an Arbitrary for an empty enum")
+        throw new Error(errors_.getArbitraryErrorMessage("an empty enum"))
       }
       return (fc) => fc.oneof(...ast.enums.map(([_, value]) => fc.constant(value)))
     }
     case "Refinement": {
       const from = getRefinementFromArbitrary(ast, options)
-      return (fc) => from(fc).filter((a) => Option.isNone(ast.filter(a, Parser.defaultParseOption, ast)))
+      return (fc) => from(fc).filter((a) => Option.isNone(ast.filter(a, AST.defaultParseOption, ast)))
     }
     case "Suspend": {
-      const get = Internal.memoizeThunk(() => go(ast.f(), { ...options, isSuspend: true }))
+      const get = util_.memoizeThunk(() => go(ast.f(), { ...options, isSuspend: true }))
       return (fc) => fc.constant(null).chain(() => get()(fc))
     }
-    case "Transform":
+    case "Transformation":
       return go(ast.to, options)
   }
 }
 
-interface NumberConstraints {
-  readonly _tag: "NumberConstraints"
+/** @internal */
+export class NumberConstraints {
+  readonly _tag = "NumberConstraints"
   readonly constraints: FastCheck.FloatConstraints
+  constructor(options: {
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+    readonly noNaN?: boolean | undefined
+    readonly noDefaultInfinity?: boolean | undefined
+  }) {
+    this.constraints = {}
+    if (Predicate.isNumber(options.min)) {
+      this.constraints.min = Math.fround(options.min)
+    }
+    if (Predicate.isNumber(options.max)) {
+      this.constraints.max = Math.fround(options.max)
+    }
+    if (Predicate.isBoolean(options.noNaN)) {
+      this.constraints.noNaN = options.noNaN
+    }
+    if (Predicate.isBoolean(options.noDefaultInfinity)) {
+      this.constraints.noDefaultInfinity = options.noDefaultInfinity
+    }
+  }
 }
 
 /** @internal */
-export const numberConstraints = (
-  constraints: NumberConstraints["constraints"]
-): NumberConstraints => {
-  if (Predicate.isNumber(constraints.min)) {
-    constraints.min = Math.fround(constraints.min)
-  }
-  if (Predicate.isNumber(constraints.max)) {
-    constraints.max = Math.fround(constraints.max)
-  }
-  return { _tag: "NumberConstraints", constraints }
-}
-
-interface StringConstraints {
-  readonly _tag: "StringConstraints"
+export class StringConstraints {
+  readonly _tag = "StringConstraints"
   readonly constraints: FastCheck.StringSharedConstraints
+  constructor(options: {
+    readonly minLength?: number | undefined
+    readonly maxLength?: number | undefined
+  }) {
+    this.constraints = {}
+    if (Predicate.isNumber(options.minLength)) {
+      this.constraints.minLength = options.minLength
+    }
+    if (Predicate.isNumber(options.maxLength)) {
+      this.constraints.maxLength = options.maxLength
+    }
+  }
 }
 
 /** @internal */
-export const stringConstraints = (
-  constraints: StringConstraints["constraints"]
-): StringConstraints => {
-  return { _tag: "StringConstraints", constraints }
-}
-
-interface IntegerConstraints {
-  readonly _tag: "IntegerConstraints"
+export class IntegerConstraints {
+  readonly _tag = "IntegerConstraints"
   readonly constraints: FastCheck.IntegerConstraints
+  constructor(options: {
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+  }) {
+    this.constraints = {}
+    if (Predicate.isNumber(options.min)) {
+      this.constraints.min = options.min
+    }
+    if (Predicate.isNumber(options.max)) {
+      this.constraints.max = options.max
+    }
+  }
 }
 
 /** @internal */
-export const integerConstraints = (
-  constraints: IntegerConstraints["constraints"]
-): IntegerConstraints => {
-  return { _tag: "IntegerConstraints", constraints }
-}
-
-interface ArrayConstraints {
-  readonly _tag: "ArrayConstraints"
+export class ArrayConstraints {
+  readonly _tag = "ArrayConstraints"
   readonly constraints: FastCheck.ArrayConstraints
+  constructor(options: {
+    readonly minLength?: number | undefined
+    readonly maxLength?: number | undefined
+  }) {
+    this.constraints = {}
+    if (Predicate.isNumber(options.minLength)) {
+      this.constraints.minLength = options.minLength
+    }
+    if (Predicate.isNumber(options.maxLength)) {
+      this.constraints.maxLength = options.maxLength
+    }
+  }
 }
 
 /** @internal */
-export const arrayConstraints = (
-  constraints: ArrayConstraints["constraints"]
-): ArrayConstraints => {
-  return { _tag: "ArrayConstraints", constraints }
-}
-
-interface BigIntConstraints {
-  readonly _tag: "BigIntConstraints"
+export class BigIntConstraints {
+  readonly _tag = "BigIntConstraints"
   readonly constraints: FastCheck.BigIntConstraints
-}
-
-/** @internal */
-export const bigintConstraints = (
-  constraints: BigIntConstraints["constraints"]
-): BigIntConstraints => {
-  return { _tag: "BigIntConstraints", constraints }
+  constructor(options: {
+    readonly min?: bigint | undefined
+    readonly max?: bigint | undefined
+  }) {
+    this.constraints = {}
+    if (Predicate.isBigInt(options.min)) {
+      this.constraints.min = options.min
+    }
+    if (Predicate.isBigInt(options.max)) {
+      this.constraints.max = options.max
+    }
+  }
 }
 
 /** @internal */
@@ -370,65 +407,41 @@ export const getConstraints = (ast: AST.Refinement): Constraints | undefined => 
   const TypeAnnotationId = ast.annotations[AST.TypeAnnotationId]
   const jsonSchema: any = ast.annotations[AST.JSONSchemaAnnotationId]
   switch (TypeAnnotationId) {
+    // int
+    case filters_.IntTypeId:
+      return new IntegerConstraints({})
     // number
-    case filters.GreaterThanTypeId:
-    case filters.GreaterThanOrEqualToTypeId:
-      return numberConstraints({ min: jsonSchema.exclusiveMinimum ?? jsonSchema.minimum })
-    case filters.LessThanTypeId:
-    case filters.LessThanOrEqualToTypeId:
-      return numberConstraints({ max: jsonSchema.exclusiveMaximum ?? jsonSchema.maximum })
-    case filters.IntTypeId:
-      return integerConstraints({})
-    case filters.BetweenTypeId: {
-      const min = jsonSchema.minimum
-      const max = jsonSchema.maximum
-      const constraints: NumberConstraints["constraints"] = {}
-      if (Predicate.isNumber(min)) {
-        constraints.min = min
-      }
-      if (Predicate.isNumber(max)) {
-        constraints.max = max
-      }
-      return numberConstraints(constraints)
-    }
+    case filters_.GreaterThanTypeId:
+    case filters_.GreaterThanOrEqualToTypeId:
+    case filters_.LessThanTypeId:
+    case filters_.LessThanOrEqualToTypeId:
+    case filters_.BetweenTypeId:
+      return new NumberConstraints({
+        min: jsonSchema.exclusiveMinimum ?? jsonSchema.minimum,
+        max: jsonSchema.exclusiveMaximum ?? jsonSchema.maximum
+      })
     // bigint
-    case filters.GreaterThanBigintTypeId:
-    case filters.GreaterThanOrEqualToBigintTypeId: {
-      const params: any = ast.annotations[TypeAnnotationId]
-      return bigintConstraints({ min: params.min })
-    }
-    case filters.LessThanBigintTypeId:
-    case filters.LessThanOrEqualToBigintTypeId: {
-      const params: any = ast.annotations[TypeAnnotationId]
-      return bigintConstraints({ max: params.max })
-    }
-    case filters.BetweenBigintTypeId: {
-      const params: any = ast.annotations[TypeAnnotationId]
-      const min = params.min
-      const max = params.max
-      const constraints: BigIntConstraints["constraints"] = {}
-      if (Predicate.isBigInt(min)) {
-        constraints.min = min
-      }
-      if (Predicate.isBigInt(max)) {
-        constraints.max = max
-      }
-      return bigintConstraints(constraints)
+    case filters_.GreaterThanBigintTypeId:
+    case filters_.GreaterThanOrEqualToBigIntTypeId:
+    case filters_.LessThanBigIntTypeId:
+    case filters_.LessThanOrEqualToBigIntTypeId:
+    case filters_.BetweenBigintTypeId: {
+      const constraints: any = ast.annotations[TypeAnnotationId]
+      return new BigIntConstraints(constraints)
     }
     // string
-    case filters.MinLengthTypeId:
-      return stringConstraints({ minLength: jsonSchema.minLength })
-    case filters.MaxLengthTypeId:
-      return stringConstraints({ maxLength: jsonSchema.maxLength })
-    case filters.LengthTypeId:
-      return stringConstraints({ minLength: jsonSchema.minLength, maxLength: jsonSchema.maxLength })
+    case filters_.MinLengthTypeId:
+    case filters_.MaxLengthTypeId:
+    case filters_.LengthTypeId:
+      return new StringConstraints(jsonSchema)
     // array
-    case filters.MinItemsTypeId:
-      return arrayConstraints({ minLength: jsonSchema.minItems })
-    case filters.MaxItemsTypeId:
-      return arrayConstraints({ maxLength: jsonSchema.maxItems })
-    case filters.ItemsCountTypeId:
-      return arrayConstraints({ minLength: jsonSchema.minItems, maxLength: jsonSchema.maxItems })
+    case filters_.MinItemsTypeId:
+    case filters_.MaxItemsTypeId:
+    case filters_.ItemsCountTypeId:
+      return new ArrayConstraints({
+        minLength: jsonSchema.minItems,
+        maxLength: jsonSchema.maxItems
+      })
   }
 }
 
@@ -446,93 +459,48 @@ export const combineConstraints = (
   switch (c1._tag) {
     case "ArrayConstraints": {
       switch (c2._tag) {
-        case "ArrayConstraints": {
-          const c: ArrayConstraints["constraints"] = {
-            ...c1.constraints,
-            ...c2.constraints
-          }
-          const minLength = getMax(c1.constraints.minLength, c2.constraints.minLength)
-          if (Predicate.isNumber(minLength)) {
-            c.minLength = minLength
-          }
-          const maxLength = getMin(c1.constraints.maxLength, c2.constraints.maxLength)
-          if (Predicate.isNumber(maxLength)) {
-            c.maxLength = maxLength
-          }
-          return arrayConstraints(c)
-        }
+        case "ArrayConstraints":
+          return new ArrayConstraints({
+            minLength: getMax(c1.constraints.minLength, c2.constraints.minLength),
+            maxLength: getMin(c1.constraints.maxLength, c2.constraints.maxLength)
+          })
       }
       break
     }
     case "NumberConstraints": {
       switch (c2._tag) {
-        case "NumberConstraints": {
-          const c: NumberConstraints["constraints"] = {
-            ...c1.constraints,
-            ...c2.constraints
-          }
-          const min = getMax(c1.constraints.min, c2.constraints.min)
-          if (Predicate.isNumber(min)) {
-            c.min = min
-          }
-          const max = getMin(c1.constraints.max, c2.constraints.max)
-          if (Predicate.isNumber(max)) {
-            c.max = max
-          }
-          return numberConstraints(c)
-        }
-        case "IntegerConstraints": {
-          const c: IntegerConstraints["constraints"] = { ...c2.constraints }
-          const min = getMax(c1.constraints.min, c2.constraints.min)
-          if (Predicate.isNumber(min)) {
-            c.min = min
-          }
-          const max = getMin(c1.constraints.max, c2.constraints.max)
-          if (Predicate.isNumber(max)) {
-            c.max = max
-          }
-          return integerConstraints(c)
-        }
+        case "NumberConstraints":
+          return new NumberConstraints({
+            min: getMax(c1.constraints.min, c2.constraints.min),
+            max: getMin(c1.constraints.max, c2.constraints.max),
+            noNaN: getOr(c1.constraints.noNaN, c2.constraints.noNaN),
+            noDefaultInfinity: getOr(c1.constraints.noDefaultInfinity, c2.constraints.noDefaultInfinity)
+          })
+        case "IntegerConstraints":
+          return new IntegerConstraints({
+            min: getMax(c1.constraints.min, c2.constraints.min),
+            max: getMin(c1.constraints.max, c2.constraints.max)
+          })
       }
       break
     }
     case "BigIntConstraints": {
       switch (c2._tag) {
-        case "BigIntConstraints": {
-          const c: BigIntConstraints["constraints"] = {
-            ...c1.constraints,
-            ...c2.constraints
-          }
-          const min = getMax(c1.constraints.min, c2.constraints.min)
-          if (Predicate.isBigInt(min)) {
-            c.min = min
-          }
-          const max = getMin(c1.constraints.max, c2.constraints.max)
-          if (Predicate.isBigInt(max)) {
-            c.max = max
-          }
-          return bigintConstraints(c)
-        }
+        case "BigIntConstraints":
+          return new BigIntConstraints({
+            min: getMax(c1.constraints.min, c2.constraints.min),
+            max: getMin(c1.constraints.max, c2.constraints.max)
+          })
       }
       break
     }
     case "StringConstraints": {
       switch (c2._tag) {
-        case "StringConstraints": {
-          const c: StringConstraints["constraints"] = {
-            ...c1.constraints,
-            ...c2.constraints
-          }
-          const minLength = getMax(c1.constraints.minLength, c2.constraints.minLength)
-          if (Predicate.isNumber(minLength)) {
-            c.minLength = minLength
-          }
-          const maxLength = getMin(c1.constraints.maxLength, c2.constraints.maxLength)
-          if (Predicate.isNumber(maxLength)) {
-            c.maxLength = maxLength
-          }
-          return stringConstraints(c)
-        }
+        case "StringConstraints":
+          return new StringConstraints({
+            minLength: getMax(c1.constraints.minLength, c2.constraints.minLength),
+            maxLength: getMin(c1.constraints.maxLength, c2.constraints.maxLength)
+          })
       }
       break
     }
@@ -540,21 +508,19 @@ export const combineConstraints = (
       switch (c2._tag) {
         case "NumberConstraints":
         case "IntegerConstraints": {
-          const c: IntegerConstraints["constraints"] = { ...c1.constraints }
-          const min = getMax(c1.constraints.min, c2.constraints.min)
-          if (Predicate.isNumber(min)) {
-            c.min = min
-          }
-          const max = getMin(c1.constraints.max, c2.constraints.max)
-          if (Predicate.isNumber(max)) {
-            c.max = max
-          }
-          return integerConstraints(c)
+          return new IntegerConstraints({
+            min: getMax(c1.constraints.min, c2.constraints.min),
+            max: getMin(c1.constraints.max, c2.constraints.max)
+          })
         }
       }
       break
     }
   }
+}
+
+const getOr = (a: boolean | undefined, b: boolean | undefined): boolean | undefined => {
+  return a === undefined ? b : b === undefined ? a : a || b
 }
 
 function getMax(n1: bigint | undefined, n2: bigint | undefined): bigint | undefined

@@ -1,7 +1,7 @@
 {
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@8.15.1",
+  "packageManager": "pnpm@9.0.6",
   "workspaces": [
     "packages/*"
   ],
@@ -9,7 +9,7 @@
     "clean": "node scripts/clean.mjs",
     "codegen": "pnpm --recursive --parallel run codegen",
     "build": "tsc -b tsconfig.build.json && pnpm --recursive --parallel run build",
-    "circular": "madge --extensions ts --circular --no-color --no-spinner packages/*/src",
+    "circular": "node scripts/circular.mjs",
     "test": "vitest",
     "coverage": "vitest --coverage",
     "check": "tsc -b tsconfig.json",
@@ -35,46 +35,52 @@
     "detective-typescript": "^11.1.0"
   },
   "devDependencies": {
-    "@babel/cli": "^7.23.9",
-    "@babel/core": "^7.23.9",
-    "@babel/plugin-transform-export-namespace-from": "^7.23.4",
-    "@babel/plugin-transform-modules-commonjs": "^7.23.3",
+    "@babel/cli": "^7.24.5",
+    "@babel/core": "^7.24.5",
+    "@babel/plugin-transform-export-namespace-from": "^7.24.1",
+    "@babel/plugin-transform-modules-commonjs": "^7.24.1",
     "@changesets/changelog-github": "^0.5.0",
     "@changesets/cli": "^2.27.1",
     "@edge-runtime/vm": "^3.2.0",
     "@effect/build-utils": "^0.7.6",
-    "@effect/docgen": "^0.3.8",
-    "@effect/dtslint": "^0.0.4",
+    "@effect/docgen": "^0.4.3",
+    "@effect/dtslint": "^0.1.0",
     "@effect/eslint-plugin": "^0.1.2",
     "@effect/language-service": "^0.1.0",
-    "@types/node": "^20.11.20",
-    "@typescript-eslint/eslint-plugin": "^7.0.2",
-    "@typescript-eslint/parser": "^7.0.2",
-    "@vitest/browser": "^1.3.1",
-    "@vitest/coverage-v8": "^1.3.1",
-    "@vitest/web-worker": "^1.3.1",
+    "@types/node": "^20.12.7",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "@vitest/browser": "^1.5.2",
+    "@vitest/coverage-v8": "^1.5.2",
+    "@vitest/expect": "^1.5.3",
+    "@vitest/web-worker": "^1.5.2",
     "babel-plugin-annotate-pure-calls": "^0.4.0",
     "eslint": "^8.57.0",
     "eslint-import-resolver-typescript": "^3.6.1",
-    "eslint-plugin-codegen": "^0.23.0",
+    "eslint-plugin-codegen": "^0.28.0",
     "eslint-plugin-deprecation": "^2.0.0",
     "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-simple-import-sort": "^12.0.0",
-    "eslint-plugin-sort-destructure-keys": "^1.5.0",
-    "fast-check": "^3.15.1",
-    "glob": "^10.3.10",
-    "madge": "^6.1.0",
-    "playwright": "^1.41.2",
+    "eslint-plugin-simple-import-sort": "^12.1.0",
+    "eslint-plugin-sort-destructure-keys": "^2.0.0",
+    "fast-check": "^3.18.0",
+    "glob": "^10.3.12",
+    "madge": "^7.0.0",
+    "playwright": "^1.43.1",
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
-    "tsx": "^4.7.1",
-    "typescript": "^5.3.3",
-    "vite": "^5.1.4",
-    "vitest": "^1.3.1"
+    "tsx": "^4.7.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10",
+    "vitest": "^1.5.3"
   },
   "pnpm": {
     "patchedDependencies": {
       "@changesets/assemble-release-plan@6.0.0": "patches/@changesets__assemble-release-plan@6.0.0.patch"
+    },
+    "updateConfig": {
+      "ignoreDependencies": [
+        "eslint"
+      ]
     }
   }
 }

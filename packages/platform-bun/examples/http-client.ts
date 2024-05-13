@@ -4,15 +4,15 @@ import type * as ParseResult from "@effect/schema/ParseResult"
 import * as Schema from "@effect/schema/Schema"
 import { Context, Effect, Layer } from "effect"
 
-class Todo extends Schema.Class<Todo>()({
-  userId: Schema.number,
-  id: Schema.number,
-  title: Schema.string,
-  completed: Schema.boolean
+class Todo extends Schema.Class<Todo>("Todo")({
+  userId: Schema.Number,
+  id: Schema.Number,
+  title: Schema.String,
+  completed: Schema.Boolean
 }) {}
 
-const TodoWithoutId = Todo.struct.pipe(Schema.omit("id"))
-type TodoWithoutId = Schema.Schema.To<typeof TodoWithoutId>
+const TodoWithoutId = Schema.Struct(Todo.fields).pipe(Schema.omit("id"))
+type TodoWithoutId = Schema.Schema.Type<typeof TodoWithoutId>
 
 interface TodoService {
   readonly create: (
@@ -27,7 +27,6 @@ const makeTodoService = Effect.gen(function*(_) {
     Http.client.filterStatusOk,
     Http.client.mapRequest(Http.request.prependUrl("https://jsonplaceholder.typicode.com"))
   )
-  const decodeTodo = Http.response.schemaBodyJsonEffect(Todo)
 
   const addTodoWithoutIdBody = Http.request.schemaBody(TodoWithoutId)
   const create = (todo: TodoWithoutId) =>
@@ -36,7 +35,7 @@ const makeTodoService = Effect.gen(function*(_) {
       todo
     ).pipe(
       Effect.flatMap(clientWithBaseUrl),
-      decodeTodo
+      Http.response.schemaBodyJsonScoped(Todo)
     )
 
   return TodoService.of({ create })

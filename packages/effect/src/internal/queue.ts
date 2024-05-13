@@ -1,3 +1,4 @@
+import * as Arr from "../Array.js"
 import * as Chunk from "../Chunk.js"
 import type * as Deferred from "../Deferred.js"
 import type * as Effect from "../Effect.js"
@@ -8,7 +9,6 @@ import * as Option from "../Option.js"
 import { pipeArguments } from "../Pipeable.js"
 import { hasProperty } from "../Predicate.js"
 import type * as Queue from "../Queue.js"
-import * as ReadonlyArray from "../ReadonlyArray.js"
 import * as core from "./core.js"
 import * as fiberRuntime from "./fiberRuntime.js"
 
@@ -125,7 +125,7 @@ class QueueImpl<in out A> implements Queue.Queue<A> {
           ),
           core.zipRight(this.strategy.shutdown),
           core.whenEffect(core.deferredSucceed(this.shutdownHook, void 0)),
-          core.asUnit
+          core.asVoid
         )
       })
     )
@@ -208,11 +208,11 @@ class QueueImpl<in out A> implements Queue.Queue<A> {
       if (MutableRef.get(this.shutdownFlag)) {
         return core.interrupt
       }
-      const values = ReadonlyArray.fromIterable(iterable)
+      const values = Arr.fromIterable(iterable)
       const pTakers = this.queue.length() === 0
-        ? ReadonlyArray.fromIterable(unsafePollN(this.takers, values.length))
-        : ReadonlyArray.empty
-      const [forTakers, remaining] = pipe(values, ReadonlyArray.splitAt(pTakers.length))
+        ? Arr.fromIterable(unsafePollN(this.takers, values.length))
+        : Arr.empty
+      const [forTakers, remaining] = pipe(values, Arr.splitAt(pTakers.length))
       for (let i = 0; i < pTakers.length; i++) {
         const taker = (pTakers as any)[i]
         const item = forTakers[i]
@@ -548,9 +548,9 @@ class BackPressureStrategy<in out A> implements Queue.Strategy<A> {
                 isLastItem ?
                   pipe(
                     core.deferredInterruptWith(deferred, fiberId),
-                    core.asUnit
+                    core.asVoid
                   ) :
-                  core.unit,
+                  core.void,
               false,
               false
             )
@@ -602,7 +602,7 @@ class BackPressureStrategy<in out A> implements Queue.Strategy<A> {
   }
 
   unsafeOffer(iterable: Iterable<A>, deferred: Deferred.Deferred<boolean>): void {
-    const stuff = Array.from(iterable)
+    const stuff = Arr.fromIterable(iterable)
     for (let i = 0; i < stuff.length; i++) {
       const value = stuff[i]
       if (i === stuff.length - 1) {
@@ -630,7 +630,7 @@ class DroppingStrategy<in out A> implements Queue.Strategy<A> {
   }
 
   get shutdown(): Effect.Effect<void> {
-    return core.unit
+    return core.void
   }
 
   onCompleteTakersWithEmptyQueue(): void {
@@ -662,7 +662,7 @@ class SlidingStrategy<in out A> implements Queue.Strategy<A> {
   }
 
   get shutdown(): Effect.Effect<void> {
-    return core.unit
+    return core.void
   }
 
   onCompleteTakersWithEmptyQueue(): void {

@@ -1,6 +1,7 @@
 /**
  * @since 1.0.0
  */
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
 import type * as Effect from "effect/Effect"
@@ -9,6 +10,7 @@ import type * as Stream from "effect/Stream"
 import * as internal from "../internal/http/clientResponse.js"
 import type * as Error from "./ClientError.js"
 import type * as ClientRequest from "./ClientRequest.js"
+import type * as Cookies from "./Cookies.js"
 import type * as IncomingMessage from "./IncomingMessage.js"
 import type * as UrlParams from "./UrlParams.js"
 
@@ -22,7 +24,7 @@ export {
    * @since 1.0.0
    * @category schema
    */
-  schemaBodyJsonEffect,
+  schemaBodyJsonScoped,
   /**
    * @since 1.0.0
    * @category schema
@@ -32,7 +34,7 @@ export {
    * @since 1.0.0
    * @category schema
    */
-  schemaBodyUrlParamsEffect,
+  schemaBodyUrlParamsScoped,
   /**
    * @since 1.0.0
    * @category schema
@@ -42,7 +44,7 @@ export {
    * @since 1.0.0
    * @category schema
    */
-  schemaHeadersEffect
+  schemaHeadersScoped
 } from "./IncomingMessage.js"
 
 /**
@@ -64,6 +66,7 @@ export type TypeId = typeof TypeId
 export interface ClientResponse extends IncomingMessage.IncomingMessage<Error.ResponseError> {
   readonly [TypeId]: TypeId
   readonly status: number
+  readonly cookies: Cookies.Cookies
   readonly formData: Effect.Effect<FormData, Error.ResponseError>
 }
 
@@ -86,7 +89,8 @@ export const schemaJson: <
   },
   A
 >(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => (self: ClientResponse) => Effect.Effect<A, Error.ResponseError | ParseResult.ParseError, R> = internal.schemaJson
 
 /**
@@ -100,8 +104,10 @@ export const schemaNoBody: <
     readonly headers?: Readonly<Record<string, string>> | undefined
   },
   A
->(schema: Schema.Schema<A, I, R>) => (self: ClientResponse) => Effect.Effect<A, ParseResult.ParseError, R> =
-  internal.schemaNoBody
+>(
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
+) => (self: ClientResponse) => Effect.Effect<A, ParseResult.ParseError, R> = internal.schemaNoBody
 
 /**
  * @since 1.0.0
@@ -126,6 +132,16 @@ export const formData: <E, R>(
 export const json: <E, R>(
   effect: Effect.Effect<ClientResponse, E, R>
 ) => Effect.Effect<unknown, Error.ResponseError | E, Exclude<R, Scope.Scope>> = internal.json
+
+const void_: <E, R>(effect: Effect.Effect<ClientResponse, E, R>) => Effect.Effect<void, E, Exclude<R, Scope.Scope>> =
+  internal.void_
+export {
+  /**
+   * @since 1.0.0
+   * @category accessors
+   */
+  void_ as void
+}
 
 /**
  * @since 1.0.0
@@ -155,7 +171,7 @@ export const urlParamsBody: <E, R>(
  * @since 1.0.0
  * @category schema
  */
-export const schemaJsonEffect: <
+export const schemaJsonScoped: <
   R,
   I extends {
     readonly status?: number | undefined
@@ -164,26 +180,31 @@ export const schemaJsonEffect: <
   },
   A
 >(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => <E, R2>(
   effect: Effect.Effect<ClientResponse, E, R2>
 ) => Effect.Effect<
   A,
-  Error.ResponseError | E | ParseResult.ParseError,
+  E | Error.ResponseError | ParseResult.ParseError,
   Exclude<R, Scope.Scope> | Exclude<R2, Scope.Scope>
-> = internal.schemaJsonEffect
+> = internal.schemaJsonScoped
 
 /**
  * @since 1.0.0
  * @category schema
  */
-export const schemaNoBodyEffect: <
+export const schemaNoBodyScoped: <
   R,
-  I extends { readonly status?: number | undefined; readonly headers?: Readonly<Record<string, string>> | undefined },
+  I extends {
+    readonly status?: number | undefined
+    readonly headers?: Readonly<Record<string, string>> | undefined
+  },
   A
 >(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => <E, R2>(
   effect: Effect.Effect<ClientResponse, E, R2>
 ) => Effect.Effect<A, E | ParseResult.ParseError, Exclude<R, Scope.Scope> | Exclude<R2, Scope.Scope>> =
-  internal.schemaNoBodyEffect
+  internal.schemaNoBodyScoped

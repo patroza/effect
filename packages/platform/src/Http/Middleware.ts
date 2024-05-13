@@ -3,6 +3,7 @@
  */
 import type * as Effect from "effect/Effect"
 import type * as FiberRef from "effect/FiberRef"
+import type * as Layer from "effect/Layer"
 import type * as Predicate from "effect/Predicate"
 import * as internal from "../internal/http/middleware.js"
 import type * as App from "./App.js"
@@ -13,7 +14,7 @@ import type * as ServerRequest from "./ServerRequest.js"
  * @category models
  */
 export interface Middleware {
-  <R, E>(self: App.Default<R, E>): App.Default<any, any>
+  <R, E>(self: App.Default<E, R>): App.Default<any, any>
 }
 
 /**
@@ -23,8 +24,8 @@ export declare namespace Middleware {
   /**
    * @since 1.0.0
    */
-  export interface Applied<R, E, A extends App.Default<any, any>> {
-    (self: App.Default<R, E>): A
+  export interface Applied<A extends App.Default<any, any>, E, R> {
+    (self: App.Default<E, R>): A
   }
 }
 
@@ -38,7 +39,7 @@ export const make: <M extends Middleware>(middleware: M) => M = internal.make
  * @since 1.0.0
  * @category constructors
  */
-export const logger: <R, E>(httpApp: App.Default<R, E>) => App.Default<R, E> = internal.logger
+export const logger: <R, E>(httpApp: App.Default<E, R>) => App.Default<E, R> = internal.logger
 
 /**
  * @since 1.0.0
@@ -67,15 +68,49 @@ export const currentTracerDisabledWhen: FiberRef.FiberRef<Predicate.Predicate<Se
 export const withTracerDisabledWhen: {
   (
     predicate: Predicate.Predicate<ServerRequest.ServerRequest>
+  ): <R, E, A>(layer: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>
+  <R, E, A>(
+    layer: Layer.Layer<A, E, R>,
+    predicate: Predicate.Predicate<ServerRequest.ServerRequest>
+  ): Layer.Layer<A, E, R>
+} = internal.withTracerDisabledWhen
+
+/**
+ * @since 1.0.0
+ * @category fiber refs
+ */
+export const withTracerDisabledWhenEffect: {
+  (
+    predicate: Predicate.Predicate<ServerRequest.ServerRequest>
   ): <R, E, A>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
   <R, E, A>(
     effect: Effect.Effect<A, E, R>,
     predicate: Predicate.Predicate<ServerRequest.ServerRequest>
   ): Effect.Effect<A, E, R>
-} = internal.withTracerDisabledWhen
+} = internal.withTracerDisabledWhenEffect
+
+/**
+ * @since 1.0.0
+ * @category fiber refs
+ */
+export const withTracerDisabledForUrls: {
+  (urls: ReadonlyArray<string>): <R, E, A>(layer: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>
+  <R, E, A>(layer: Layer.Layer<A, E, R>, urls: ReadonlyArray<string>): Layer.Layer<A, E, R>
+} = internal.withTracerDisabledForUrls
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const xForwardedHeaders: <R, E>(httpApp: App.Default<R, E>) => App.Default<R, E> = internal.xForwardedHeaders
+export const xForwardedHeaders: <R, E>(httpApp: App.Default<E, R>) => App.Default<E, R> = internal.xForwardedHeaders
+
+/**
+ * @since 1.0.0
+ * @category constructors
+ */
+export const searchParamsParser: <E, R>(
+  httpApp: App.Default<E, R>
+) => App.Default<
+  E,
+  Exclude<R, ServerRequest.ParsedSearchParams>
+> = internal.searchParamsParser

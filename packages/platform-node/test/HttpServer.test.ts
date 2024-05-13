@@ -5,10 +5,11 @@ import type { ServerResponse } from "@effect/platform/Http/ServerResponse"
 import * as HttpC from "@effect/platform/HttpClient"
 import * as Http from "@effect/platform/HttpServer"
 import * as Schema from "@effect/schema/Schema"
-import { Deferred, Fiber, Stream } from "effect"
+import { Deferred, Duration, Fiber, Stream } from "effect"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Tracer from "effect/Tracer"
 import { createServer } from "http"
 import * as Buffer from "node:buffer"
 import { assert, describe, expect, it } from "vitest"
@@ -34,11 +35,11 @@ const runPromise = <E, A>(
   >
 ) => Effect.runPromise(Effect.provide(effect, EnvLive))
 
-const Todo = Schema.struct({
-  id: Schema.number,
-  title: Schema.string
+const Todo = Schema.Struct({
+  id: Schema.Number,
+  title: Schema.String
 })
-const IdParams = Schema.struct({
+const IdParams = Schema.Struct({
   id: Schema.NumberFromString
 })
 const todoResponse = Http.response.schemaJson(Todo)
@@ -113,9 +114,9 @@ describe("HttpServer", () => {
         Http.router.post(
           "/upload",
           Effect.gen(function*(_) {
-            const files = yield* _(Http.request.schemaBodyForm(Schema.struct({
-              file: Http.multipart.filesSchema,
-              test: Schema.string
+            const files = yield* _(Http.request.schemaBodyForm(Schema.Struct({
+              file: Http.multipart.FilesSchema,
+              test: Schema.String
             })))
             expect(files).toHaveProperty("file")
             expect(files).toHaveProperty("test")
@@ -194,7 +195,7 @@ describe("HttpServer", () => {
         Effect.scoped
       )
       expect(response.status).toEqual(413)
-    }).pipe(Effect.scoped, runPromise))
+    }).pipe(Effect.scoped, Effect.tapErrorCause(Effect.log), runPromise))
 
   it("mount", () =>
     Effect.gen(function*(_) {
@@ -323,9 +324,9 @@ describe("HttpServer", () => {
         Http.router.post(
           "/todos",
           Effect.flatMap(
-            Http.request.schemaBodyUrlParams(Schema.struct({
+            Http.request.schemaBodyUrlParams(Schema.Struct({
               id: Schema.NumberFromString,
-              title: Schema.string
+              title: Schema.String
             })),
             ({ id, title }) => todoResponse({ id, title })
           )
@@ -349,9 +350,9 @@ describe("HttpServer", () => {
         Http.router.get(
           "/todos",
           Effect.flatMap(
-            Http.request.schemaBodyUrlParams(Schema.struct({
+            Http.request.schemaBodyUrlParams(Schema.Struct({
               id: Schema.NumberFromString,
-              title: Schema.string
+              title: Schema.String
             })),
             ({ id, title }) => todoResponse({ id, title })
           )
@@ -376,8 +377,8 @@ describe("HttpServer", () => {
           "/upload",
           Effect.gen(function*(_) {
             const result = yield* _(
-              Http.request.schemaBodyFormJson(Schema.struct({
-                test: Schema.string
+              Http.request.schemaBodyFormJson(Schema.Struct({
+                test: Schema.String
               }))("json")
             )
             expect(result.test).toEqual("content")
@@ -405,8 +406,8 @@ describe("HttpServer", () => {
           "/upload",
           Effect.gen(function*(_) {
             const result = yield* _(
-              Http.request.schemaBodyFormJson(Schema.struct({
-                test: Schema.string
+              Http.request.schemaBodyFormJson(Schema.Struct({
+                test: Schema.String
               }))("json")
             )
             expect(result.test).toEqual("content")
@@ -438,8 +439,8 @@ describe("HttpServer", () => {
           "/upload",
           Effect.gen(function*(_) {
             const result = yield* _(
-              Http.request.schemaBodyFormJson(Schema.struct({
-                test: Schema.string
+              Http.request.schemaBodyFormJson(Schema.Struct({
+                test: Schema.String
               }))("json")
             )
             expect(result.test).toEqual("content")
@@ -481,7 +482,19 @@ describe("HttpServer", () => {
       const body = yield* _(
         client(HttpC.request.get("/")),
         HttpC.response.json,
-        Effect.withParentSpan(requestSpan),
+        Effect.withTracer(Tracer.make({
+          span(name, parent, _, __, ___, kind) {
+            assert.strictEqual(name, "http.client GET")
+            assert.strictEqual(kind, "client")
+            assert(parent._tag === "Some" && parent.value._tag === "Span")
+            assert.strictEqual(parent.value.name, "request parent")
+            return requestSpan
+          },
+          context(f, _fiber) {
+            return f()
+          }
+        })),
+        Effect.withSpan("request parent"),
         Effect.repeatN(2)
       )
       expect((body as any).parent.value.spanId).toEqual(requestSpan.spanId)
@@ -493,6 +506,7 @@ describe("HttpServer", () => {
       yield* _(
         Http.response.empty(),
         Effect.delay(1000),
+        Effect.interruptible,
         Http.server.serveEffect((app) => Effect.onExit(app, (exit) => Deferred.complete(latch, exit)))
       )
       const client = yield* _(makeClient)
@@ -577,5 +591,67 @@ describe("HttpServer", () => {
       expect(about).toEqual("<html><body /></html>")
       const stream = yield* _(HttpC.request.get("/stream"), client, HttpC.response.text)
       expect(stream).toEqual("<html><body />123hello</html>")
+    }).pipe(Effect.scoped, runPromise))
+
+  it("setCookie", () =>
+    Effect.gen(function*(_) {
+      yield* _(
+        Http.router.empty,
+        Http.router.get(
+          "/home",
+          Http.response.empty().pipe(
+            Http.response.unsafeSetCookie("test", "value"),
+            Http.response.unsafeSetCookie("test2", "value2", {
+              httpOnly: true,
+              secure: true,
+              sameSite: "lax",
+              partitioned: true,
+              path: "/",
+              domain: "example.com",
+              expires: new Date(2022, 1, 1, 0, 0, 0, 0),
+              maxAge: "5 minutes"
+            })
+          )
+        ),
+        Http.server.serveEffect()
+      )
+      const client = yield* _(makeClient)
+      const res = yield* _(HttpC.request.get("/home"), client, Effect.scoped)
+      assert.deepStrictEqual(
+        res.cookies.toJSON(),
+        Http.cookies.fromReadonlyRecord({
+          test: Http.cookies.unsafeMakeCookie("test", "value"),
+          test2: Http.cookies.unsafeMakeCookie("test2", "value2", {
+            httpOnly: true,
+            secure: true,
+            sameSite: "lax",
+            partitioned: true,
+            path: "/",
+            domain: "example.com",
+            expires: new Date(2022, 1, 1, 0, 0, 0, 0),
+            maxAge: Duration.minutes(5)
+          })
+        }).toJSON()
+      )
+    }).pipe(Effect.scoped, runPromise))
+
+  it("uninterruptible routes", () =>
+    Effect.gen(function*(_) {
+      yield* _(
+        Http.router.empty,
+        Http.router.get(
+          "/home",
+          Effect.gen(function*(_) {
+            const fiber = Option.getOrThrow(Fiber.getCurrentFiber())
+            setTimeout(() => fiber.unsafeInterruptAsFork(fiber.id()), 10)
+            return yield* _(Http.response.empty(), Effect.delay(50))
+          }),
+          { uninterruptible: true }
+        ),
+        Http.server.serveEffect()
+      )
+      const client = yield* _(makeClient)
+      const res = yield* _(HttpC.request.get("/home"), client, Effect.scoped)
+      assert.strictEqual(res.status, 204)
     }).pipe(Effect.scoped, runPromise))
 })

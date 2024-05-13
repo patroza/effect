@@ -1,3 +1,4 @@
+import * as Arr from "../../Array.js"
 import * as Duration from "../../Duration.js"
 import type { LazyArg } from "../../Function.js"
 import { dual, pipe } from "../../Function.js"
@@ -7,7 +8,6 @@ import type * as MetricState from "../../MetricState.js"
 import * as number from "../../Number.js"
 import * as Option from "../../Option.js"
 import { pipeArguments } from "../../Pipeable.js"
-import * as ReadonlyArray from "../../ReadonlyArray.js"
 import * as metricState from "./state.js"
 
 /** @internal */
@@ -78,11 +78,12 @@ export const counter = <A extends (number | bigint)>(
 }
 
 /** @internal */
-export const frequency = (_key: MetricKey.MetricKey.Frequency): MetricHook.MetricHook.Frequency => {
-  let count = 0
+export const frequency = (key: MetricKey.MetricKey.Frequency): MetricHook.MetricHook.Frequency => {
   const values = new Map<string, number>()
+  for (const word of key.keyType.preregisteredWords) {
+    values.set(word, 0)
+  }
   const update = (word: string) => {
-    count = count + 1
     const slotCount = values.get(word) ?? 0
     values.set(word, slotCount + 1)
   }
@@ -122,8 +123,8 @@ export const histogram = (key: MetricKey.MetricKey.Histogram): MetricHook.Metric
 
   pipe(
     bounds,
-    ReadonlyArray.sort(number.Order),
-    ReadonlyArray.map((n, i) => {
+    Arr.sort(number.Order),
+    Arr.map((n, i) => {
       boundaries[i] = n
     })
   )
@@ -161,7 +162,7 @@ export const histogram = (key: MetricKey.MetricKey.Histogram): MetricHook.Metric
   }
 
   const getBuckets = (): ReadonlyArray<readonly [number, number]> => {
-    const builder: Array<readonly [number, number]> = Array(size)
+    const builder: Array<readonly [number, number]> = Arr.allocate(size) as any
     let cumulated = 0
     for (let i = 0; i < size; i++) {
       const boundary = boundaries[i]
@@ -188,8 +189,8 @@ export const histogram = (key: MetricKey.MetricKey.Histogram): MetricHook.Metric
 /** @internal */
 export const summary = (key: MetricKey.MetricKey.Summary): MetricHook.MetricHook.Summary => {
   const { error, maxAge, maxSize, quantiles } = key.keyType
-  const sortedQuantiles = pipe(quantiles, ReadonlyArray.sort(number.Order))
-  const values = Array<readonly [number, number]>(maxSize)
+  const sortedQuantiles = pipe(quantiles, Arr.sort(number.Order))
+  const values = Arr.allocate<readonly [number, number]>(maxSize)
 
   let head = 0
   let count = 0
@@ -227,7 +228,7 @@ export const summary = (key: MetricKey.MetricKey.Summary): MetricHook.MetricHook
     return calculateQuantiles(
       error,
       sortedQuantiles,
-      ReadonlyArray.sort(builder, number.Order)
+      Arr.sort(builder, number.Order)
     )
   }
 
@@ -290,8 +291,8 @@ const calculateQuantiles = (
 ): ReadonlyArray<readonly [number, Option.Option<number>]> => {
   // The number of samples examined
   const sampleCount = sortedSamples.length
-  if (!ReadonlyArray.isNonEmptyReadonlyArray(sortedQuantiles)) {
-    return ReadonlyArray.empty()
+  if (!Arr.isNonEmptyReadonlyArray(sortedQuantiles)) {
+    return Arr.empty()
   }
   const head = sortedQuantiles[0]
   const tail = sortedQuantiles.slice(1)
@@ -303,7 +304,7 @@ const calculateQuantiles = (
     head,
     sortedSamples
   )
-  const resolved = ReadonlyArray.of(resolvedHead)
+  const resolved = Arr.of(resolvedHead)
   tail.forEach((quantile) => {
     resolved.push(
       resolveQuantile(
@@ -316,7 +317,7 @@ const calculateQuantiles = (
       )
     )
   })
-  return ReadonlyArray.map(resolved, (rq) => [rq.quantile, rq.value] as const)
+  return Arr.map(resolved, (rq) => [rq.quantile, rq.value] as const)
 }
 
 /** @internal */
@@ -343,7 +344,7 @@ const resolveQuantile = (
   // eslint-disable-next-line no-constant-condition
   while (1) {
     // If the remaining list of samples is empty, there is nothing more to resolve
-    if (!ReadonlyArray.isNonEmptyReadonlyArray(rest_1)) {
+    if (!Arr.isNonEmptyReadonlyArray(rest_1)) {
       return {
         quantile: quantile_1,
         value: Option.none(),
@@ -356,14 +357,14 @@ const resolveQuantile = (
     if (quantile_1 === 1) {
       return {
         quantile: quantile_1,
-        value: Option.some(ReadonlyArray.lastNonEmpty(rest_1)),
+        value: Option.some(Arr.lastNonEmpty(rest_1)),
         consumed: consumed_1 + rest_1.length,
         rest: []
       }
     }
     // Split into two chunks - the first chunk contains all elements of the same
     // value as the chunk head
-    const sameHead = ReadonlyArray.span(rest_1, (n) => n <= rest_1[0])
+    const sameHead = Arr.span(rest_1, (n) => n <= rest_1[0])
     // How many elements do we want to accept for this quantile
     const desired = quantile_1 * sampleCount_1
     // The error margin
@@ -377,7 +378,7 @@ const resolveQuantile = (
     if (candConsumed < desired - allowedError) {
       error_2 = error_1
       sampleCount_2 = sampleCount_1
-      current_2 = ReadonlyArray.head(rest_1)
+      current_2 = Arr.head(rest_1)
       consumed_2 = candConsumed
       quantile_2 = quantile_1
       rest_2 = sameHead[1]
@@ -405,7 +406,7 @@ const resolveQuantile = (
       case "None": {
         error_2 = error_1
         sampleCount_2 = sampleCount_1
-        current_2 = ReadonlyArray.head(rest_1)
+        current_2 = Arr.head(rest_1)
         consumed_2 = candConsumed
         quantile_2 = quantile_1
         rest_2 = sameHead[1]
@@ -422,7 +423,7 @@ const resolveQuantile = (
         if (candError < prevError) {
           error_2 = error_1
           sampleCount_2 = sampleCount_1
-          current_2 = ReadonlyArray.head(rest_1)
+          current_2 = Arr.head(rest_1)
           consumed_2 = candConsumed
           quantile_2 = quantile_1
           rest_2 = sameHead[1]

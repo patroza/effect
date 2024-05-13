@@ -1,20 +1,39 @@
+import type { RunMain } from "@effect/platform/Runtime"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
+import * as FiberRef from "effect/FiberRef"
+import * as HashSet from "effect/HashSet"
+import * as Logger from "effect/Logger"
 
 /** @internal */
-export const runMain = <E, A>(
-  effect: Effect.Effect<A, E>
+const useStructuredLogger = Effect.locallyWith(FiberRef.currentLoggers, (loggers) => {
+  if (HashSet.has(loggers, Logger.defaultLogger)) {
+    const set = HashSet.remove(loggers, Logger.defaultLogger)
+    return HashSet.add(set, Logger.withConsoleLog(Logger.structuredLogger))
+  }
+
+  return loggers
+})
+
+/** @internal */
+export const runMain: RunMain = (
+  effect,
+  options
 ) => {
+  const _effect = useStructuredLogger(effect)
+
   const fiber = Effect.runFork(
-    Effect.tapErrorCause(effect, (cause) => {
-      if (Cause.isInterruptedOnly(cause)) {
-        return Effect.unit
-      }
-      return Effect.logError(cause)
-    })
+    options?.disableErrorReporting === true ?
+      _effect :
+      Effect.tapErrorCause(_effect, (cause) => {
+        if (Cause.isInterruptedOnly(cause)) {
+          return Effect.void
+        }
+        return Effect.logError(cause)
+      })
   )
 
   addEventListener("beforeunload", () => {
-    Effect.runFork(fiber.interruptAsFork(fiber.id()))
+    fiber.unsafeInterruptAsFork(fiber.id())
   })
 }

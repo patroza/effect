@@ -3,7 +3,8 @@ import * as Client from "@effect/platform/Http/Client"
 import * as Error from "@effect/platform/Http/ClientError"
 import type * as ClientRequest from "@effect/platform/Http/ClientRequest"
 import * as ClientResponse from "@effect/platform/Http/ClientResponse"
-import * as UrlParams from "@effect/platform/Http/UrlParams"
+import * as Cookies from "@effect/platform/Http/Cookies"
+import * as IncomingMessage from "@effect/platform/Http/IncomingMessage"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
@@ -53,44 +54,28 @@ export const makeAgentLayer = (options?: Https.AgentOptions): Layer.Layer<NodeCl
 /** @internal */
 export const agentLayer = makeAgentLayer()
 
-const makeAbortController = Effect.acquireRelease(
-  Effect.sync(() => new AbortController()),
-  (controller) => Effect.sync(() => controller.abort())
-)
-
 const fromAgent = (agent: NodeClient.HttpAgent): Client.Client.Default =>
-  Client.makeDefault((request) =>
-    Effect.flatMap(
-      UrlParams.makeUrl(request.url, request.urlParams, (_) =>
-        Error.RequestError({
-          request,
-          reason: "InvalidUrl",
-          error: _
-        })),
-      (url) =>
-        Effect.flatMap(makeAbortController, (controller) => {
-          const nodeRequest = url.protocol === "https:" ?
-            Https.request(url, {
-              agent: agent.https,
-              method: request.method,
-              headers: request.headers,
-              signal: controller.signal
-            }) :
-            Http.request(url, {
-              agent: agent.http,
-              method: request.method,
-              headers: request.headers,
-              signal: controller.signal
-            })
-          return pipe(
-            Effect.zipRight(sendBody(nodeRequest, request, request.body), waitForResponse(nodeRequest, request), {
-              concurrent: true
-            }),
-            Effect.map((_) => new ClientResponseImpl(request, _))
-          )
-        })
+  Client.makeDefault((request, url, signal) => {
+    const nodeRequest = url.protocol === "https:" ?
+      Https.request(url, {
+        agent: agent.https,
+        method: request.method,
+        headers: request.headers,
+        signal
+      }) :
+      Http.request(url, {
+        agent: agent.http,
+        method: request.method,
+        headers: request.headers,
+        signal
+      })
+    return pipe(
+      Effect.zipRight(sendBody(nodeRequest, request, request.body), waitForResponse(nodeRequest, request), {
+        concurrent: true
+      }),
+      Effect.map((_) => new ClientResponseImpl(request, _))
     )
-  )
+  })
 
 const sendBody = (
   nodeRequest: Http.ClientRequest,
@@ -118,7 +103,7 @@ const sendBody = (
         return Effect.tryPromise({
           try: () => pipeline(Readable.fromWeb(response.body! as any), nodeRequest),
           catch: (_) =>
-            Error.RequestError({
+            new Error.RequestError({
               request,
               reason: "Transport",
               error: _
@@ -128,13 +113,13 @@ const sendBody = (
       case "Stream": {
         return Stream.run(
           Stream.mapError(body.stream, (_) =>
-            Error.RequestError({
+            new Error.RequestError({
               request,
               reason: "Encode",
               error: _
             })),
           NodeSink.fromWritable(() => nodeRequest, (_) =>
-            Error.RequestError({
+            new Error.RequestError({
               request,
               reason: "Transport",
               error: _
@@ -147,11 +132,13 @@ const sendBody = (
 const waitForResponse = (nodeRequest: Http.ClientRequest, request: ClientRequest.ClientRequest) =>
   Effect.async<Http.IncomingMessage, Error.RequestError>((resume) => {
     function onError(error: Error) {
-      resume(Effect.fail(Error.RequestError({
-        request,
-        reason: "Transport",
-        error
-      })))
+      resume(Effect.fail(
+        new Error.RequestError({
+          request,
+          reason: "Transport",
+          error
+        })
+      ))
     }
     nodeRequest.on("error", onError)
 
@@ -172,17 +159,19 @@ const waitForResponse = (nodeRequest: Http.ClientRequest, request: ClientRequest
 const waitForFinish = (nodeRequest: Http.ClientRequest, request: ClientRequest.ClientRequest) =>
   Effect.async<void, Error.RequestError>((resume) => {
     function onError(error: Error) {
-      resume(Effect.fail(Error.RequestError({
-        request,
-        reason: "Transport",
-        error
-      })))
+      resume(Effect.fail(
+        new Error.RequestError({
+          request,
+          reason: "Transport",
+          error
+        })
+      ))
     }
     nodeRequest.once("error", onError)
 
     function onFinish() {
       nodeRequest.off("error", onError)
-      resume(Effect.unit)
+      resume(Effect.void)
     }
     nodeRequest.once("finish", onFinish)
 
@@ -200,7 +189,7 @@ class ClientResponseImpl extends IncomingMessageImpl<Error.ResponseError> implem
     source: Http.IncomingMessage
   ) {
     super(source, (_) =>
-      Error.ResponseError({
+      new Error.ResponseError({
         request,
         response: this,
         reason: "Decode",
@@ -211,6 +200,18 @@ class ClientResponseImpl extends IncomingMessageImpl<Error.ResponseError> implem
 
   get status() {
     return this.source.statusCode!
+  }
+
+  cachedCookies?: Cookies.Cookies
+  get cookies(): Cookies.Cookies {
+    if (this.cachedCookies !== undefined) {
+      return this.cachedCookies
+    }
+    const header = this.source.headers["set-cookie"]
+    if (Array.isArray(header)) {
+      return this.cachedCookies = Cookies.fromSetCookie(header)
+    }
+    return this.cachedCookies = Cookies.empty
   }
 
   get formData(): Effect.Effect<FormData, Error.ResponseError> {
@@ -238,16 +239,12 @@ class ClientResponseImpl extends IncomingMessageImpl<Error.ResponseError> implem
     })
   }
 
-  toString(): string {
-    return `ClientResponse(${this.status})`
-  }
-
   toJSON(): unknown {
-    return {
-      _tag: "ClientResponse",
-      status: this.status,
-      headers: this.headers
-    }
+    return IncomingMessage.inspect(this, {
+      _id: "@effect/platform/Http/ClientResponse",
+      request: this.request.toJSON(),
+      status: this.status
+    })
   }
 }
 

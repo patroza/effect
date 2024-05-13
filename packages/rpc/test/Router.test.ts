@@ -1,13 +1,14 @@
 import * as Resolver from "@effect/rpc/Resolver"
+import * as ResolverNoStream from "@effect/rpc/ResolverNoStream"
 import * as Router from "@effect/rpc/Router"
 import * as Rpc from "@effect/rpc/Rpc"
 import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
+import * as Array from "effect/Array"
 import * as Chunk from "effect/Chunk"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import { flow, pipe } from "effect/Function"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Stream from "effect/Stream"
 import { assert, describe, expect, it, test } from "vitest"
 
@@ -17,63 +18,63 @@ interface Name {
 const Name = Context.GenericTag<Name, string>("Name")
 
 class SomeError extends S.TaggedError<SomeError>()("SomeError", {
-  message: S.string
+  message: S.String
 }) {}
 
-class Post extends S.Class<Post>()({
-  id: S.number,
-  body: S.string
+class Post extends S.Class<Post>("Post")({
+  id: S.Number,
+  body: S.String
 }) {}
 
-class CreatePost extends S.TaggedRequest<CreatePost>()("CreatePost", S.never, Post, {
-  body: S.string
+class CreatePost extends S.TaggedRequest<CreatePost>()("CreatePost", S.Never, Post, {
+  body: S.String
 }) {}
 
 const posts = Router.make(
   Rpc.effect(CreatePost, ({ body }) => Effect.succeed(new Post({ id: 1, body })))
 )
 
-class Greet extends S.TaggedRequest<Greet>()("Greet", S.never, S.string, {
-  name: S.string
+class Greet extends S.TaggedRequest<Greet>()("Greet", S.Never, S.String, {
+  name: S.String
 }) {}
 
-class Fail extends S.TaggedRequest<Fail>()("Fail", SomeError, S.void, {
-  name: S.string
+class Fail extends S.TaggedRequest<Fail>()("Fail", SomeError, S.Void, {
+  name: S.String
 }) {}
 
-class FailNoInput extends S.TaggedRequest<FailNoInput>()("FailNoInput", SomeError, S.void, {}) {}
+class FailNoInput extends S.TaggedRequest<FailNoInput>()("FailNoInput", SomeError, S.Void, {}) {}
 
-class EncodeInput extends S.TaggedRequest<EncodeInput>()("EncodeInput", S.never, S.Date, {
+class EncodeInput extends S.TaggedRequest<EncodeInput>()("EncodeInput", S.Never, S.Date, {
   date: S.Date
 }) {}
 
 class EncodeDate extends S.TaggedRequest<EncodeDate>()("EncodeDate", SomeError, S.Date, {
-  date: S.string
+  date: S.String
 }) {}
 
-class Refined extends S.TaggedRequest<Refined>()("Refined", S.never, S.number, {
-  number: pipe(S.number, S.int(), S.greaterThan(10))
+class Refined extends S.TaggedRequest<Refined>()("Refined", S.Never, S.Number, {
+  number: pipe(S.Number, S.int(), S.greaterThan(10))
 }) {}
 
-class SpanName extends S.TaggedRequest<SpanName>()("SpanName", S.never, S.string, {}) {}
+class SpanName extends S.TaggedRequest<SpanName>()("SpanName", S.Never, S.String, {}) {}
 
-class GetName extends S.TaggedRequest<GetName>()("GetName", S.never, S.string, {}) {}
+class GetName extends S.TaggedRequest<GetName>()("GetName", S.Never, S.String, {}) {}
 
 class EchoHeaders
-  extends S.TaggedRequest<EchoHeaders>()("EchoHeaders", S.never, S.record(S.string, S.union(S.string, S.undefined)), {})
+  extends S.TaggedRequest<EchoHeaders>()("EchoHeaders", S.Never, S.Record(S.String, S.Union(S.String, S.Undefined)), {})
 {}
 
 class Counts extends Rpc.StreamRequest<Counts>()(
   "Counts",
-  S.never,
-  S.number,
+  S.Never,
+  S.Number,
   {}
 ) {}
 
 class FailStream extends Rpc.StreamRequest<FailStream>()(
   "FailStream",
   SomeError,
-  S.number,
+  S.Number,
   {}
 ) {}
 
@@ -103,9 +104,9 @@ const router = Router.make(
       Stream.tap((_) => Effect.sleep(10))
     )),
   Rpc.effect(EchoHeaders, () =>
-    Rpc.schemaHeaders(S.struct({
-      foo: Schema.string,
-      baz: Schema.optional(Schema.string)
+    Rpc.schemaHeaders(S.Struct({
+      foo: Schema.String,
+      baz: Schema.optional(Schema.String)
     })).pipe(Effect.orDie)),
   Rpc.stream(FailStream, () =>
     Stream.range(0, 10).pipe(
@@ -128,9 +129,9 @@ const handlerArray = (u: ReadonlyArray<unknown>) =>
   }))).pipe(
     Stream.runCollect,
     Effect.map(flow(
-      ReadonlyArray.fromIterable,
-      ReadonlyArray.map(([, response]) => response),
-      ReadonlyArray.filter((_): _ is S.ExitFrom<any, any> => Array.isArray(_) === false)
+      Array.fromIterable,
+      Array.map(([, response]) => response),
+      Array.filter((_): _ is S.ExitEncoded<any, any> => Array.isArray(_) === false)
     ))
   )
 const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
@@ -141,10 +142,10 @@ const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
     sampled: true,
     headers: {}
   }))).pipe(
-    Effect.map(ReadonlyArray.filter((_): _ is S.ExitFrom<any, any> => Array.isArray(_) === false))
+    Effect.map(Array.filter((_): _ is S.ExitEncoded<any, any> => Array.isArray(_) === false))
   )
 const resolver = Resolver.make(handler)<typeof router>()
-const resolverEffect = Resolver.makeEffect(handlerEffect)<typeof router>()
+const resolverEffect = ResolverNoStream.make(handlerEffect)<typeof router>()
 const resolverWithHeaders = Resolver.annotateHeadersEffect(
   resolver,
   Effect.succeed({

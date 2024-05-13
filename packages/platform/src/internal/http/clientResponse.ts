@@ -1,15 +1,17 @@
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import * as Schema from "@effect/schema/Schema"
 import * as Effect from "effect/Effect"
+import * as Inspectable from "effect/Inspectable"
 import * as Option from "effect/Option"
 import * as Stream from "effect/Stream"
-import type * as Error from "../../Http/ClientError.js"
+import * as Error from "../../Http/ClientError.js"
 import type * as ClientRequest from "../../Http/ClientRequest.js"
 import type * as ClientResponse from "../../Http/ClientResponse.js"
+import * as Cookies from "../../Http/Cookies.js"
 import * as Headers from "../../Http/Headers.js"
 import * as IncomingMessage from "../../Http/IncomingMessage.js"
 import * as UrlParams from "../../Http/UrlParams.js"
-import * as internalError from "./clientError.js"
 
 /** @internal */
 export const TypeId: ClientResponse.TypeId = Symbol.for("@effect/platform/Http/ClientResponse") as ClientResponse.TypeId
@@ -20,7 +22,7 @@ export const fromWeb = (
   source: globalThis.Response
 ): ClientResponse.ClientResponse => new ClientResponseImpl(request, source)
 
-class ClientResponseImpl implements ClientResponse.ClientResponse {
+class ClientResponseImpl extends Inspectable.Class implements ClientResponse.ClientResponse {
   readonly [IncomingMessage.TypeId]: IncomingMessage.TypeId
   readonly [TypeId]: ClientResponse.TypeId
 
@@ -28,8 +30,17 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     private readonly request: ClientRequest.ClientRequest,
     private readonly source: globalThis.Response
   ) {
+    super()
     this[IncomingMessage.TypeId] = IncomingMessage.TypeId
     this[TypeId] = TypeId
+  }
+
+  toJSON(): unknown {
+    return IncomingMessage.inspect(this, {
+      _id: "@effect/platform/Http/ClientResponse",
+      request: this.request.toJSON(),
+      status: this.status
+    })
   }
 
   get status(): number {
@@ -40,6 +51,14 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     return Headers.fromInput(this.source.headers)
   }
 
+  cachedCookies?: Cookies.Cookies
+  get cookies(): Cookies.Cookies {
+    if (this.cachedCookies) {
+      return this.cachedCookies
+    }
+    return this.cachedCookies = Cookies.fromSetCookie(this.source.headers.getSetCookie())
+  }
+
   get remoteAddress(): Option.Option<string> {
     return Option.none()
   }
@@ -47,25 +66,27 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
   get stream(): Stream.Stream<Uint8Array, Error.ResponseError> {
     return this.source.body
       ? Stream.fromReadableStream(() => this.source.body!, (_) =>
-        internalError.responseError({
+        new Error.ResponseError({
           request: this.request,
           response: this,
           reason: "Decode",
           error: _
         }))
-      : Stream.fail(internalError.responseError({
-        request: this.request,
-        response: this,
-        reason: "EmptyBody",
-        error: "can not create stream from empty body"
-      }))
+      : Stream.fail(
+        new Error.ResponseError({
+          request: this.request,
+          response: this,
+          reason: "EmptyBody",
+          error: "can not create stream from empty body"
+        })
+      )
   }
 
   get json(): Effect.Effect<unknown, Error.ResponseError> {
     return Effect.tryMap(this.text, {
       try: (text) => text === "" ? null : JSON.parse(text) as unknown,
       catch: (_) =>
-        internalError.responseError({
+        new Error.ResponseError({
           request: this.request,
           response: this,
           reason: "Decode",
@@ -79,7 +100,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     return this.textBody ??= Effect.tryPromise({
       try: () => this.source.text(),
       catch: (_) =>
-        internalError.responseError({
+        new Error.ResponseError({
           request: this.request,
           response: this,
           reason: "Decode",
@@ -93,7 +114,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
       Effect.try({
         try: () => UrlParams.fromInput(new URLSearchParams(_)),
         catch: (_) =>
-          internalError.responseError({
+          new Error.ResponseError({
             request: this.request,
             response: this,
             reason: "Decode",
@@ -107,7 +128,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     return this.formDataBody ??= Effect.tryPromise({
       try: () => this.source.formData(),
       catch: (_) =>
-        internalError.responseError({
+        new Error.ResponseError({
           request: this.request,
           response: this,
           reason: "Decode",
@@ -121,7 +142,7 @@ class ClientResponseImpl implements ClientResponse.ClientResponse {
     return this.arrayBufferBody ??= Effect.tryPromise({
       try: () => this.source.arrayBuffer(),
       catch: (_) =>
-        internalError.responseError({
+        new Error.ResponseError({
           request: this.request,
           response: this,
           reason: "Decode",
@@ -140,8 +161,8 @@ export const schemaJson = <
     readonly body?: unknown | undefined
   },
   A
->(schema: Schema.Schema<A, I, R>) => {
-  const parse = Schema.decodeUnknown(schema)
+>(schema: Schema.Schema<A, I, R>, options?: ParseOptions | undefined) => {
+  const parse = Schema.decodeUnknown(schema, options)
   return (self: ClientResponse.ClientResponse): Effect.Effect<A, Error.ResponseError | ParseResult.ParseError, R> =>
     Effect.flatMap(
       self.json,
@@ -162,8 +183,8 @@ export const schemaNoBody = <
     readonly headers?: Readonly<Record<string, string>> | undefined
   },
   A
->(schema: Schema.Schema<A, I, R>) => {
-  const parse = Schema.decodeUnknown(schema)
+>(schema: Schema.Schema<A, I, R>, options?: ParseOptions | undefined) => {
+  const parse = Schema.decodeUnknown(schema, options)
   return (self: ClientResponse.ClientResponse): Effect.Effect<A, ParseResult.ParseError, R> =>
     parse({
       status: self.status,
@@ -192,11 +213,15 @@ export const formData = <E, R>(effect: Effect.Effect<ClientResponse.ClientRespon
   Effect.scoped(Effect.flatMap(effect, (_) => _.formData))
 
 /** @internal */
+export const void_ = <E, R>(effect: Effect.Effect<ClientResponse.ClientResponse, E, R>) =>
+  Effect.scoped(Effect.asVoid(effect))
+
+/** @internal */
 export const stream = <E, R>(effect: Effect.Effect<ClientResponse.ClientResponse, E, R>) =>
   Stream.unwrapScoped(Effect.map(effect, (_) => _.stream))
 
 /** @internal */
-export const schemaJsonEffect = <
+export const schemaJsonScoped = <
   R,
   I extends {
     readonly status?: number | undefined
@@ -204,22 +229,22 @@ export const schemaJsonEffect = <
     readonly body?: unknown | undefined
   },
   A
->(schema: Schema.Schema<A, I, R>) => {
-  const decode = schemaJson(schema)
+>(schema: Schema.Schema<A, I, R>, options?: ParseOptions | undefined) => {
+  const decode = schemaJson(schema, options)
   return <E, R2>(effect: Effect.Effect<ClientResponse.ClientResponse, E, R2>) =>
     Effect.scoped(Effect.flatMap(effect, decode))
 }
 
 /** @internal */
-export const schemaNoBodyEffect = <
+export const schemaNoBodyScoped = <
   R,
   I extends {
     readonly status?: number | undefined
     readonly headers?: Readonly<Record<string, string>> | undefined
   },
   A
->(schema: Schema.Schema<A, I, R>) => {
-  const decode = schemaNoBody(schema)
+>(schema: Schema.Schema<A, I, R>, options?: ParseOptions | undefined) => {
+  const decode = schemaNoBody(schema, options)
   return <E, R2>(effect: Effect.Effect<ClientResponse.ClientResponse, E, R2>) =>
     Effect.scoped(Effect.flatMap(effect, decode))
 }

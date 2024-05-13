@@ -19,10 +19,10 @@ export const make = (options: Omit<Tracer.Tracer, Tracer.TracerTypeId>): Tracer.
 export const tracerTag = Context.GenericTag<Tracer.Tracer>("effect/Tracer")
 
 /** @internal */
-export const spanTag = Context.GenericTag<Tracer.ParentSpan>("effect/ParentSpan")
+export const spanTag = Context.GenericTag<Tracer.ParentSpan, Tracer.AnySpan>("effect/ParentSpan")
 
-const randomString = (function() {
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+const randomHexString = (function() {
+  const characters = "abcdef0123456789"
   const charactersLength = characters.length
   return function(length: number) {
     let result = ""
@@ -46,20 +46,22 @@ export class NativeSpan implements Tracer.Span {
 
   constructor(
     readonly name: string,
-    readonly parent: Option.Option<Tracer.ParentSpan>,
+    readonly parent: Option.Option<Tracer.AnySpan>,
     readonly context: Context.Context<never>,
     readonly links: ReadonlyArray<Tracer.SpanLink>,
-    readonly startTime: bigint
+    readonly startTime: bigint,
+    readonly kind: Tracer.SpanKind
   ) {
     this.status = {
       _tag: "Started",
       startTime
     }
     this.attributes = new Map()
-    this.spanId = `span${randomString(16)}`
+    this.traceId = parent._tag === "Some" ? parent.value.traceId : randomHexString(32)
+    this.spanId = randomHexString(16)
   }
 
-  end = (endTime: bigint, exit: Exit.Exit<unknown, unknown>): void => {
+  end(endTime: bigint, exit: Exit.Exit<unknown, unknown>): void {
     this.status = {
       _tag: "Ended",
       endTime,
@@ -68,24 +70,25 @@ export class NativeSpan implements Tracer.Span {
     }
   }
 
-  attribute = (key: string, value: unknown): void => {
+  attribute(key: string, value: unknown): void {
     this.attributes.set(key, value)
   }
 
-  event = (name: string, startTime: bigint, attributes?: Record<string, unknown>): void => {
+  event(name: string, startTime: bigint, attributes?: Record<string, unknown>): void {
     this.events.push([name, startTime, attributes ?? {}])
   }
 }
 
 /** @internal */
 export const nativeTracer: Tracer.Tracer = make({
-  span: (name, parent, context, links, startTime) =>
+  span: (name, parent, context, links, startTime, kind) =>
     new NativeSpan(
       name,
       parent,
       context,
       links,
-      startTime
+      startTime,
+      kind
     ),
   context: (f) => f()
 })

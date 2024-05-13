@@ -1,24 +1,32 @@
 {
   "name": "@effect/opentelemetry",
-  "version": "0.31.11",
+  "version": "0.34.2",
   "type": "module",
   "license": "MIT",
-  "description": "Functional programming in TypeScript",
+  "description": "OpenTelemetry integration for Effect",
   "homepage": "https://effect.website",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effect-ts/effect.git",
+    "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/opentelemetry"
   },
   "bugs": {
-    "url": "https://github.com/effect-ts/effect/issues"
+    "url": "https://github.com/Effect-TS/effect/issues"
   },
   "tags": [
+    "opentelemetry",
+    "observability",
+    "tracing",
+    "metrics",
     "typescript",
     "algebraic-data-types",
     "functional-programming"
   ],
   "keywords": [
+    "opentelemetry",
+    "observability",
+    "tracing",
+    "metrics",
     "typescript",
     "algebraic-data-types",
     "functional-programming"
@@ -26,7 +34,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",
@@ -40,12 +48,12 @@
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.6",
-    "@opentelemetry/resources": "^1.17",
-    "@opentelemetry/sdk-metrics": "^1.17",
-    "@opentelemetry/sdk-trace-base": "^1.17",
-    "@opentelemetry/sdk-trace-node": "^1.17",
-    "@opentelemetry/sdk-trace-web": "^1.17",
-    "@opentelemetry/semantic-conventions": "^1.17",
+    "@opentelemetry/resources": "^1.22",
+    "@opentelemetry/sdk-metrics": "^1.22",
+    "@opentelemetry/sdk-trace-base": "^1.22",
+    "@opentelemetry/sdk-trace-node": "^1.22",
+    "@opentelemetry/sdk-trace-web": "^1.22",
+    "@opentelemetry/semantic-conventions": "^1.22",
     "effect": "workspace:^"
   },
   "peerDependenciesMeta": {
@@ -63,17 +71,17 @@
     }
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/context-async-hooks": "^1.21.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "0.48.0",
-    "@opentelemetry/exporter-prometheus": "0.48.0",
-    "@opentelemetry/exporter-trace-otlp-http": "0.48.0",
-    "@opentelemetry/otlp-exporter-base": "0.48.0",
-    "@opentelemetry/resources": "^1.21.0",
-    "@opentelemetry/sdk-metrics": "^1.21.0",
-    "@opentelemetry/sdk-trace-base": "^1.21.0",
-    "@opentelemetry/sdk-trace-node": "^1.21.0",
-    "@opentelemetry/sdk-trace-web": "^1.21.0",
-    "@opentelemetry/semantic-conventions": "^1.21.0"
+    "@opentelemetry/api": "^1.8.0",
+    "@opentelemetry/context-async-hooks": "^1.24.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "0.51.0",
+    "@opentelemetry/exporter-prometheus": "0.51.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.51.0",
+    "@opentelemetry/otlp-exporter-base": "0.51.0",
+    "@opentelemetry/resources": "^1.24.0",
+    "@opentelemetry/sdk-metrics": "^1.24.0",
+    "@opentelemetry/sdk-trace-base": "^1.24.0",
+    "@opentelemetry/sdk-trace-node": "^1.24.0",
+    "@opentelemetry/sdk-trace-web": "^1.24.0",
+    "@opentelemetry/semantic-conventions": "^1.24.0"
   }
 }

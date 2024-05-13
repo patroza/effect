@@ -1,24 +1,26 @@
 {
   "name": "@effect/cli",
-  "version": "0.34.3",
+  "version": "0.36.18",
   "type": "module",
   "license": "MIT",
-  "description": "Functional programming in TypeScript",
+  "description": "A library for building command-line interfaces with Effect",
   "homepage": "https://effect.website",
   "repository": {
     "type": "git",
-    "url": "https://github.com/effect-ts/effect.git",
+    "url": "https://github.com/Effect-TS/effect.git",
     "directory": "packages/cli"
   },
   "bugs": {
-    "url": "https://github.com/effect-ts/effect/issues"
+    "url": "https://github.com/Effect-TS/effect/issues"
   },
   "tags": [
+    "cli",
     "typescript",
     "algebraic-data-types",
     "functional-programming"
   ],
   "keywords": [
+    "cli",
     "typescript",
     "algebraic-data-types",
     "functional-programming"
@@ -26,7 +28,7 @@
   "publishConfig": {
     "access": "public",
     "directory": "dist",
-    "provenance": false
+    "provenance": true
   },
   "scripts": {
     "codegen": "build-utils prepare-v2",
@@ -52,7 +54,7 @@
     "@effect/printer-ansi": "workspace:^",
     "@effect/schema": "workspace:^",
     "@types/ini": "^4.1.0",
-    "@types/node": "^20.11.19",
+    "@types/node": "^20.12.7",
     "effect": "workspace:^"
   },
   "effect": {
@@ -68,8 +70,8 @@
     }
   },
   "dependencies": {
-    "ini": "^4.1.1",
+    "ini": "^4.1.2",
     "toml": "^3.0.0",
-    "yaml": "^2.3.4"
+    "yaml": "^2.4.2"
   }
 }

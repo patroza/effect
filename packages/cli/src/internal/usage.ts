@@ -1,6 +1,6 @@
+import * as Arr from "effect/Array"
 import { dual, pipe } from "effect/Function"
 import * as Option from "effect/Option"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import type * as CliConfig from "../CliConfig.js"
 import type * as HelpDoc from "../HelpDoc.js"
 import type * as Span from "../HelpDoc/Span.js"
@@ -71,13 +71,13 @@ export const concat = dual<
 /** @internal */
 export const getHelp = (self: Usage.Usage): HelpDoc.HelpDoc => {
   const spans = enumerate(self, InternalCliConfig.defaultConfig)
-  if (ReadonlyArray.isNonEmptyReadonlyArray(spans)) {
-    const head = ReadonlyArray.headNonEmpty(spans)
-    const tail = ReadonlyArray.tailNonEmpty(spans)
-    if (ReadonlyArray.isNonEmptyReadonlyArray(tail)) {
+  if (Arr.isNonEmptyReadonlyArray(spans)) {
+    const head = Arr.headNonEmpty(spans)
+    const tail = Arr.tailNonEmpty(spans)
+    if (Arr.isNonEmptyReadonlyArray(tail)) {
       return pipe(
-        ReadonlyArray.map(spans, (span) => InternalHelpDoc.p(span)),
-        ReadonlyArray.reduceRight(
+        Arr.map(spans, (span) => InternalHelpDoc.p(span)),
+        Arr.reduceRight(
           InternalHelpDoc.empty,
           (left, right) => InternalHelpDoc.sequence(left, right)
         )
@@ -107,7 +107,7 @@ const simplify = (self: Usage.Usage, config: CliConfig.CliConfig): Usage.Usage =
       return mixed
     }
     case "Named": {
-      if (Option.isNone(ReadonlyArray.head(render(self, config)))) {
+      if (Option.isNone(Arr.head(render(self, config)))) {
         return empty
       }
       return self
@@ -153,10 +153,10 @@ const simplify = (self: Usage.Usage, config: CliConfig.CliConfig): Usage.Usage =
 const render = (self: Usage.Usage, config: CliConfig.CliConfig): Array<Span.Span> => {
   switch (self._tag) {
     case "Empty": {
-      return ReadonlyArray.of(InternalSpan.text(""))
+      return Arr.of(InternalSpan.text(""))
     }
     case "Mixed": {
-      return ReadonlyArray.of(InternalSpan.text("<command>"))
+      return Arr.of(InternalSpan.text("<command>"))
     }
     case "Named": {
       const typeInfo = config.showTypes
@@ -169,24 +169,24 @@ const render = (self: Usage.Usage, config: CliConfig.CliConfig): Array<Span.Span
         ? self.names
         : self.names.length > 1
         ? pipe(
-          ReadonlyArray.filter(self.names, (name) => name.startsWith("--")),
-          ReadonlyArray.head,
-          Option.map(ReadonlyArray.of),
+          Arr.filter(self.names, (name) => name.startsWith("--")),
+          Arr.head,
+          Option.map(Arr.of),
           Option.getOrElse(() => self.names)
         )
         : self.names
-      const nameInfo = InternalSpan.text(ReadonlyArray.join(namesToShow, ", "))
+      const nameInfo = InternalSpan.text(Arr.join(namesToShow, ", "))
       return config.showAllNames && self.names.length > 1
-        ? ReadonlyArray.of(InternalSpan.spans([
+        ? Arr.of(InternalSpan.spans([
           InternalSpan.text("("),
           nameInfo,
           typeInfo,
           InternalSpan.text(")")
         ]))
-        : ReadonlyArray.of(InternalSpan.concat(nameInfo, typeInfo))
+        : Arr.of(InternalSpan.concat(nameInfo, typeInfo))
     }
     case "Optional": {
-      return ReadonlyArray.map(render(self.usage, config), (span) =>
+      return Arr.map(render(self.usage, config), (span) =>
         InternalSpan.spans([
           InternalSpan.text("["),
           span,
@@ -194,7 +194,7 @@ const render = (self: Usage.Usage, config: CliConfig.CliConfig): Array<Span.Span
         ]))
     }
     case "Repeated": {
-      return ReadonlyArray.map(
+      return Arr.map(
         render(self.usage, config),
         (span) => InternalSpan.concat(span, InternalSpan.text("..."))
       )
@@ -206,15 +206,15 @@ const render = (self: Usage.Usage, config: CliConfig.CliConfig): Array<Span.Span
         self.left._tag === "Concat" ||
         self.right._tag === "Concat"
       ) {
-        return ReadonlyArray.appendAll(
+        return Arr.appendAll(
           render(self.left, config),
           render(self.right, config)
         )
       }
-      return ReadonlyArray.flatMap(
+      return Arr.flatMap(
         render(self.left, config),
         (left) =>
-          ReadonlyArray.map(
+          Arr.map(
             render(self.right, config),
             (right) => InternalSpan.spans([left, InternalSpan.text("|"), right])
           )
@@ -223,13 +223,13 @@ const render = (self: Usage.Usage, config: CliConfig.CliConfig): Array<Span.Span
     case "Concat": {
       const leftSpan = render(self.left, config)
       const rightSpan = render(self.right, config)
-      const separator = ReadonlyArray.isNonEmptyReadonlyArray(leftSpan) &&
-          ReadonlyArray.isNonEmptyReadonlyArray(rightSpan)
+      const separator = Arr.isNonEmptyReadonlyArray(leftSpan) &&
+          Arr.isNonEmptyReadonlyArray(rightSpan)
         ? InternalSpan.space
         : InternalSpan.empty
-      return ReadonlyArray.flatMap(
+      return Arr.flatMap(
         leftSpan,
-        (left) => ReadonlyArray.map(rightSpan, (right) => InternalSpan.spans([left, separator, right]))
+        (left) => Arr.map(rightSpan, (right) => InternalSpan.spans([left, separator, right]))
       )
     }
   }

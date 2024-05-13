@@ -69,7 +69,7 @@ export const addAll = (tranferables: Iterable<globalThis.Transferable>): Effect.
   Effect.flatMap(
     Effect.serviceOption(Collector),
     Option.match({
-      onNone: () => Effect.unit,
+      onNone: () => Effect.void,
       onSome: (_) => _.addAll(tranferables)
     })
   )
@@ -91,10 +91,9 @@ export const schema: {
   f: (_: I) => Iterable<globalThis.Transferable>
 ) =>
   Schema.transformOrFail(
-    Schema.from(self),
+    Schema.encodedSchema(self),
     self,
-    ParseResult.succeed,
-    (i) => Effect.as(addAll(f(i)), i)
+    { decode: ParseResult.succeed, encode: (i) => Effect.as(addAll(f(i)), i) }
   ))
 
 /**
@@ -102,7 +101,7 @@ export const schema: {
  * @category schema
  */
 export const ImageData: Schema.Schema<ImageData> = schema(
-  Schema.any,
+  Schema.Any,
   (_) => [(_ as ImageData).data.buffer]
 )
 
@@ -111,7 +110,7 @@ export const ImageData: Schema.Schema<ImageData> = schema(
  * @category schema
  */
 export const MessagePort: Schema.Schema<MessagePort> = schema(
-  Schema.any,
+  Schema.Any,
   (_) => [_ as MessagePort]
 )
 

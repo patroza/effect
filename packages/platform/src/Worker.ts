@@ -72,7 +72,7 @@ export const PlatformWorker: Context.Tag<PlatformWorker, PlatformWorker> = inter
  * @since 1.0.0
  * @category models
  */
-export interface Worker<I, E, O> {
+export interface Worker<I, O, E = never> {
   readonly id: number
   readonly execute: (message: I) => Stream.Stream<O, E | WorkerError>
   readonly executeEffect: (message: I) => Effect.Effect<O, E | WorkerError>
@@ -134,15 +134,15 @@ export declare namespace Worker {
     | readonly [id: number, end: 1]
     | readonly [id: number, end: 1, ReadonlyArray<O>]
     | readonly [id: number, error: 2, E]
-    | readonly [id: number, defect: 3, Schema.CauseFrom<WorkerErrorFrom>]
+    | readonly [id: number, defect: 3, Schema.CauseEncoded<WorkerErrorFrom>]
 }
 
 /**
  * @since 1.0.0
  * @category models
  */
-export interface WorkerPool<I, E, O> {
-  readonly backing: Pool.Pool<Worker<I, E, O>, WorkerError>
+export interface WorkerPool<I, O, E = never> {
+  readonly backing: Pool.Pool<Worker<I, O, E>, WorkerError>
   readonly broadcast: (message: I) => Effect.Effect<void, E | WorkerError>
   readonly execute: (message: I) => Stream.Stream<O, E | WorkerError>
   readonly executeEffect: (message: I) => Effect.Effect<O, E | WorkerError>
@@ -198,9 +198,9 @@ export type WorkerManagerTypeId = typeof WorkerManagerTypeId
  */
 export interface WorkerManager {
   readonly [WorkerManagerTypeId]: WorkerManagerTypeId
-  readonly spawn: <I, E, O>(
+  readonly spawn: <I, O, E>(
     options: Worker.Options<I>
-  ) => Effect.Effect<Worker<I, E, O>, WorkerError, Scope.Scope | Spawner>
+  ) => Effect.Effect<Worker<I, O, E>, WorkerError, Scope.Scope | Spawner>
 }
 
 /**
@@ -225,16 +225,16 @@ export const layerManager: Layer.Layer<WorkerManager, never, PlatformWorker> = i
  * @since 1.0.0
  * @category constructors
  */
-export const makePool: <I, E, O>(
+export const makePool: <I, O, E>(
   options: WorkerPool.Options<I>
-) => Effect.Effect<WorkerPool<I, E, O>, never, WorkerManager | Spawner | Scope.Scope> = internal.makePool
+) => Effect.Effect<WorkerPool<I, O, E>, never, WorkerManager | Spawner | Scope.Scope> = internal.makePool
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const makePoolLayer: <Tag, I, E, O>(
-  tag: Context.Tag<Tag, WorkerPool<I, E, O>>,
+export const makePoolLayer: <Tag, I, O, E>(
+  tag: Context.Tag<Tag, WorkerPool<I, O, E>>,
   options: WorkerPool.Options<I>
 ) => Layer.Layer<Tag, never, WorkerManager | Spawner> = internal.makePoolLayer
 
@@ -246,12 +246,12 @@ export interface SerializedWorker<I extends Schema.TaggedRequest.Any> {
   readonly id: number
   readonly execute: <Req extends I>(
     message: Req
-  ) => Req extends Serializable.WithResult<infer R, infer _IE, infer E, infer _IA, infer A>
+  ) => Req extends Serializable.WithResult<infer A, infer _I, infer E, infer _EI, infer R>
     ? Stream.Stream<A, E | WorkerError | ParseResult.ParseError, R>
     : never
   readonly executeEffect: <Req extends I>(
     message: Req
-  ) => Req extends Serializable.WithResult<infer R, infer _IE, infer E, infer _IA, infer A>
+  ) => Req extends Serializable.WithResult<infer A, infer _I, infer E, infer _EI, infer R>
     ? Effect.Effect<A, E | WorkerError | ParseResult.ParseError, R>
     : never
 }
@@ -290,17 +290,17 @@ export interface SerializedWorkerPool<I extends Schema.TaggedRequest.Any> {
   readonly backing: Pool.Pool<SerializedWorker<I>, WorkerError>
   readonly broadcast: <Req extends I>(
     message: Req
-  ) => Req extends Serializable.WithResult<infer R, infer _IE, infer E, infer _IA, infer _A>
+  ) => Req extends Serializable.WithResult<infer _A, infer _I, infer E, infer _EI, infer R>
     ? Effect.Effect<void, E | WorkerError | ParseResult.ParseError, R>
     : never
   readonly execute: <Req extends I>(
     message: Req
-  ) => Req extends Serializable.WithResult<infer R, infer _IE, infer E, infer _IA, infer A>
+  ) => Req extends Serializable.WithResult<infer A, infer _I, infer E, infer _EI, infer R>
     ? Stream.Stream<A, E | WorkerError | ParseResult.ParseError, R>
     : never
   readonly executeEffect: <Req extends I>(
     message: Req
-  ) => Req extends Serializable.WithResult<infer R, infer _IE, infer E, infer _IA, infer A>
+  ) => Req extends Serializable.WithResult<infer A, infer _I, infer E, infer _EI, infer R>
     ? Effect.Effect<A, E | WorkerError | ParseResult.ParseError, R>
     : never
 }

@@ -1,4 +1,5 @@
 import * as it from "effect-test/utils/extend"
+import * as Array from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import { seconds } from "effect/Duration"
@@ -7,12 +8,12 @@ import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import * as FiberRef from "effect/FiberRef"
 import * as Layer from "effect/Layer"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Request from "effect/Request"
 import * as Resolver from "effect/RequestResolver"
 import * as TestClock from "effect/TestClock"
 import type { Concurrency } from "effect/Types"
 import { describe, expect } from "vitest"
+import { pipe } from "../../src/index.js"
 
 interface Counter {
   readonly _: unique symbol
@@ -23,12 +24,12 @@ interface Requests {
 }
 const Requests = Context.GenericTag<Requests, { count: number }>("requests")
 
-export const userIds: ReadonlyArray<number> = ReadonlyArray.range(1, 26)
+export const userIds: ReadonlyArray<number> = Array.range(1, 26)
 
 export const userNames: ReadonlyMap<number, string> = new Map(
-  ReadonlyArray.zipWith(
+  Array.zipWith(
     userIds,
-    ReadonlyArray.map(ReadonlyArray.range(97, 122), (a) => String.fromCharCode(a)),
+    Array.map(Array.range(97, 122), (a) => String.fromCharCode(a)),
     (a, b) => [a, b] as const
   )
 )
@@ -69,13 +70,23 @@ export const interrupts = FiberRef.unsafeMake({ interrupts: 0 })
 
 export const getUserNameById = (id: number) => Effect.request(new GetNameById({ id }), UserResolver)
 
+export const getUserNameByIdPiped = (id: number) => pipe(new GetNameById({ id }), Effect.request(UserResolver))
+
 export const getAllUserNamesN = (concurrency: Concurrency) =>
   getAllUserIds.pipe(
     Effect.flatMap(Effect.forEach(getUserNameById, { concurrency, batching: true })),
     Effect.onInterrupt(() => FiberRef.getWith(interrupts, (i) => Effect.sync(() => i.interrupts++)))
   )
 
+export const getAllUserNamesPipedN = (concurrency: Concurrency) =>
+  getAllUserIds.pipe(
+    Effect.flatMap(Effect.forEach(getUserNameById, { concurrency, batching: true })),
+    Effect.onInterrupt(() => FiberRef.getWith(interrupts, (i) => Effect.sync(() => i.interrupts++)))
+  )
+
 export const getAllUserNames = getAllUserNamesN("unbounded")
+
+export const getAllUserNamesPiped = getAllUserNamesPipedN("unbounded")
 
 export const print = (request: UserRequest): string => {
   switch (request._tag) {
@@ -149,10 +160,36 @@ const EnvLive = Layer.mergeAll(
 const provideEnv = Effect.provide(EnvLive)
 
 describe("Effect", () => {
+  it.effect("avoid false interruption when concurrency happens in resolver", () =>
+    Effect.gen(function*() {
+      class RequestUserById extends Request.TaggedClass("RequestUserById")<number, never, {
+        id: string
+      }> {}
+      let count = 0
+      const resolver = Resolver.makeBatched((i) => {
+        count++
+        return Effect.forEach(i, Request.complete(Exit.succeed(1)), { concurrency: "unbounded" })
+      })
+      yield* Effect.request(new RequestUserById({ id: "1" }), resolver).pipe(
+        Effect.withRequestCaching(true),
+        Effect.repeatN(3)
+      )
+      expect(count).toBe(1)
+    }))
   it.effect("requests are executed correctly", () =>
     provideEnv(
       Effect.gen(function*($) {
         const names = yield* $(getAllUserNames)
+        const count = yield* $(Counter)
+        expect(count.count).toEqual(3)
+        expect(names.length).toBeGreaterThan(2)
+        expect(names).toEqual(userIds.map((id) => userNames.get(id)))
+      })
+    ))
+  it.effect("requests with dual syntax are executed correctly", () =>
+    provideEnv(
+      Effect.gen(function*($) {
+        const names = yield* $(getAllUserNamesPiped)
         const count = yield* $(Counter)
         expect(count.count).toEqual(3)
         expect(names.length).toBeGreaterThan(2)
@@ -226,6 +263,9 @@ describe("Effect", () => {
           if (exit._tag === "Failure") {
             expect(Cause.isInterruptedOnly(exit.cause)).toEqual(true)
           }
+          const cache = yield* $(FiberRef.get(FiberRef.currentRequestCache))
+          const values = yield* $(cache.values)
+          expect(values[0].handle.state.current._tag).toEqual("Done")
           expect(yield* $(Counter)).toEqual({ count: 0 })
           expect(yield* $(FiberRef.get(interrupts))).toEqual({ interrupts: 1 })
         })

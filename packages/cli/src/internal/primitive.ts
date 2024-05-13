@@ -1,10 +1,10 @@
 import * as FileSystem from "@effect/platform/FileSystem"
 import * as Schema from "@effect/schema/Schema"
+import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import { dual, pipe } from "effect/Function"
 import * as Option from "effect/Option"
 import { pipeArguments } from "effect/Pipeable"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as EffectSecret from "effect/Secret"
 import type * as CliConfig from "../CliConfig.js"
 import type * as HelpDoc from "../HelpDoc.js"
@@ -130,13 +130,13 @@ export const isTextType = (self: Instruction): self is Text => self._tag === "Te
 // =============================================================================
 
 /** @internal */
-export const trueValues = Schema.literal("true", "1", "y", "yes", "on")
+export const trueValues = Schema.Literal("true", "1", "y", "yes", "on")
 
 /** @internal */
 export const isTrueValue = Schema.is(trueValues)
 
 /** @internal */
-export const falseValues = Schema.literal("false", "0", "n", "no", "off")
+export const falseValues = Schema.Literal("false", "0", "n", "no", "off")
 
 /** @internal */
 export const isFalseValue = Schema.is(falseValues)
@@ -258,8 +258,8 @@ const getChoicesInternal = (self: Instruction): Option.Option<string> => {
     }
     case "Choice": {
       const choices = pipe(
-        ReadonlyArray.map(self.alternatives, ([choice]) => choice),
-        ReadonlyArray.join(" | ")
+        Arr.map(self.alternatives, ([choice]) => choice),
+        Arr.join(" | ")
       )
       return Option.some(choices)
     }
@@ -283,8 +283,8 @@ const getHelpInternal = (self: Instruction): Span.Span => {
     }
     case "Choice": {
       const choices = pipe(
-        ReadonlyArray.map(self.alternatives, ([choice]) => choice),
-        ReadonlyArray.join(", ")
+        Arr.map(self.alternatives, ([choice]) => choice),
+        Arr.join(", ")
       )
       return InternalSpan.text(`One of the following: ${choices}`)
     }
@@ -401,12 +401,12 @@ const validateInternal = (
         value,
         () => `Choice options to not have a default value`
       ).pipe(
-        Effect.flatMap((value) => ReadonlyArray.findFirst(self.alternatives, ([choice]) => choice === value)),
+        Effect.flatMap((value) => Arr.findFirst(self.alternatives, ([choice]) => choice === value)),
         Effect.mapBoth({
           onFailure: () => {
             const choices = pipe(
-              ReadonlyArray.map(self.alternatives, ([choice]) => choice),
-              ReadonlyArray.join(", ")
+              Arr.map(self.alternatives, ([choice]) => choice),
+              Arr.join(", ")
             )
             return `Expected one of the following cases: ${choices}`
           },
@@ -445,12 +445,12 @@ const validateInternal = (
       })
     }
     case "Secret": {
-      return attempt(value, getTypeNameInternal(self), Schema.decodeUnknown(Schema.string)).pipe(
+      return attempt(value, getTypeNameInternal(self), Schema.decodeUnknown(Schema.String)).pipe(
         Effect.map((value) => EffectSecret.fromString(value))
       )
     }
     case "Text": {
-      return attempt(value, getTypeNameInternal(self), Schema.decodeUnknown(Schema.string))
+      return attempt(value, getTypeNameInternal(self), Schema.decodeUnknown(Schema.String))
     }
   }
 }
@@ -483,7 +483,7 @@ const validatePathExistence = (
   if (shouldPathExist === "yes" && !pathExists) {
     return Effect.fail(`Path '${path}' must exist`)
   }
-  return Effect.unit
+  return Effect.void
 }
 
 const validatePathType = (
@@ -499,7 +499,7 @@ const validatePathType = (
       )
       return Effect.fail(`Expected path '${path}' to be a regular file`).pipe(
         Effect.unlessEffect(checkIsFile),
-        Effect.asUnit
+        Effect.asVoid
       )
     }
     case "directory": {
@@ -509,11 +509,11 @@ const validatePathType = (
       )
       return Effect.fail(`Expected path '${path}' to be a directory`).pipe(
         Effect.unlessEffect(checkIsDirectory),
-        Effect.asUnit
+        Effect.asVoid
       )
     }
     case "either": {
-      return Effect.unit
+      return Effect.void
     }
   }
 }
@@ -536,7 +536,7 @@ const wizardInternal = (self: Instruction, help: HelpDoc.HelpDoc): Prompt.Prompt
       const message = InternalHelpDoc.sequence(help, primitiveHelp)
       return InternalSelectPrompt.select({
         message: InternalHelpDoc.toAnsiText(message).trimEnd(),
-        choices: ReadonlyArray.map(
+        choices: Arr.map(
           self.alternatives,
           ([title]) => ({ title, value: title })
         )
@@ -625,8 +625,8 @@ export const getBashCompletions = (self: Instruction): string => {
     }
     case "Choice": {
       const choices = pipe(
-        ReadonlyArray.map(self.alternatives, ([choice]) => choice),
-        ReadonlyArray.join(",")
+        Arr.map(self.alternatives, ([choice]) => choice),
+        Arr.join(",")
       )
       return `$(compgen -W "${choices}" -- "\${cur}")`
     }
@@ -637,45 +637,45 @@ export const getBashCompletions = (self: Instruction): string => {
 export const getFishCompletions = (self: Instruction): Array<string> => {
   switch (self._tag) {
     case "Bool": {
-      return ReadonlyArray.empty()
+      return Arr.empty()
     }
     case "DateTime":
     case "Float":
     case "Integer":
     case "Secret":
     case "Text": {
-      return ReadonlyArray.make("-r", "-f")
+      return Arr.make("-r", "-f")
     }
     case "Path": {
       switch (self.pathType) {
         case "file": {
           return self.pathExists === "yes" || self.pathExists === "either"
-            ? ReadonlyArray.make("-r", "-F")
-            : ReadonlyArray.make("-r")
+            ? Arr.make("-r", "-F")
+            : Arr.make("-r")
         }
         case "directory": {
           return self.pathExists === "yes" || self.pathExists === "either"
-            ? ReadonlyArray.make(
+            ? Arr.make(
               "-r",
               "-f",
               "-a",
               `"(__fish_complete_directories (commandline -ct))"`
             )
-            : ReadonlyArray.make("-r")
+            : Arr.make("-r")
         }
         case "either": {
           return self.pathExists === "yes" || self.pathExists === "either"
-            ? ReadonlyArray.make("-r", "-F")
-            : ReadonlyArray.make("-r")
+            ? Arr.make("-r", "-F")
+            : Arr.make("-r")
         }
       }
     }
     case "Choice": {
       const choices = pipe(
-        ReadonlyArray.map(self.alternatives, ([choice]) => `${choice}''`),
-        ReadonlyArray.join(",")
+        Arr.map(self.alternatives, ([choice]) => `${choice}''`),
+        Arr.join(",")
       )
-      return ReadonlyArray.make("-r", "-f", "-a", `"{${choices}}"`)
+      return Arr.make("-r", "-f", "-a", `"{${choices}}"`)
     }
   }
 }
@@ -688,8 +688,8 @@ export const getZshCompletions = (self: Instruction): string => {
     }
     case "Choice": {
       const choices = pipe(
-        ReadonlyArray.map(self.alternatives, ([name]) => name),
-        ReadonlyArray.join(" ")
+        Arr.map(self.alternatives, ([name]) => name),
+        Arr.join(" ")
       )
       return `:CHOICE:(${choices})`
     }

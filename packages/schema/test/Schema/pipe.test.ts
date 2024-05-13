@@ -1,7 +1,8 @@
 import * as S from "@effect/schema/Schema"
-import { describe, expect, it } from "vitest"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
-describe("Schema/pipe", () => {
+describe("pipe", () => {
   it("schemas should be pipeable", () => {
     const int = <A extends number, I>(self: S.Schema<A, I>) => self.pipe(S.int(), S.brand("Int"))
 
@@ -9,8 +10,9 @@ describe("Schema/pipe", () => {
 
     const PositiveInt = S.NumberFromString.pipe(int, positive)
 
-    expect(PositiveInt.is(1)).toEqual(true)
-    expect(PositiveInt.is(-1)).toEqual(false)
-    expect(PositiveInt.is(1.2)).toEqual(false)
+    const is = S.is(PositiveInt)
+    expect(is(1)).toEqual(true)
+    expect(is(-1)).toEqual(false)
+    expect(is(1.2)).toEqual(false)
   })
 })

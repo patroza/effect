@@ -1,11 +1,11 @@
 import * as it from "effect-test/utils/extend"
+import * as Array from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import { pipe } from "effect/Function"
 import * as KeyedPool from "effect/KeyedPool"
 import * as Random from "effect/Random"
-import * as ReadonlyArray from "effect/ReadonlyArray"
 import * as Ref from "effect/Ref"
 import * as TestClock from "effect/TestClock"
 import { describe, expect } from "vitest"
@@ -22,12 +22,12 @@ describe("KeyedPool", () => {
         pool.pipe(
           KeyedPool.get("key1"),
           Effect.repeatN(3),
-          Effect.asUnit
+          Effect.asVoid
         )
       )
       const fiber = yield* $(Effect.fork(
         Effect.forEach(
-          ReadonlyArray.range(1, N),
+          Array.range(1, N),
           () =>
             Effect.scoped(
               Effect.zipRight(
@@ -53,7 +53,7 @@ describe("KeyedPool", () => {
       }))
       const fiber = yield* $(Effect.fork(
         Effect.forEach(
-          ReadonlyArray.range(1, N),
+          Array.range(1, N),
           () =>
             Effect.scoped(pipe(
               KeyedPool.get(pool, "key1"),

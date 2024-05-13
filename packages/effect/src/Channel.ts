@@ -236,9 +236,9 @@ export const as: {
  * @since 2.0.0
  * @category mapping
  */
-export const asUnit: <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
+export const asVoid: <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
   self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>
-) => Channel<OutElem, InElem, OutErr, InErr, void, InDone, Env> = channel.asUnit
+) => Channel<OutElem, InElem, OutErr, InErr, void, InDone, Env> = channel.asVoid
 
 /**
  * Creates a channel backed by a buffer. When the buffer is empty, the channel
@@ -1952,6 +1952,23 @@ export const scoped: <A, E, R>(
 ) => Channel<A, unknown, E, unknown, unknown, unknown, Exclude<R, Scope.Scope>> = channel.scoped
 
 /**
+ * Splits strings on newlines. Handles both Windows newlines (`\r\n`) and UNIX
+ * newlines (`\n`).
+ *
+ * @since 2.0.0
+ * @category combinators
+ */
+export const splitLines: <Err, Done>() => Channel<
+  Chunk.Chunk<string>,
+  Chunk.Chunk<string>,
+  Err,
+  Err,
+  Done,
+  Done,
+  never
+> = channel.splitLines
+
+/**
  * Constructs a channel that succeeds immediately with the specified value.
  *
  * @since 2.0.0
@@ -2032,11 +2049,14 @@ export const toStream: <OutElem, OutErr, OutDone, Env>(
   self: Channel<Chunk.Chunk<OutElem>, unknown, OutErr, unknown, OutDone, unknown, Env>
 ) => Stream.Stream<OutElem, OutErr, Env> = stream.channelToStream
 
-/**
- * @since 2.0.0
- * @category constructors
- */
-export const unit: Channel<never> = core.unit
+const void_: Channel<never> = core.void
+export {
+  /**
+   * @since 2.0.0
+   * @category constructors
+   */
+  void_ as void
+}
 
 /**
  * Makes a channel from an effect that returns a channel in case of success.
@@ -2087,26 +2107,14 @@ export const updateService: {
 export const withSpan: {
   (
     name: string,
-    options?: {
-      readonly attributes?: Record<string, unknown> | undefined
-      readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-      readonly parent?: Tracer.ParentSpan | undefined
-      readonly root?: boolean | undefined
-      readonly context?: Context.Context<never> | undefined
-    } | undefined
+    options?: Tracer.SpanOptions | undefined
   ): <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
     self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>
   ) => Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Exclude<Env, Tracer.ParentSpan>>
   <OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>(
     self: Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Env>,
     name: string,
-    options?: {
-      readonly attributes?: Record<string, unknown> | undefined
-      readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
-      readonly parent?: Tracer.ParentSpan | undefined
-      readonly root?: boolean | undefined
-      readonly context?: Context.Context<never> | undefined
-    } | undefined
+    options?: Tracer.SpanOptions | undefined
   ): Channel<OutElem, InElem, OutErr, InErr, OutDone, InDone, Exclude<Env, Tracer.ParentSpan>>
 } = channel.withSpan
 

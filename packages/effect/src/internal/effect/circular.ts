@@ -15,6 +15,7 @@ import * as MutableHashMap from "../../MutableHashMap.js"
 import * as Option from "../../Option.js"
 import { pipeArguments } from "../../Pipeable.js"
 import * as Predicate from "../../Predicate.js"
+import * as Readable from "../../Readable.js"
 import type * as Ref from "../../Ref.js"
 import type * as Schedule from "../../Schedule.js"
 import { currentScheduler } from "../../Scheduler.js"
@@ -239,19 +240,31 @@ export const forkAll: {
     options?: {
       readonly discard?: false | undefined
     }
-  ): <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => Effect.Effect<Fiber.Fiber<Array<A>, E>, never, R>
+  ): <Eff extends Effect.Effect<any, any, any>>(
+    effects: Iterable<Eff>
+  ) => Effect.Effect<
+    Fiber.Fiber<Array<Effect.Effect.Success<Eff>>, Effect.Effect.Error<Eff>>,
+    never,
+    Effect.Effect.Context<Eff>
+  >
   (options: {
     readonly discard: true
-  }): <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => Effect.Effect<void, never, R>
-  <A, E, R>(
-    effects: Iterable<Effect.Effect<A, E, R>>,
+  }): <Eff extends Effect.Effect<any, any, any>>(
+    effects: Iterable<Eff>
+  ) => Effect.Effect<void, never, Effect.Effect.Context<Eff>>
+  <Eff extends Effect.Effect<any, any, any>>(
+    effects: Iterable<Eff>,
     options?: {
       readonly discard?: false | undefined
     }
-  ): Effect.Effect<Fiber.Fiber<Array<A>, E>, never, R>
-  <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>, options: {
+  ): Effect.Effect<
+    Fiber.Fiber<Array<Effect.Effect.Success<Eff>>, Effect.Effect.Error<Eff>>,
+    never,
+    Effect.Effect.Context<Eff>
+  >
+  <Eff extends Effect.Effect<any, any, any>>(effects: Iterable<Eff>, options: {
     readonly discard: true
-  }): Effect.Effect<void, never, R>
+  }): Effect.Effect<void, never, Effect.Effect.Context<Eff>>
 } = dual((args) => Predicate.isIterable(args[0]), <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>, options: {
   readonly discard: true
 }): Effect.Effect<void, never, R> =>
@@ -276,8 +289,8 @@ export const forkIn = dual<
             child.addFinalizer(() =>
               core.fiberIdWith((fiberId) =>
                 Equal.equals(fiberId, fiber.id()) ?
-                  core.unit :
-                  core.asUnit(core.interruptFiber(fiber))
+                  core.void :
+                  core.asVoid(core.interruptFiber(fiber))
               )
             )
           )
@@ -455,6 +468,22 @@ export const timeoutFailCause = dual<
   })))
 
 /** @internal */
+export const timeoutOption = dual<
+  (
+    duration: Duration.DurationInput
+  ) => <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<Option.Option<A>, E, R>,
+  <A, E, R>(
+    self: Effect.Effect<A, E, R>,
+    duration: Duration.DurationInput
+  ) => Effect.Effect<Option.Option<A>, E, R>
+>(2, (self, duration) =>
+  timeoutTo(self, {
+    duration,
+    onSuccess: Option.some,
+    onTimeout: Option.none
+  }))
+
+/** @internal */
 export const timeoutTo = dual<
   <A, B, B1>(
     options: {
@@ -544,10 +573,15 @@ export const synchronizedVariance = {
 class SynchronizedImpl<in out A> implements Synchronized.SynchronizedRef<A> {
   readonly [SynchronizedTypeId] = synchronizedVariance
   readonly [internalRef.RefTypeId] = internalRef.refVariance
+  readonly [Readable.TypeId]: Readable.TypeId
   constructor(
     readonly ref: Ref.Ref<A>,
     readonly withLock: <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
-  ) {}
+  ) {
+    this[Readable.TypeId] = Readable.TypeId
+    this.get = internalRef.get(this.ref)
+  }
+  readonly get: Effect.Effect<A>
   modify<B>(f: (a: A) => readonly [B, A]): Effect.Effect<B> {
     return this.modifyEffect((a) => core.succeed(f(a)))
   }

@@ -44,11 +44,11 @@ export class CoordinatesOccupiedError extends Data.TaggedError("CoordinatesOccup
 /**
  * Represents a Naval Fate ship.
  */
-export class Ship extends Schema.Class<Ship>()({
-  name: Schema.string,
-  x: Schema.number,
-  y: Schema.number,
-  status: Schema.literal("sailing", "destroyed")
+export class Ship extends Schema.Class<Ship>("Ship")({
+  name: Schema.String,
+  x: Schema.Number,
+  y: Schema.Number,
+  status: Schema.Literal("sailing", "destroyed")
 }) {
   static readonly create = (name: string) => new Ship({ name, x: 0, y: 0, status: "sailing" })
 
@@ -68,9 +68,9 @@ export class Ship extends Schema.Class<Ship>()({
 /**
  * Represents a Naval Fate mine.
  */
-export class Mine extends Schema.Class<Mine>()({
-  x: Schema.number,
-  y: Schema.number
+export class Mine extends Schema.Class<Mine>("Mine")({
+  x: Schema.Number,
+  y: Schema.Number
 }) {
   static readonly create = (x: number, y: number) => new Mine({ x, y })
 

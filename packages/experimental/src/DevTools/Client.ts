@@ -1,6 +1,7 @@
 /**
  * @since 1.0.0
  */
+import * as Socket from "@effect/platform/Socket"
 import type { Scope } from "effect"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -12,8 +13,7 @@ import * as Queue from "effect/Queue"
 import * as Schedule from "effect/Schedule"
 import * as Stream from "effect/Stream"
 import * as Tracer from "effect/Tracer"
-import * as MsgPack from "../MsgPack.js"
-import * as Socket from "../Socket.js"
+import * as Ndjson from "../Ndjson.js"
 import * as Domain from "./Domain.js"
 
 /**
@@ -21,7 +21,7 @@ import * as Domain from "./Domain.js"
  * @category models
  */
 export interface ClientImpl {
-  readonly unsafeAddSpan: (_: Domain.Span) => void
+  readonly unsafeAddSpan: (_: Domain.Span | Domain.SpanEvent) => void
 }
 
 /**
@@ -44,10 +44,7 @@ export const Client = Context.GenericTag<Client, ClientImpl>("@effect/experiment
  */
 export const make: Effect.Effect<ClientImpl, never, Scope.Scope | Socket.Socket> = Effect.gen(function*(_) {
   const socket = yield* _(Socket.Socket)
-  const requests = yield* _(Effect.acquireRelease(
-    Queue.sliding<Domain.Request>(1024),
-    Queue.shutdown
-  ))
+  const requests = yield* _(Queue.sliding<Domain.Request>(1024))
 
   function metricsSnapshot(): Domain.MetricsSnapshot {
     const snapshot = Metric.unsafeSnapshot()
@@ -109,7 +106,7 @@ export const make: Effect.Effect<ClientImpl, never, Scope.Scope | Socket.Socket>
   yield* _(
     Stream.fromQueue(requests),
     Stream.pipeThroughChannel(
-      MsgPack.duplexSchema(Socket.toChannel(socket), {
+      Ndjson.duplexSchema(Socket.toChannel(socket), {
         inputSchema: Domain.Request,
         outputSchema: Domain.Response
       })
@@ -120,7 +117,7 @@ export const make: Effect.Effect<ClientImpl, never, Scope.Scope | Socket.Socket>
           return requests.offer(metricsSnapshot())
         }
         case "Pong": {
-          return Effect.unit
+          return Effect.void
         }
       }
     }),
@@ -130,16 +127,21 @@ export const make: Effect.Effect<ClientImpl, never, Scope.Scope | Socket.Socket>
         Schedule.union(Schedule.spaced("10 seconds"))
       )
     ),
-    Effect.interruptible,
-    Effect.forkScoped
+    Effect.forkScoped,
+    Effect.interruptible
   )
   yield* _(
     Queue.offer(requests, { _tag: "Ping" }),
     Effect.delay("3 seconds"),
     Effect.forever,
-    Effect.interruptible,
-    Effect.forkScoped
+    Effect.forkScoped,
+    Effect.interruptible
   )
+  yield* _(Effect.addFinalizer(() =>
+    requests.offer(metricsSnapshot()).pipe(
+      Effect.zipRight(Effect.yieldNow())
+    )
+  ))
 
   return Client.of({
     unsafeAddSpan: (request) => Queue.unsafeOffer(requests, request)
@@ -161,9 +163,21 @@ export const makeTracer: Effect.Effect<Tracer.Tracer, never, Client> = Effect.ge
   const currentTracer = yield* _(Effect.tracer)
 
   return Tracer.make({
-    span(name, parent, context, links, startTime) {
-      const span = currentTracer.span(name, parent, context, links, startTime)
+    span(name, parent, context, links, startTime, kind) {
+      const span = currentTracer.span(name, parent, context, links, startTime, kind)
       client.unsafeAddSpan(span)
+      const oldEvent = span.event
+      span.event = function(this: any, name, startTime, attributes) {
+        client.unsafeAddSpan({
+          _tag: "SpanEvent",
+          traceId: span.traceId,
+          spanId: span.spanId,
+          name,
+          startTime,
+          attributes: attributes || {}
+        })
+        return oldEvent.call(this, name, startTime, attributes)
+      }
       const oldEnd = span.end
       span.end = function(this: any) {
         client.unsafeAddSpan(span)

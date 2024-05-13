@@ -1,5 +1,5 @@
 import * as S from "@effect/schema/Schema"
-import * as Util from "@effect/schema/test/util"
+import * as Util from "@effect/schema/test/TestUtils"
 import { describe, it } from "vitest"
 
 const expectValidateSuccess = async <A, I>(
@@ -14,14 +14,14 @@ const expectValidateFailure = async <A, I>(
   message: string
 ) => Util.expectFailure(S.validate(schema)(input), message)
 
-describe("Schema > validate", () => {
-  const schema = S.struct({ a: Util.NumberFromChar })
+describe("validate", () => {
+  const schema = S.Struct({ a: Util.NumberFromChar })
 
   it("should return Left on invalid values", async () => {
     await Util.expectEffectSuccess(S.validate(schema)({ a: 1 }), { a: 1 })
     await Util.expectEffectFailure(
       S.validate(schema)({ a: null }),
-      `{ a: number }
+      `{ readonly a: number }
 └─ ["a"]
    └─ Expected a number, actual null`
     )
@@ -31,13 +31,13 @@ describe("Schema > validate", () => {
     const input = { a: 1, b: "b" }
     await Util.expectEffectFailure(
       S.validate(schema)(input, { onExcessProperty: "error" }),
-      `{ a: number }
+      `{ readonly a: number }
 └─ ["b"]
    └─ is unexpected, expected "a"`
     )
     await Util.expectEffectFailure(
       S.validate(schema, { onExcessProperty: "error" })(input),
-      `{ a: number }
+      `{ readonly a: number }
 └─ ["b"]
    └─ is unexpected, expected "a"`
     )
@@ -51,28 +51,28 @@ describe("Schema > validate", () => {
 
   describe("struct", () => {
     it("required property signature", async () => {
-      const schema = S.struct({ a: Util.NumberFromChar })
+      const schema = S.Struct({ a: Util.NumberFromChar })
       await expectValidateSuccess(schema, { a: 1 })
       await expectValidateFailure(
         schema,
         { a: null },
-        `{ a: number }
+        `{ readonly a: number }
 └─ ["a"]
    └─ Expected a number, actual null`
       )
     })
 
     it("required property signature with undefined", async () => {
-      const schema = S.struct({ a: S.union(S.number, S.undefined) })
+      const schema = S.Struct({ a: S.Union(S.Number, S.Undefined) })
       await expectValidateSuccess(schema, { a: 1 })
       await expectValidateSuccess(schema, { a: undefined })
       await expectValidateSuccess(schema, { a: 1, b: "b" }, { a: 1 })
       await expectValidateSuccess(schema, {}, { a: undefined })
-      await expectValidateFailure(schema, null, `Expected { a: number | undefined }, actual null`)
+      await expectValidateFailure(schema, null, `Expected { readonly a: number | undefined }, actual null`)
       await expectValidateFailure(
         schema,
         { a: "a" },
-        `{ a: number | undefined }
+        `{ readonly a: number | undefined }
 └─ ["a"]
    └─ number | undefined
       ├─ Union member

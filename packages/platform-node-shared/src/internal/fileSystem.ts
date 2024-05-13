@@ -1,10 +1,12 @@
 import { effectify } from "@effect/platform/Effectify"
 import * as Error from "@effect/platform/Error"
 import * as FileSystem from "@effect/platform/FileSystem"
+import type * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Stream from "effect/Stream"
 import * as Crypto from "node:crypto"
 import * as NFS from "node:fs"
 import * as OS from "node:os"
@@ -144,7 +146,7 @@ const removeFactory = (method: string) => {
   return (path: string, options?: FileSystem.RemoveOptions) =>
     nodeRm(
       path,
-      { recursive: options?.recursive ?? false }
+      { recursive: options?.recursive ?? false, force: options?.force ?? false }
     )
 }
 const remove = removeFactory("remove")
@@ -346,7 +348,7 @@ const makeFile = (() => {
             this.position = this.position + BigInt(bytesWritten)
           }
 
-          return bytesWritten < buffer.length ? this.writeAllChunk(buffer.subarray(bytesWritten)) : Effect.unit
+          return bytesWritten < buffer.length ? this.writeAllChunk(buffer.subarray(bytesWritten)) : Effect.void
         }
       )
     }
@@ -388,16 +390,11 @@ const makeTempFileScoped = (() => {
 
 // == readDirectory
 
-const readDirectory = (() => {
-  const nodeReadDirectory = effectify(
-    NFS.readdir,
-    handleErrnoException("FileSystem", "readDirectory"),
-    handleBadArgument("readDirectory")
-  )
-
-  return (path: string, options?: FileSystem.ReadDirectoryOptions) =>
-    nodeReadDirectory(path, options) as Effect.Effect<ReadonlyArray<string>, Error.PlatformError>
-})()
+const readDirectory = (path: string, options?: FileSystem.ReadDirectoryOptions) =>
+  Effect.tryPromise({
+    try: () => NFS.promises.readdir(path, options),
+    catch: (err) => handleErrnoException("FileSystem", "readDirectory")(err as any, [path])
+  })
 
 // == readFile
 
@@ -524,6 +521,57 @@ const utimes = (() => {
   return (path: string, atime: number | Date, mtime: number | Date) => nodeUtimes(path, atime, mtime)
 })()
 
+// == watch
+
+const watchNode = (path: string) =>
+  Stream.asyncScoped<FileSystem.WatchEvent, Error.PlatformError>((emit) =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const watcher = NFS.watch(path, {}, (event, path) => {
+          if (!path) return
+          switch (event) {
+            case "rename": {
+              emit.fromEffect(Effect.match(stat(path), {
+                onSuccess: (_) => FileSystem.WatchEventCreate({ path }),
+                onFailure: (_) => FileSystem.WatchEventRemove({ path })
+              }))
+              return
+            }
+            case "change": {
+              emit.single(FileSystem.WatchEventUpdate({ path }))
+              return
+            }
+          }
+        })
+        watcher.on("error", (error) => {
+          emit.fail(Error.SystemError({
+            module: "FileSystem",
+            reason: "Unknown",
+            method: "watch",
+            pathOrDescriptor: path,
+            message: error.message
+          }))
+        })
+        watcher.on("close", () => {
+          emit.end()
+        })
+        return watcher
+      }),
+      (watcher) => Effect.sync(() => watcher.close())
+    )
+  )
+
+const watch = (backend: Option.Option<Context.Tag.Service<FileSystem.WatchBackend>>, path: string) =>
+  stat(path).pipe(
+    Effect.map((stat) =>
+      backend.pipe(
+        Option.flatMap((_) => _.register(path, stat)),
+        Option.getOrElse(() => watchNode(path))
+      )
+    ),
+    Stream.unwrap
+  )
+
 // == writeFile
 
 const writeFile = (path: string, data: Uint8Array, options?: FileSystem.WriteFileOptions) =>
@@ -537,7 +585,7 @@ const writeFile = (path: string, data: Uint8Array, options?: FileSystem.WriteFil
         if (err) {
           resume(Effect.fail(handleErrnoException("FileSystem", "writeFile")(err, [path])))
         } else {
-          resume(Effect.unit)
+          resume(Effect.void)
         }
       })
     } catch (err) {
@@ -545,31 +593,35 @@ const writeFile = (path: string, data: Uint8Array, options?: FileSystem.WriteFil
     }
   })
 
-const fileSystemImpl = FileSystem.make({
-  access,
-  chmod,
-  chown,
-  copy,
-  copyFile,
-  link,
-  makeDirectory,
-  makeTempDirectory,
-  makeTempDirectoryScoped,
-  makeTempFile,
-  makeTempFileScoped,
-  open,
-  readDirectory,
-  readFile,
-  readLink,
-  realPath,
-  remove,
-  rename,
-  stat,
-  symlink,
-  truncate,
-  utimes,
-  writeFile
-})
+const makeFileSystem = Effect.map(Effect.serviceOption(FileSystem.WatchBackend), (backend) =>
+  FileSystem.make({
+    access,
+    chmod,
+    chown,
+    copy,
+    copyFile,
+    link,
+    makeDirectory,
+    makeTempDirectory,
+    makeTempDirectoryScoped,
+    makeTempFile,
+    makeTempFileScoped,
+    open,
+    readDirectory,
+    readFile,
+    readLink,
+    realPath,
+    remove,
+    rename,
+    stat,
+    symlink,
+    truncate,
+    utimes,
+    watch(path) {
+      return watch(backend, path)
+    },
+    writeFile
+  }))
 
 /** @internal */
-export const layer = Layer.succeed(FileSystem.FileSystem, fileSystemImpl)
+export const layer = Layer.effect(FileSystem.FileSystem, makeFileSystem)

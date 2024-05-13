@@ -1,6 +1,8 @@
 /**
  * @since 2.0.0
  */
+import * as RA from "./Array.js"
+import type { NonEmptyReadonlyArray } from "./Array.js"
 import type { Either } from "./Either.js"
 import * as Equal from "./Equal.js"
 import * as Equivalence from "./Equivalence.js"
@@ -15,8 +17,6 @@ import * as Order from "./Order.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
 import { hasProperty, type Predicate, type Refinement } from "./Predicate.js"
-import * as RA from "./ReadonlyArray.js"
-import type { NonEmptyReadonlyArray } from "./ReadonlyArray.js"
 import type { Covariant, NoInfer } from "./Types.js"
 
 const TypeId: unique symbol = Symbol.for("effect/Chunk") as TypeId
@@ -551,7 +551,7 @@ export const dropWhile: {
  * If either chunk is non-empty, the result is also a non-empty chunk.
  *
  * @example
- * import * as Chunk from "effect/Chunk"
+ * import { Chunk } from "effect"
  *
  * assert.deepStrictEqual(
  *   Chunk.make(1, 2).pipe(Chunk.prependAll(Chunk.make("a", "b")), Chunk.toArray),
@@ -575,7 +575,7 @@ export const prependAll: {
  * If either chunk is non-empty, the result is also a non-empty chunk.
  *
  * @example
- * import * as Chunk from "effect/Chunk"
+ * import { Chunk } from "effect"
  *
  * assert.deepStrictEqual(
  *   Chunk.make(1, 2).pipe(Chunk.appendAll(Chunk.make("a", "b")), Chunk.toArray),
@@ -660,8 +660,7 @@ export const filter: {
   <A>(self: Chunk<A>, predicate: Predicate<A>): Chunk<A>
 } = dual(
   2,
-  <A>(self: Chunk<A>, predicate: Predicate<A>): Chunk<A> =>
-    unsafeFromArray(RA.filterMap(self, O.liftPredicate(predicate)))
+  <A>(self: Chunk<A>, predicate: Predicate<A>): Chunk<A> => unsafeFromArray(RA.filter(self, predicate))
 )
 
 /**
@@ -867,7 +866,7 @@ export declare namespace Chunk {
  * If the input chunk is non-empty, the resulting chunk will also be non-empty.
  *
  * @example
- * import * as Chunk from "effect/Chunk"
+ * import { Chunk } from "effect"
  *
  * assert.deepStrictEqual(
  *   Chunk.map(Chunk.make(1, 2), (n) => n + 1),

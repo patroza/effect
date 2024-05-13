@@ -1,18 +1,20 @@
-import * as AST from "@effect/schema/AST"
 import * as S from "@effect/schema/Schema"
-import { describe, expect, it } from "vitest"
+import { jestExpect as expect } from "@jest/expect"
+import { describe, it } from "vitest"
 
-const expectToString = <A, I, R>(schema: S.Schema<A, I, R>, s: string) => {
-  expect(AST.toString(schema.ast)).toBe(s)
+const expectToString = <A, I, R>(schema: S.Schema<A, I, R>, expected: string) => {
+  const actual = JSON.stringify(schema.ast.toJSON(), null, 2)
+  expect(actual).toBe(expected)
 }
 
 const expectHash = <A, I, R>(schema: S.Schema<A, I, R>, n: number) => {
-  expect(AST.hash(schema.ast)).toBe(n)
+  expect(S.hash(schema)).toBe(n)
+  expect(S.hash(schema)).toBe(n)
 }
 
-describe("AST > toString", () => {
+describe(".toString()", () => {
   it("string", () => {
-    const schema = S.string
+    const schema = S.String
     expectToString(
       schema,
       `{
@@ -25,8 +27,14 @@ describe("AST > toString", () => {
     )
   })
 
+  it("string with annotations", () => {
+    const schema1 = S.String.pipe(S.identifier("I"), S.title("T"))
+    const schema2 = S.String.pipe(S.title("T"), S.identifier("I"))
+    expect(S.hash(schema1)).toStrictEqual(S.hash(schema2))
+  })
+
   it("refinement", () => {
-    const schema = S.string.pipe(S.filter((s) => s.length > 0))
+    const schema = S.String.pipe(S.filter((s) => s.length > 0))
     expectToString(
       schema,
       `{
@@ -44,8 +52,8 @@ describe("AST > toString", () => {
   })
 
   it("struct", () => {
-    const schema = S.struct({
-      a: S.string
+    const schema = S.Struct({
+      a: S.String
     })
     expectToString(
       schema,
@@ -76,44 +84,47 @@ describe("AST > toString", () => {
     it("outer", () => {
       type A = readonly [number, A | null]
       const schema: S.Schema<A> = S.suspend( // intended outer suspend
-        () => S.tuple(S.number, S.union(schema, S.literal(null)))
+        () => S.Tuple(S.Number, S.Union(schema, S.Literal(null)))
       )
       expectToString(
         schema,
         `{
-  "_tag": "Tuple",
-  "elements": [
-    {
-      "type": {
-        "_tag": "NumberKeyword",
-        "annotations": {
-          "Symbol(@effect/schema/annotation/Title)": "number",
-          "Symbol(@effect/schema/annotation/Description)": "a number"
-        }
-      },
-      "isOptional": false
-    },
-    {
-      "type": {
-        "_tag": "Union",
-        "types": [
-          "<suspended schema>",
-          {
-            "_tag": "Literal",
-            "literal": null,
-            "annotations": {}
+  "_tag": "Suspend",
+  "ast": {
+    "_tag": "TupleType",
+    "elements": [
+      {
+        "type": {
+          "_tag": "NumberKeyword",
+          "annotations": {
+            "Symbol(@effect/schema/annotation/Title)": "number",
+            "Symbol(@effect/schema/annotation/Description)": "a number"
           }
-        ],
-        "annotations": {}
+        },
+        "isOptional": false
       },
-      "isOptional": false
-    }
-  ],
-  "rest": {
-    "_id": "Option",
-    "_tag": "None"
+      {
+        "type": {
+          "_tag": "Union",
+          "types": [
+            {
+              "_tag": "Suspend"
+            },
+            {
+              "_tag": "Literal",
+              "literal": null,
+              "annotations": {}
+            }
+          ],
+          "annotations": {}
+        },
+        "isOptional": false
+      }
+    ],
+    "rest": [],
+    "isReadonly": true,
+    "annotations": {}
   },
-  "isReadonly": true,
   "annotations": {}
 }`
       )
@@ -122,15 +133,15 @@ describe("AST > toString", () => {
 
   it("inner/outer", () => {
     type A = readonly [number, A | null]
-    const schema: S.Schema<A> = S.tuple(
-      S.number,
-      S.union(S.suspend(() => schema), S.literal(null))
+    const schema: S.Schema<A> = S.Tuple(
+      S.Number,
+      S.Union(S.suspend(() => schema), S.Literal(null))
     )
 
     expectToString(
       schema,
       `{
-  "_tag": "Tuple",
+  "_tag": "TupleType",
   "elements": [
     {
       "type": {
@@ -146,7 +157,45 @@ describe("AST > toString", () => {
       "type": {
         "_tag": "Union",
         "types": [
-          "<suspended schema>",
+          {
+            "_tag": "Suspend",
+            "ast": {
+              "_tag": "TupleType",
+              "elements": [
+                {
+                  "type": {
+                    "_tag": "NumberKeyword",
+                    "annotations": {
+                      "Symbol(@effect/schema/annotation/Title)": "number",
+                      "Symbol(@effect/schema/annotation/Description)": "a number"
+                    }
+                  },
+                  "isOptional": false
+                },
+                {
+                  "type": {
+                    "_tag": "Union",
+                    "types": [
+                      {
+                        "_tag": "Suspend"
+                      },
+                      {
+                        "_tag": "Literal",
+                        "literal": null,
+                        "annotations": {}
+                      }
+                    ],
+                    "annotations": {}
+                  },
+                  "isOptional": false
+                }
+              ],
+              "rest": [],
+              "isReadonly": true,
+              "annotations": {}
+            },
+            "annotations": {}
+          },
           {
             "_tag": "Literal",
             "literal": null,
@@ -158,10 +207,7 @@ describe("AST > toString", () => {
       "isOptional": false
     }
   ],
-  "rest": {
-    "_id": "Option",
-    "_tag": "None"
-  },
+  "rest": [],
   "isReadonly": true,
   "annotations": {}
 }`
@@ -170,18 +216,18 @@ describe("AST > toString", () => {
 
   it("inner/inner", () => {
     type A = readonly [number, A | null]
-    const schema: S.Schema<A> = S.tuple(
-      S.number,
-      S.union(
+    const schema: S.Schema<A> = S.Tuple(
+      S.Number,
+      S.Union(
         S.suspend(() => schema),
-        S.literal(null)
+        S.Literal(null)
       )
     )
 
     expectToString(
       schema,
       `{
-  "_tag": "Tuple",
+  "_tag": "TupleType",
   "elements": [
     {
       "type": {
@@ -197,7 +243,45 @@ describe("AST > toString", () => {
       "type": {
         "_tag": "Union",
         "types": [
-          "<suspended schema>",
+          {
+            "_tag": "Suspend",
+            "ast": {
+              "_tag": "TupleType",
+              "elements": [
+                {
+                  "type": {
+                    "_tag": "NumberKeyword",
+                    "annotations": {
+                      "Symbol(@effect/schema/annotation/Title)": "number",
+                      "Symbol(@effect/schema/annotation/Description)": "a number"
+                    }
+                  },
+                  "isOptional": false
+                },
+                {
+                  "type": {
+                    "_tag": "Union",
+                    "types": [
+                      {
+                        "_tag": "Suspend"
+                      },
+                      {
+                        "_tag": "Literal",
+                        "literal": null,
+                        "annotations": {}
+                      }
+                    ],
+                    "annotations": {}
+                  },
+                  "isOptional": false
+                }
+              ],
+              "rest": [],
+              "isReadonly": true,
+              "annotations": {}
+            },
+            "annotations": {}
+          },
           {
             "_tag": "Literal",
             "literal": null,
@@ -209,10 +293,7 @@ describe("AST > toString", () => {
       "isOptional": false
     }
   ],
-  "rest": {
-    "_id": "Option",
-    "_tag": "None"
-  },
+  "rest": [],
   "isReadonly": true,
   "annotations": {}
 }`
@@ -220,20 +301,20 @@ describe("AST > toString", () => {
   })
 })
 
-describe("AST > hash", () => {
+describe("hash", () => {
   it("string", () => {
-    const schema = S.string
+    const schema = S.String
     expectHash(schema, -806008681)
   })
 
   it("refinement", () => {
-    const schema = S.string.pipe(S.filter((s) => s.length > 0))
+    const schema = S.String.pipe(S.filter((s) => s.length > 0))
     expectHash(schema, 809682243)
   })
 
   it("struct", () => {
-    const schema = S.struct({
-      a: S.string
+    const schema = S.Struct({
+      a: S.String
     })
     expectHash(schema, 799162257)
   })
@@ -242,32 +323,32 @@ describe("AST > hash", () => {
     it("outer", () => {
       type A = readonly [number, A | null]
       const schema: S.Schema<A> = S.suspend( // intended outer suspend
-        () => S.tuple(S.number, S.union(schema, S.literal(null)))
+        () => S.Tuple(S.Number, S.Union(schema, S.Literal(null)))
       )
-      expectHash(schema, -1069774720)
+      expectHash(schema, -887784700)
     })
 
     it("inner/outer", () => {
       type A = readonly [number, A | null]
-      const schema: S.Schema<A> = S.tuple(
-        S.number,
-        S.union(S.suspend(() => schema), S.literal(null))
+      const schema: S.Schema<A> = S.Tuple(
+        S.Number,
+        S.Union(S.suspend(() => schema), S.Literal(null))
       )
 
-      expectHash(schema, -1069774720)
+      expectHash(schema, 757654673)
     })
 
     it("inner/inner", () => {
       type A = readonly [number, A | null]
-      const schema: S.Schema<A> = S.tuple(
-        S.number,
-        S.union(
+      const schema: S.Schema<A> = S.Tuple(
+        S.Number,
+        S.Union(
           S.suspend(() => schema),
-          S.literal(null)
+          S.Literal(null)
         )
       )
 
-      expectHash(schema, -1069774720)
+      expectHash(schema, 757654673)
     })
   })
 })

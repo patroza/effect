@@ -1,5 +1,754 @@
 # @effect/platform
 
+## 0.52.3
+
+### Patch Changes
+
+- [#2698](https://github.com/Effect-TS/effect/pull/2698) [`5866c62`](https://github.com/Effect-TS/effect/commit/5866c621d7eb4cc84e4ba972bfdfd219734cd45d) Thanks [@tim-smart](https://github.com/tim-smart)! - fix http ServerResponse cookie apis
+
+## 0.52.2
+
+### Patch Changes
+
+- [#2679](https://github.com/Effect-TS/effect/pull/2679) [`2e1cdf6`](https://github.com/Effect-TS/effect/commit/2e1cdf67d141281288fffe9a5c10d1379a800513) Thanks [@tim-smart](https://github.com/tim-smart)! - ensure all type ids are annotated with `unique symbol`
+
+- Updated dependencies [[`2e1cdf6`](https://github.com/Effect-TS/effect/commit/2e1cdf67d141281288fffe9a5c10d1379a800513)]:
+  - effect@3.1.2
+  - @effect/schema@0.66.14
+
+## 0.52.1
+
+### Patch Changes
+
+- Updated dependencies [[`e5e56d1`](https://github.com/Effect-TS/effect/commit/e5e56d138dbed3204636f605229c6685f89659fc)]:
+  - effect@3.1.1
+  - @effect/schema@0.66.13
+
+## 0.52.0
+
+### Minor Changes
+
+- [#2669](https://github.com/Effect-TS/effect/pull/2669) [`9deab0a`](https://github.com/Effect-TS/effect/commit/9deab0aec9e99501f9441843e34df9afa10c5be9) Thanks [@tim-smart](https://github.com/tim-smart)! - move http search params apis to ServerRequest module
+
+  If you want to access the search params for a request, you can now use the `Http.request.ParsedSearchParams` tag.
+
+  ```ts
+  import * as Http from "@effect/platform/HttpServer";
+  import { Effect } from "effect";
+
+  Effect.gen(function* () {
+    const searchParams = yield* Http.request.ParsedSearchParams;
+    console.log(searchParams);
+  });
+  ```
+
+  The schema method has also been moved to the `ServerRequest` module. It is now available as `Http.request.schemaSearchParams`.
+
+### Patch Changes
+
+- [#2672](https://github.com/Effect-TS/effect/pull/2672) [`7719b8a`](https://github.com/Effect-TS/effect/commit/7719b8a7350c14e952ffe685bfd5308773b3e271) Thanks [@tim-smart](https://github.com/tim-smart)! - allow http client trace propagation to be controlled
+
+  To disable trace propagation:
+
+  ```ts
+  import { HttpClient as Http } from "@effect/platform";
+
+  Http.request
+    .get("https://example.com")
+    .pipe(Http.client.fetchOk, Http.client.withTracerPropagation(false));
+  ```
+
+## 0.51.0
+
+### Minor Changes
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`0ec93cb`](https://github.com/Effect-TS/effect/commit/0ec93cb4f166e7401c171c2f8e8276ce958d9a57) Thanks [@github-actions](https://github.com/apps/github-actions)! - \* capitalised Http.multipart.FileSchema and Http.multipart.FilesSchema
+  - exported Http.multipart.FileSchema
+  - added Http.multipart.SingleFileSchema
+
+### Patch Changes
+
+- [#2543](https://github.com/Effect-TS/effect/pull/2543) [`a023f28`](https://github.com/Effect-TS/effect/commit/a023f28336f3865687d9a30c1883e36909906d85) Thanks [@github-actions](https://github.com/apps/github-actions)! - set span `kind` where applicable
+
+- Updated dependencies [[`c3c12c6`](https://github.com/Effect-TS/effect/commit/c3c12c6625633fe80e79f9db75a3b8cf8ca8b11d), [`ba64ea6`](https://github.com/Effect-TS/effect/commit/ba64ea6757810c5e74cad3863a7d19d4d38af66b), [`b5de2d2`](https://github.com/Effect-TS/effect/commit/b5de2d2ce5b1afe8be90827bf898a95cec40eb2b), [`a1c7ab8`](https://github.com/Effect-TS/effect/commit/a1c7ab8ffedacd18c1fc784f4ff5844f79498b83), [`a023f28`](https://github.com/Effect-TS/effect/commit/a023f28336f3865687d9a30c1883e36909906d85), [`1c9454d`](https://github.com/Effect-TS/effect/commit/1c9454d532eae79b9f759aea77f59332cc6d18ed), [`92d56db`](https://github.com/Effect-TS/effect/commit/92d56dbb3f33e36636c2a2f1030c56492e39cf4d)]:
+  - effect@3.1.0
+  - @effect/schema@0.66.12
+
+## 0.50.8
+
+### Patch Changes
+
+- [#2650](https://github.com/Effect-TS/effect/pull/2650) [`16039a0`](https://github.com/Effect-TS/effect/commit/16039a08f04f11545e2fdf40952788a8f9cef04f) Thanks [@tim-smart](https://github.com/tim-smart)! - improve error messages for Http.client.filterStatus\*
+
+- [#2648](https://github.com/Effect-TS/effect/pull/2648) [`d1d33e1`](https://github.com/Effect-TS/effect/commit/d1d33e10b25109f44b5ab1c6e4d778a59c0d3eeb) Thanks [@floydspace](https://github.com/floydspace)! - Fixed import path for type import.
+
+- Updated dependencies [[`557707b`](https://github.com/Effect-TS/effect/commit/557707bc9e5f230c8964d2757012075c34339b5c), [`f4ed306`](https://github.com/Effect-TS/effect/commit/f4ed3068a70b50302d078a30d18ca3cfd2bc679c), [`661004f`](https://github.com/Effect-TS/effect/commit/661004f4bf5f8b25f5a0678c21a3a822188ce461), [`e79cb83`](https://github.com/Effect-TS/effect/commit/e79cb83d3b19098bc40a3012e2a059b8426306c2)]:
+  - effect@3.0.8
+  - @effect/schema@0.66.11
+
+## 0.50.7
+
+### Patch Changes
+
+- Updated dependencies [[`18de56b`](https://github.com/Effect-TS/effect/commit/18de56b4a6b6d1f99230dfabf9147d59ea4dd759)]:
+  - effect@3.0.7
+  - @effect/schema@0.66.10
+
+## 0.50.6
+
+### Patch Changes
+
+- Updated dependencies [[`ffe4f4e`](https://github.com/Effect-TS/effect/commit/ffe4f4e95db35fff6869e360b072e3837befa0a1), [`027418e`](https://github.com/Effect-TS/effect/commit/027418edaa6aa6c0ae4861b95832827b45adace4), [`ac1898e`](https://github.com/Effect-TS/effect/commit/ac1898eb7bc96880f911c276048e2ea3d6fe9c50), [`ffe4f4e`](https://github.com/Effect-TS/effect/commit/ffe4f4e95db35fff6869e360b072e3837befa0a1), [`8206529`](https://github.com/Effect-TS/effect/commit/8206529d6a7bbf3e3c6f670afb0381e83176736e)]:
+  - effect@3.0.6
+  - @effect/schema@0.66.9
+
+## 0.50.5
+
+### Patch Changes
+
+- Updated dependencies [[`6222404`](https://github.com/Effect-TS/effect/commit/62224044678751829ed2f128e05133a91c6b0569), [`868ed2a`](https://github.com/Effect-TS/effect/commit/868ed2a8fe94ee7f4206a6070f29dcf2a5ba1dc3)]:
+  - effect@3.0.5
+  - @effect/schema@0.66.8
+
+## 0.50.4
+
+### Patch Changes
+
+- Updated dependencies [[`dd41c6c`](https://github.com/Effect-TS/effect/commit/dd41c6c725b1c1c980683275d8fa69779902187e), [`9a24667`](https://github.com/Effect-TS/effect/commit/9a246672008a2b668d43fbfd2fe5508c54b2b920)]:
+  - @effect/schema@0.66.7
+  - effect@3.0.4
+
+## 0.50.3
+
+### Patch Changes
+
+- [#2589](https://github.com/Effect-TS/effect/pull/2589) [`b3b51a2`](https://github.com/Effect-TS/effect/commit/b3b51a2ea0c6ab92a363db46ebaa7e1176d089f5) Thanks [@tim-smart](https://github.com/tim-smart)! - redact some common sensitive http headers names in traces
+
+- Updated dependencies [[`9dfc156`](https://github.com/Effect-TS/effect/commit/9dfc156dc13fb4da9c777aae3acece4b5ecf0064), [`80271bd`](https://github.com/Effect-TS/effect/commit/80271bdc648e9efa659ce66b2c255754a6a1a8b0), [`e4ba97d`](https://github.com/Effect-TS/effect/commit/e4ba97d060c16bdf4e3b5bd5db6777f121a6768c)]:
+  - @effect/schema@0.66.6
+
+## 0.50.2
+
+### Patch Changes
+
+- Updated dependencies [[`b3fe829`](https://github.com/Effect-TS/effect/commit/b3fe829e8b12726afe94086b5375968f41a26411), [`a58b7de`](https://github.com/Effect-TS/effect/commit/a58b7deb8bb1d3b0dd636decf5d16f115f37eb72), [`d90e8c3`](https://github.com/Effect-TS/effect/commit/d90e8c3090cbc78e2bc7b51c974df66ffefacdfa)]:
+  - @effect/schema@0.66.5
+
+## 0.50.1
+
+### Patch Changes
+
+- Updated dependencies [[`773b8e0`](https://github.com/Effect-TS/effect/commit/773b8e01521e8fa7c38ff15d92d21d6fd6dad56f)]:
+  - @effect/schema@0.66.4
+
+## 0.50.0
+
+### Minor Changes
+
+- [#2567](https://github.com/Effect-TS/effect/pull/2567) [`6f38dff`](https://github.com/Effect-TS/effect/commit/6f38dff41ffa34532cc2f25b90446550c5730bb6) Thanks [@tim-smart](https://github.com/tim-smart)! - add URL & AbortSignal to Http.client.makeDefault
+
+### Patch Changes
+
+- [#2567](https://github.com/Effect-TS/effect/pull/2567) [`6f38dff`](https://github.com/Effect-TS/effect/commit/6f38dff41ffa34532cc2f25b90446550c5730bb6) Thanks [@tim-smart](https://github.com/tim-smart)! - add more span attributes to http traces
+
+- [#2565](https://github.com/Effect-TS/effect/pull/2565) [`a3b0e6c`](https://github.com/Effect-TS/effect/commit/a3b0e6c490772e6d44b5d98dcf2729c4d5310ecc) Thanks [@tim-smart](https://github.com/tim-smart)! - add Http.response.void helper, for creating a http request that returns void
+
+- Updated dependencies [[`a7b4b84`](https://github.com/Effect-TS/effect/commit/a7b4b84bd5a25f51aba922f9259c3a58c98c6a4e)]:
+  - effect@3.0.3
+  - @effect/schema@0.66.3
+
+## 0.49.4
+
+### Patch Changes
+
+- [#2562](https://github.com/Effect-TS/effect/pull/2562) [`2cecdbd`](https://github.com/Effect-TS/effect/commit/2cecdbd1cf30befce4e84796ccd953ea55ecfb86) Thanks [@fubhy](https://github.com/fubhy)! - Added provenance publishing
+
+- Updated dependencies [[`2cecdbd`](https://github.com/Effect-TS/effect/commit/2cecdbd1cf30befce4e84796ccd953ea55ecfb86)]:
+  - effect@3.0.2
+  - @effect/schema@0.66.2
+
+## 0.49.3
+
+### Patch Changes
+
+- [#2558](https://github.com/Effect-TS/effect/pull/2558) [`8d39d65`](https://github.com/Effect-TS/effect/commit/8d39d6554af548228ad767112ce2e0b1f68fa8e1) Thanks [@tim-smart](https://github.com/tim-smart)! - add no-op FileSystem constructor for testing
+
+## 0.49.2
+
+### Patch Changes
+
+- [#2556](https://github.com/Effect-TS/effect/pull/2556) [`5ef0a1a`](https://github.com/Effect-TS/effect/commit/5ef0a1ae9b773fa2481550cb0d43ff7a0e03cd44) Thanks [@tim-smart](https://github.com/tim-smart)! - fix Command stdin being closed too early
+
+## 0.49.1
+
+### Patch Changes
+
+- [#2542](https://github.com/Effect-TS/effect/pull/2542) [`87c5687`](https://github.com/Effect-TS/effect/commit/87c5687de0782dab177b7861217fa3b040046282) Thanks [@tim-smart](https://github.com/tim-smart)! - allow fs.watch backend to be customized
+
+  If you want to use the @parcel/watcher backend, you now need to provide it to
+  your effects.
+
+  ```ts
+  import { Layer } from "effect";
+  import { FileSystem } from "@effect/platform";
+  import { NodeFileSystem } from "@effect/platform-node";
+  import * as ParcelWatcher from "@effect/platform-node/NodeFileSystem/ParcelWatcher";
+
+  // create a Layer that uses the ParcelWatcher backend
+  NodeFileSystem.layer.pipe(Layer.provide(ParcelWatcher.layer));
+  ```
+
+- [#2555](https://github.com/Effect-TS/effect/pull/2555) [`8edacca`](https://github.com/Effect-TS/effect/commit/8edacca37f8e37c01a63fec332b06d9361efaa7b) Thanks [@tim-smart](https://github.com/tim-smart)! - prevent use of `Array` as import name to solve bundler issues
+
+- Updated dependencies [[`3da0cfa`](https://github.com/Effect-TS/effect/commit/3da0cfa12c407fd930dc480be1ecc9217a8058f8), [`570e8d8`](https://github.com/Effect-TS/effect/commit/570e8d87e7c0e9ad4cd2686462fdb9b4812f7716), [`b2b5d66`](https://github.com/Effect-TS/effect/commit/b2b5d6626b18eb5289f364ffab5240e84b04d085), [`8edacca`](https://github.com/Effect-TS/effect/commit/8edacca37f8e37c01a63fec332b06d9361efaa7b)]:
+  - effect@3.0.1
+  - @effect/schema@0.66.1
+
+## 0.49.0
+
+### Minor Changes
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`cf69f46`](https://github.com/Effect-TS/effect/commit/cf69f46690058d71eeada03cfb40dc744573e9e4) Thanks [@github-actions](https://github.com/apps/github-actions)! - make Http.middleware.withTracerDisabledWhen a Layer api
+
+  And add Http.middleware.withTracerDisabledWhenEffect to operate on Effect's.
+
+  Usage is now:
+
+  ```ts
+  import * as Http from "@effect/platform/HttpServer";
+
+  Http.router.empty.pipe(
+    Http.router.get("/health"),
+    Http.server.serve(),
+    Http.middleware.withTracerDisabledWhen(
+      (request) => request.url === "/no-tracing",
+    ),
+  );
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`aa4a3b5`](https://github.com/Effect-TS/effect/commit/aa4a3b550da1c1020265ac389ed3f309388994a2) Thanks [@github-actions](https://github.com/apps/github-actions)! - Swap type parameters in /platform data types
+
+  A codemod has been released to make migration easier:
+
+  ```
+  npx @effect/codemod platform-0.49 src/**/*
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`6c6087a`](https://github.com/Effect-TS/effect/commit/6c6087a4a897b64252346426660782d31c13f769) Thanks [@github-actions](https://github.com/apps/github-actions)! - rename auto-scoped ClientResponse apis from *Effect to *Scoped
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`5a2314b`](https://github.com/Effect-TS/effect/commit/5a2314b70ec79c2c02b51cef45a5ddec8327daa1) Thanks [@github-actions](https://github.com/apps/github-actions)! - replace use of `unit` terminology with `void`
+
+  For all the data types.
+
+  ```ts
+  Effect.unit; // => Effect.void
+  Stream.unit; // => Stream.void
+
+  // etc
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`6c6087a`](https://github.com/Effect-TS/effect/commit/6c6087a4a897b64252346426660782d31c13f769) Thanks [@github-actions](https://github.com/apps/github-actions)! - move fetch options to a FiberRef
+
+  This change makes adjusting options to fetch more composable. You can now do:
+
+  ```ts
+  import { pipe } from "effect";
+  import * as Http from "@effect/platform/HttpClient";
+
+  pipe(
+    Http.request.get("https://example.com"),
+    Http.client.fetchOk,
+    Http.client.withFetchOptions({ credentials: "include" }),
+    Http.response.text,
+  );
+  ```
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`2fb7d9c`](https://github.com/Effect-TS/effect/commit/2fb7d9ca15037ff62a578bb9fe5732da5f4f317d) Thanks [@github-actions](https://github.com/apps/github-actions)! - Release Effect 3.0 🎉
+
+### Patch Changes
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`6460414`](https://github.com/Effect-TS/effect/commit/6460414351a45fb8e0a457c63f3653422efee766) Thanks [@github-actions](https://github.com/apps/github-actions)! - properly handle multiple ports in SharedWorker
+
+- [#2207](https://github.com/Effect-TS/effect/pull/2207) [`cf69f46`](https://github.com/Effect-TS/effect/commit/cf69f46690058d71eeada03cfb40dc744573e9e4) Thanks [@github-actions](https://github.com/apps/github-actions)! - add Http.middleware.withTracerDisabledForUrls
+
+  Allows you to disable the http server tracer for the given urls:
+
+  ```ts
+  import * as Http from "@effect/platform/HttpServer";
+
+  Http.router.empty.pipe(
+    Http.router.get("/health"),
+    Http.server.serve(),
+    Http.middleware.withTracerDisabledForUrls(["/health"]),
+  );
+  ```
+
+- [#2529](https://github.com/Effect-TS/effect/pull/2529) [`78b767c`](https://github.com/Effect-TS/effect/commit/78b767c2b1625186e17131761a0edbac25d21850) Thanks [@fubhy](https://github.com/fubhy)! - Renamed `ReadonlyArray` and `ReadonlyRecord` modules for better discoverability.
+
+- [#2514](https://github.com/Effect-TS/effect/pull/2514) [`25d74f8`](https://github.com/Effect-TS/effect/commit/25d74f8c4d2dd4a9e5ec57ce2f20d36dedd25343) Thanks [@rocwang](https://github.com/rocwang)! - Fix UrlParams.makeUrl when globalThis.location is set to `undefined`
+
+- Updated dependencies [[`1b5f0c7`](https://github.com/Effect-TS/effect/commit/1b5f0c77e7fd477a0026071e82129a948227f4b3), [`d50a652`](https://github.com/Effect-TS/effect/commit/d50a652479f4d1d64f48da05c79fa847e6e51548), [`9aeae46`](https://github.com/Effect-TS/effect/commit/9aeae461fdf9265389cf3dfe4e428b037215ba5f), [`9a3bd47`](https://github.com/Effect-TS/effect/commit/9a3bd47ebd0750c7e498162734f6d21895de0cb2), [`e542371`](https://github.com/Effect-TS/effect/commit/e542371981f8b4b484979feaad8a25b1f45e2df0), [`be9d025`](https://github.com/Effect-TS/effect/commit/be9d025e42355260ace02dd135851a8935a4deba), [`78b767c`](https://github.com/Effect-TS/effect/commit/78b767c2b1625186e17131761a0edbac25d21850), [`1499974`](https://github.com/Effect-TS/effect/commit/14999741d2e19c1747f6a7e19d68977f6429cdb8), [`1b5f0c7`](https://github.com/Effect-TS/effect/commit/1b5f0c77e7fd477a0026071e82129a948227f4b3), [`5c2b561`](https://github.com/Effect-TS/effect/commit/5c2b5614f583b88784ed68126ae939832fb3c092), [`a18f594`](https://github.com/Effect-TS/effect/commit/a18f5948f1439a147232448b2c443472fda0eceb), [`1499974`](https://github.com/Effect-TS/effect/commit/14999741d2e19c1747f6a7e19d68977f6429cdb8), [`2f96d93`](https://github.com/Effect-TS/effect/commit/2f96d938b90f8c19377583279e3c7afd9b509c50), [`5a2314b`](https://github.com/Effect-TS/effect/commit/5a2314b70ec79c2c02b51cef45a5ddec8327daa1), [`271b79f`](https://github.com/Effect-TS/effect/commit/271b79fc0b66a6c11e07a8779ff8800493a7eac2), [`1b5f0c7`](https://github.com/Effect-TS/effect/commit/1b5f0c77e7fd477a0026071e82129a948227f4b3), [`2fb7d9c`](https://github.com/Effect-TS/effect/commit/2fb7d9ca15037ff62a578bb9fe5732da5f4f317d), [`53d1c2a`](https://github.com/Effect-TS/effect/commit/53d1c2a77559081fbb89667e343346375c6d6650), [`e7e1bbe`](https://github.com/Effect-TS/effect/commit/e7e1bbe68486fdf31c8f84b0880522d39adcaad3), [`10c169e`](https://github.com/Effect-TS/effect/commit/10c169eadc874e91b4defca3f467b4e6a50fd8f3), [`6424181`](https://github.com/Effect-TS/effect/commit/64241815fe6a939e91e6947253e7dceea1306aa8)]:
+  - effect@3.0.0
+  - @effect/schema@0.66.0
+
+## 0.48.29
+
+### Patch Changes
+
+- [#2517](https://github.com/Effect-TS/effect/pull/2517) [`b79cc59`](https://github.com/Effect-TS/effect/commit/b79cc59dbe64b9a0a7742dc9100a9d36c8e46b72) Thanks [@tim-smart](https://github.com/tim-smart)! - add uninterruptible option to http routes, for marking a route as uninterruptible
+
+## 0.48.28
+
+### Patch Changes
+
+- [#2515](https://github.com/Effect-TS/effect/pull/2515) [`d590094`](https://github.com/Effect-TS/effect/commit/d5900943489ec1e0891836aeafb5ce99fb9c75c7) Thanks [@tim-smart](https://github.com/tim-smart)! - add Http.router.uninterruptible, for marking a route as uninterruptible
+
+- Updated dependencies [[`0aee906`](https://github.com/Effect-TS/effect/commit/0aee906f034539344db6fbac08919de3e28eccde), [`41c8102`](https://github.com/Effect-TS/effect/commit/41c810228b1a50e4b41f19e735d7c62fe8d36871), [`4c37001`](https://github.com/Effect-TS/effect/commit/4c370013417e18c4f564818de1341a8fccb43b4c), [`776ef2b`](https://github.com/Effect-TS/effect/commit/776ef2bb66db9aa9f68b7beab14f6986f9c1288b), [`217147e`](https://github.com/Effect-TS/effect/commit/217147ea67c5c42c96f024775c41e5b070f81e4c), [`8a69b4e`](https://github.com/Effect-TS/effect/commit/8a69b4ef6a3a06d2e21fe2e11a626038beefb4e1), [`90776ec`](https://github.com/Effect-TS/effect/commit/90776ec8e8671d835b65fc33ead1de6c864b81b9), [`b3acf47`](https://github.com/Effect-TS/effect/commit/b3acf47f9c9dfae1c99377aa906097aaa2d47d44), [`8709856`](https://github.com/Effect-TS/effect/commit/870985694ae985c3cb9360ad8a25c60e6f785f55), [`232c353`](https://github.com/Effect-TS/effect/commit/232c353c2e6f743f38e57639ee30e324ffa9c2a9), [`0d3231a`](https://github.com/Effect-TS/effect/commit/0d3231a195202635ecc0bf6bbf6a08fc017d0d69), [`0ca835c`](https://github.com/Effect-TS/effect/commit/0ca835cbac8e69072a93ace83b534219faba24e8), [`8709856`](https://github.com/Effect-TS/effect/commit/870985694ae985c3cb9360ad8a25c60e6f785f55), [`c22b019`](https://github.com/Effect-TS/effect/commit/c22b019e5eaf9d3a937a3d99cadbb8f8e9116a70), [`e983740`](https://github.com/Effect-TS/effect/commit/e9837401145605aff5bc2ec7e73004f397c5d2d1), [`e3e0924`](https://github.com/Effect-TS/effect/commit/e3e09247d46a35430fc60e4aa4032cc50814f212)]:
+  - @effect/schema@0.65.0
+  - effect@2.4.19
+
+## 0.48.27
+
+### Patch Changes
+
+- [#2479](https://github.com/Effect-TS/effect/pull/2479) [`c6dd3c6`](https://github.com/Effect-TS/effect/commit/c6dd3c6909cafe05adc8450c5a499260e17e60d3) Thanks [@tim-smart](https://github.com/tim-smart)! - Make the file tree provider the fallback in PlatformConfigProvider.layerFileTreeAdd
+
+- [#2486](https://github.com/Effect-TS/effect/pull/2486) [`672f137`](https://github.com/Effect-TS/effect/commit/672f13747ddf6dac3ba304fd4511b1df44ab566d) Thanks [@tim-smart](https://github.com/tim-smart)! - accept string as a valid Socket input
+
+- [#2486](https://github.com/Effect-TS/effect/pull/2486) [`672f137`](https://github.com/Effect-TS/effect/commit/672f13747ddf6dac3ba304fd4511b1df44ab566d) Thanks [@tim-smart](https://github.com/tim-smart)! - add Socket.runRaw to handle strings directly
+
+- Updated dependencies [[`42b3651`](https://github.com/Effect-TS/effect/commit/42b36519f356bae9258a1ea1d416e2902b973e85)]:
+  - @effect/schema@0.64.20
+
+## 0.48.26
+
+### Patch Changes
+
+- [#2477](https://github.com/Effect-TS/effect/pull/2477) [`365a486`](https://github.com/Effect-TS/effect/commit/365a4865de5e47ce09f4cfd51fc0f67438f82a57) Thanks [@tim-smart](https://github.com/tim-smart)! - add PlatformConfigProvider module
+
+  It contains a file tree provider, that can be used to read config values from a file tree.
+
+  For example, if you have a file tree like this:
+
+  ```
+  config/
+    secret
+    nested/
+      value
+  ```
+
+  You could do the following:
+
+  ```ts
+  import { PlatformConfigProvider } from "@effect/platform";
+  import { NodeContext } from "@effect/platform-node";
+  import { Config, Effect, Layer } from "effect";
+
+  const ConfigProviderLive = PlatformConfigProvider.layerFileTree({
+    rootDirectory: `/config`,
+  }).pipe(Layer.provide(NodeContext.layer));
+
+  Effect.gen(function* (_) {
+    const secret = yield* _(Config.secret("secret"));
+    const value = yield* _(Config.string("value"), Config.nested("nested"));
+  }).pipe(Effect.provide(ConfigProviderLive));
+  ```
+
+## 0.48.25
+
+### Patch Changes
+
+- [#2469](https://github.com/Effect-TS/effect/pull/2469) [`d209171`](https://github.com/Effect-TS/effect/commit/d2091714a786820ebae4bef04a9d67d25dd08e88) Thanks [@tim-smart](https://github.com/tim-smart)! - replace isomorphic-ws with isows
+
+- Updated dependencies [[`dadc690`](https://github.com/Effect-TS/effect/commit/dadc6906121c512bc32be22b52adbd1ada834594), [`58f66fe`](https://github.com/Effect-TS/effect/commit/58f66fecd4e646c6c8f10995df9faab17022eb8f), [`3cad21d`](https://github.com/Effect-TS/effect/commit/3cad21daa5d2332d33692498c87b7ffff979e304)]:
+  - effect@2.4.18
+  - @effect/schema@0.64.19
+
+## 0.48.24
+
+### Patch Changes
+
+- [#2427](https://github.com/Effect-TS/effect/pull/2427) [`9c6a500`](https://github.com/Effect-TS/effect/commit/9c6a5001b467b6255c68a922f4b6e8d692b63d01) Thanks [@devmatteini](https://github.com/devmatteini)! - add force option to FileSystem.remove
+
+- [#2463](https://github.com/Effect-TS/effect/pull/2463) [`35ad0ba`](https://github.com/Effect-TS/effect/commit/35ad0ba9f3ba27c60453620e514b980f819f92af) Thanks [@tim-smart](https://github.com/tim-smart)! - fix exact optional properties type errors
+
+- Updated dependencies [[`8fdfda6`](https://github.com/Effect-TS/effect/commit/8fdfda6618be848c01b399d13bc05a9a3adfb613), [`607b2e7`](https://github.com/Effect-TS/effect/commit/607b2e7a7fd9318c57acf4e50ec61747eea74ad7), [`8fdfda6`](https://github.com/Effect-TS/effect/commit/8fdfda6618be848c01b399d13bc05a9a3adfb613), [`8206caf`](https://github.com/Effect-TS/effect/commit/8206caf7c2d22c68be4313318b61cfdacf6222b6), [`7ddd654`](https://github.com/Effect-TS/effect/commit/7ddd65415b65ccb654ad04f4dbefe39402f15117), [`7ddd654`](https://github.com/Effect-TS/effect/commit/7ddd65415b65ccb654ad04f4dbefe39402f15117), [`8fdfda6`](https://github.com/Effect-TS/effect/commit/8fdfda6618be848c01b399d13bc05a9a3adfb613), [`f456ba2`](https://github.com/Effect-TS/effect/commit/f456ba273bae21a6dcf8c966c50c97b5f0897d9f)]:
+  - effect@2.4.17
+  - @effect/schema@0.64.18
+
+## 0.48.23
+
+### Patch Changes
+
+- [#2445](https://github.com/Effect-TS/effect/pull/2445) [`5170ce7`](https://github.com/Effect-TS/effect/commit/5170ce708c606283e8a30d273950f1a21c7eddc2) Thanks [@vecerek](https://github.com/vecerek)! - Add support for W3C Trace Context propagation
+
+- [#2454](https://github.com/Effect-TS/effect/pull/2454) [`63a1df2`](https://github.com/Effect-TS/effect/commit/63a1df2e4de3766f48f15676fbd0360ab9c27816) Thanks [@tim-smart](https://github.com/tim-smart)! - add support for binary data with XHR client
+
+- [#2450](https://github.com/Effect-TS/effect/pull/2450) [`74a5dae`](https://github.com/Effect-TS/effect/commit/74a5daed0e65b32a36e026bfcf66d02269cb967a) Thanks [@vecerek](https://github.com/vecerek)! - Platform: auto-instrument HTTP client
+
+- Updated dependencies [[`5170ce7`](https://github.com/Effect-TS/effect/commit/5170ce708c606283e8a30d273950f1a21c7eddc2), [`62a7f23`](https://github.com/Effect-TS/effect/commit/62a7f23937c0dfaca67a7b2f055b85cfde25ed11), [`7cc2b41`](https://github.com/Effect-TS/effect/commit/7cc2b41d6c551fdca2590b06681c5ad9832aba46), [`8b46fde`](https://github.com/Effect-TS/effect/commit/8b46fdebf2c075a74cd2cd29dfb69531d20fc154)]:
+  - effect@2.4.16
+  - @effect/schema@0.64.17
+
+## 0.48.22
+
+### Patch Changes
+
+- Updated dependencies [[`a31917a`](https://github.com/Effect-TS/effect/commit/a31917aa4b05b1189b7a8e0bedb60bb3d49262ad), [`4cd2bed`](https://github.com/Effect-TS/effect/commit/4cd2bedf978f864bddd289d1c524c8e868bf587b), [`6cc6267`](https://github.com/Effect-TS/effect/commit/6cc6267026d9bfb1a9882cddf534787327e86ec1)]:
+  - @effect/schema@0.64.16
+
+## 0.48.21
+
+### Patch Changes
+
+- Updated dependencies [[`d7688c0`](https://github.com/Effect-TS/effect/commit/d7688c0c72717fe7876c871567f6946dabfc0546), [`b3a4fac`](https://github.com/Effect-TS/effect/commit/b3a4face2acaca422f0b0530436e8f13129f3b3a), [`5ded019`](https://github.com/Effect-TS/effect/commit/5ded019970169e3c1f2a375d0876b95fb1ff67f5)]:
+  - effect@2.4.15
+  - @effect/schema@0.64.15
+
+## 0.48.20
+
+### Patch Changes
+
+- [#2413](https://github.com/Effect-TS/effect/pull/2413) [`4789083`](https://github.com/Effect-TS/effect/commit/4789083283bdaec456982d614ebc4a496ea0e7f7) Thanks [@tim-smart](https://github.com/tim-smart)! - make /platform ClientRequest implement Effect
+
+  ClientRequest now implements `Effect<ClientResponse, HttpClientError, Client.Default | Scope>`
+
+  This makes it easier to quickly create a request and execute it in a single line.
+
+  ```ts
+  import * as Http from "@effect/platform/HttpClient";
+
+  Http.request
+    .get("https://jsonplaceholder.typicode.com/todos/1")
+    .pipe(Http.response.json);
+  ```
+
+- [#2413](https://github.com/Effect-TS/effect/pull/2413) [`4789083`](https://github.com/Effect-TS/effect/commit/4789083283bdaec456982d614ebc4a496ea0e7f7) Thanks [@tim-smart](https://github.com/tim-smart)! - prevent unhandled errors in undici http client
+
+## 0.48.19
+
+### Patch Changes
+
+- [#2411](https://github.com/Effect-TS/effect/pull/2411) [`fb7285e`](https://github.com/Effect-TS/effect/commit/fb7285e8d6a70527df7137a6a3efdd03ae61cb8b) Thanks [@tim-smart](https://github.com/tim-smart)! - fix broken imports in /platform
+
+## 0.48.18
+
+### Patch Changes
+
+- [#2410](https://github.com/Effect-TS/effect/pull/2410) [`26435ec`](https://github.com/Effect-TS/effect/commit/26435ecfa06569dc18d1801ccf38213a43b7c334) Thanks [@tim-smart](https://github.com/tim-smart)! - add undici http client to @effect/platform-node
+
+- Updated dependencies [[`a76e5e1`](https://github.com/Effect-TS/effect/commit/a76e5e131a35c88a72771fb745df08f60fbc0e18), [`6180c0c`](https://github.com/Effect-TS/effect/commit/6180c0cc51dee785cfce72220a52c9fc3b9bf9aa)]:
+  - @effect/schema@0.64.14
+  - effect@2.4.14
+
+## 0.48.17
+
+### Patch Changes
+
+- [#2400](https://github.com/Effect-TS/effect/pull/2400) [`47a8f1b`](https://github.com/Effect-TS/effect/commit/47a8f1b644d8294692d92cacd3c8c7543edbfabe) Thanks [@tim-smart](https://github.com/tim-smart)! - expose Schema ParseOptions in /platform schema apis
+
+- [#2403](https://github.com/Effect-TS/effect/pull/2403) [`8c9abe2`](https://github.com/Effect-TS/effect/commit/8c9abe2b35c46d8891d4b2c14ff9eb46302a14f3) Thanks [@tim-smart](https://github.com/tim-smart)! - use ReadonlyRecord for storing cookies
+
+- [#2403](https://github.com/Effect-TS/effect/pull/2403) [`8c9abe2`](https://github.com/Effect-TS/effect/commit/8c9abe2b35c46d8891d4b2c14ff9eb46302a14f3) Thanks [@tim-smart](https://github.com/tim-smart)! - add set-cookie headers in Http.response.toWeb
+
+- [#2400](https://github.com/Effect-TS/effect/pull/2400) [`47a8f1b`](https://github.com/Effect-TS/effect/commit/47a8f1b644d8294692d92cacd3c8c7543edbfabe) Thanks [@tim-smart](https://github.com/tim-smart)! - add .schemaJson / .schemaNoBody to http router apis
+
+- Updated dependencies [[`3336287`](https://github.com/Effect-TS/effect/commit/3336287ff55a25e56d759b83847bfaa21c40f499), [`54b7c00`](https://github.com/Effect-TS/effect/commit/54b7c0077fa784ad2646b812d6a44641f672edcd), [`3336287`](https://github.com/Effect-TS/effect/commit/3336287ff55a25e56d759b83847bfaa21c40f499)]:
+  - effect@2.4.13
+  - @effect/schema@0.64.13
+
+## 0.48.16
+
+### Patch Changes
+
+- [#2387](https://github.com/Effect-TS/effect/pull/2387) [`75a8d16`](https://github.com/Effect-TS/effect/commit/75a8d16247cc14860cdd7fd948ef542c50c2d55e) Thanks [@tim-smart](https://github.com/tim-smart)! - add Cookies module to /platform http
+
+  To add cookies to a http response:
+
+  ```ts
+  import * as Http from "@effect/platform/HttpServer";
+
+  Http.response.empty().pipe(
+    Http.response.setCookies([
+      ["name", "value"],
+      ["foo", "bar", { httpOnly: true }],
+    ]),
+  );
+  ```
+
+  You can also use cookies with the http client:
+
+  ```ts
+  import * as Http from "@effect/platform/HttpClient";
+  import { Effect, Ref } from "effect";
+
+  Effect.gen(function* (_) {
+    const ref = yield* _(Ref.make(Http.cookies.empty));
+    const defaultClient = yield* _(Http.client.Client);
+    const clientWithCookies = defaultClient.pipe(
+      Http.client.withCookiesRef(ref),
+      Http.client.filterStatusOk,
+    );
+
+    // cookies will be stored in the ref and sent in any subsequent requests
+    yield* _(
+      Http.request.get("https://www.google.com/"),
+      clientWithCookies,
+      Effect.scoped,
+    );
+  });
+  ```
+
+- [#2385](https://github.com/Effect-TS/effect/pull/2385) [`3307729`](https://github.com/Effect-TS/effect/commit/3307729de162a033fa9caa8e14c111013dcf0d87) Thanks [@tim-smart](https://github.com/tim-smart)! - update typescript to 5.4
+
+- Updated dependencies [[`9392de6`](https://github.com/Effect-TS/effect/commit/9392de6baa6861662abc2bd3171897145f5ea073), [`3307729`](https://github.com/Effect-TS/effect/commit/3307729de162a033fa9caa8e14c111013dcf0d87), [`9392de6`](https://github.com/Effect-TS/effect/commit/9392de6baa6861662abc2bd3171897145f5ea073), [`3307729`](https://github.com/Effect-TS/effect/commit/3307729de162a033fa9caa8e14c111013dcf0d87), [`d17a427`](https://github.com/Effect-TS/effect/commit/d17a427c4427972fb55c45a058780716dc408631)]:
+  - @effect/schema@0.64.12
+  - effect@2.4.12
+
+## 0.48.15
+
+### Patch Changes
+
+- Updated dependencies [[`2f488c4`](https://github.com/Effect-TS/effect/commit/2f488c436de52576562803c57ebc132ef40ccdd8), [`37ca592`](https://github.com/Effect-TS/effect/commit/37ca592a4101ad90adbf8c8b3f727faf3110cae5), [`317b5b8`](https://github.com/Effect-TS/effect/commit/317b5b8e8c8c2207469b3ebfcf72bf3a9f7cbc60)]:
+  - effect@2.4.11
+  - @effect/schema@0.64.11
+
+## 0.48.14
+
+### Patch Changes
+
+- Updated dependencies [[`9bab1f9`](https://github.com/Effect-TS/effect/commit/9bab1f9fa5b999740755e4e82485cb77c638643a), [`9bbde5b`](https://github.com/Effect-TS/effect/commit/9bbde5be9a0168d1c2a0308bfc27167ed62f3968)]:
+  - effect@2.4.10
+  - @effect/schema@0.64.10
+
+## 0.48.13
+
+### Patch Changes
+
+- Updated dependencies [[`dc7e497`](https://github.com/Effect-TS/effect/commit/dc7e49720df416870a7483f48adc40aeb23fe32d), [`ffaf7c3`](https://github.com/Effect-TS/effect/commit/ffaf7c36514f88496cdd2fdfdf0bc7ba5a2e5cd4)]:
+  - @effect/schema@0.64.9
+
+## 0.48.12
+
+### Patch Changes
+
+- Updated dependencies [[`e0af20e`](https://github.com/Effect-TS/effect/commit/e0af20ec5f6d0b19d66c5ebf610969d55bfc6c22)]:
+  - @effect/schema@0.64.8
+
+## 0.48.11
+
+### Patch Changes
+
+- [#2360](https://github.com/Effect-TS/effect/pull/2360) [`0f6c7b4`](https://github.com/Effect-TS/effect/commit/0f6c7b426eb3432f60e3a17f8cd92ceac91597bf) Thanks [@tim-smart](https://github.com/tim-smart)! - add support for watching single files
+
+## 0.48.10
+
+### Patch Changes
+
+- [#2357](https://github.com/Effect-TS/effect/pull/2357) [`71fd528`](https://github.com/Effect-TS/effect/commit/71fd5287500f9ce155a7d9f0df6ee3e0ac3aeb99) Thanks [@tim-smart](https://github.com/tim-smart)! - make more data types in /platform implement Inspectable
+
+- Updated dependencies [[`71fd528`](https://github.com/Effect-TS/effect/commit/71fd5287500f9ce155a7d9f0df6ee3e0ac3aeb99)]:
+  - effect@2.4.9
+  - @effect/schema@0.64.7
+
+## 0.48.9
+
+### Patch Changes
+
+- Updated dependencies [[`595140a`](https://github.com/Effect-TS/effect/commit/595140a13bda09bf22c669196440868e8a274599), [`5f5fcd9`](https://github.com/Effect-TS/effect/commit/5f5fcd969ae30ed6fe61d566a571498d9e895e16), [`bb0b69e`](https://github.com/Effect-TS/effect/commit/bb0b69e519698c7c76aa68217de423c78ad16566), [`7a45ad0`](https://github.com/Effect-TS/effect/commit/7a45ad0a5f715d64a69b28a8ee3573e5f86909c3), [`5c3b1cc`](https://github.com/Effect-TS/effect/commit/5c3b1ccba182d0f636a973729f9c6bfb12539dc8), [`6f7dfc9`](https://github.com/Effect-TS/effect/commit/6f7dfc9637bd641beb93b14e027dcfcb5d2c8feb), [`88b8583`](https://github.com/Effect-TS/effect/commit/88b85838e03d4f33036f9d16c9c00a487fa99bd8), [`cb20824`](https://github.com/Effect-TS/effect/commit/cb20824416cbf251188395d0aad3622e3a5d7ff2), [`6b20bad`](https://github.com/Effect-TS/effect/commit/6b20badebb3a7ca4d38857753e8ecaa09d02ccfb), [`4e64e9b`](https://github.com/Effect-TS/effect/commit/4e64e9b9876de6bfcbabe39e18a91a08e5f3fbb0), [`3851a02`](https://github.com/Effect-TS/effect/commit/3851a022c481006aec1db36651e4b4fd727aa742), [`5f5fcd9`](https://github.com/Effect-TS/effect/commit/5f5fcd969ae30ed6fe61d566a571498d9e895e16), [`814e5b8`](https://github.com/Effect-TS/effect/commit/814e5b828f68210b9e8f336fd6ac688646835dd9), [`a45a525`](https://github.com/Effect-TS/effect/commit/a45a525e7ccf07704dff1666f1e390282b5bac91)]:
+  - @effect/schema@0.64.6
+  - effect@2.4.8
+
+## 0.48.8
+
+### Patch Changes
+
+- [#2334](https://github.com/Effect-TS/effect/pull/2334) [`69d27bb`](https://github.com/Effect-TS/effect/commit/69d27bb633884b6b50f9c3d9e95c29f09b4860b5) Thanks [@tim-smart](https://github.com/tim-smart)! - add .watch method to /platform FileSystem
+
+  It can be used to listen for file system events. Example:
+
+  ```ts
+  import { FileSystem } from "@effect/platform";
+  import { NodeFileSystem, NodeRuntime } from "@effect/platform-node";
+  import { Console, Effect, Stream } from "effect";
+
+  Effect.gen(function* (_) {
+    const fs = yield* _(FileSystem.FileSystem);
+    yield* _(fs.watch("./"), Stream.runForEach(Console.log));
+  }).pipe(Effect.provide(NodeFileSystem.layer), NodeRuntime.runMain);
+  ```
+
+- Updated dependencies [[`d0f56c6`](https://github.com/Effect-TS/effect/commit/d0f56c68e604b1cf8dd4e761a3f3cf3631b3cec1)]:
+  - @effect/schema@0.64.5
+
+## 0.48.7
+
+### Patch Changes
+
+- [#2330](https://github.com/Effect-TS/effect/pull/2330) [`f908948`](https://github.com/Effect-TS/effect/commit/f908948fd05771a670c0b746e2dd9caa9408ef83) Thanks [@tim-smart](https://github.com/tim-smart)! - use Deferred.unsafeDone for websocket onclose + onerror
+
+## 0.48.6
+
+### Patch Changes
+
+- Updated dependencies [[`eb93283`](https://github.com/Effect-TS/effect/commit/eb93283985913d7b04ca750e36ac8513e7b6cef6)]:
+  - effect@2.4.7
+  - @effect/schema@0.64.4
+
+## 0.48.5
+
+### Patch Changes
+
+- [#2325](https://github.com/Effect-TS/effect/pull/2325) [`e006e4a`](https://github.com/Effect-TS/effect/commit/e006e4a538c97bae6ca1efa74802159e8a688fcb) Thanks [@tim-smart](https://github.com/tim-smart)! - ensure Socket fibers are interruptible
+
+## 0.48.4
+
+### Patch Changes
+
+- Updated dependencies [[`cfef6ec`](https://github.com/Effect-TS/effect/commit/cfef6ecd1fe801cec1a3cbfb7f064fc394b0ad73)]:
+  - @effect/schema@0.64.3
+
+## 0.48.3
+
+### Patch Changes
+
+- [#2314](https://github.com/Effect-TS/effect/pull/2314) [`c362e06`](https://github.com/Effect-TS/effect/commit/c362e066550252d5a9fcbc31a4b34d0e17c50699) Thanks [@tim-smart](https://github.com/tim-smart)! - prevent unhandled fiber errors in Sockets
+
+- [#2262](https://github.com/Effect-TS/effect/pull/2262) [`83ddd6f`](https://github.com/Effect-TS/effect/commit/83ddd6f41029724b2cbd144cf309463967ed1164) Thanks [@thewilkybarkid](https://github.com/thewilkybarkid)! - Don't log an empty message when responding to a request
+
+## 0.48.2
+
+### Patch Changes
+
+- [#2290](https://github.com/Effect-TS/effect/pull/2290) [`4f35a7e`](https://github.com/Effect-TS/effect/commit/4f35a7e7c4eba598924aff24d1158b9056bb24be) Thanks [@mikearnaldi](https://github.com/mikearnaldi)! - Remove function renaming from internals, introduce new cutpoint strategy
+
+- Updated dependencies [[`89748c9`](https://github.com/Effect-TS/effect/commit/89748c90b36cb5eb880a9ab9323b252338dee848), [`4f35a7e`](https://github.com/Effect-TS/effect/commit/4f35a7e7c4eba598924aff24d1158b9056bb24be), [`9971186`](https://github.com/Effect-TS/effect/commit/99711862722188fbb5ed3ee75126ad5edf13f72f)]:
+  - @effect/schema@0.64.2
+  - effect@2.4.6
+
+## 0.48.1
+
+### Patch Changes
+
+- Updated dependencies [[`d10f876`](https://github.com/Effect-TS/effect/commit/d10f876cd98da275bc5dc5750a91a7fc95e97541), [`743ae6d`](https://github.com/Effect-TS/effect/commit/743ae6d12b249f0b35b31b65b2f7ec91d83ee387), [`a75bc48`](https://github.com/Effect-TS/effect/commit/a75bc48e0e3278d0f70665fedecc5ae7ec447e24), [`bce21c5`](https://github.com/Effect-TS/effect/commit/bce21c5ded2177114666ba229bd5029fa000dee3), [`c7d3036`](https://github.com/Effect-TS/effect/commit/c7d303630b7f0825cb2e584557c5767a67214d9f)]:
+  - @effect/schema@0.64.1
+  - effect@2.4.5
+
+## 0.48.0
+
+### Minor Changes
+
+- [#2287](https://github.com/Effect-TS/effect/pull/2287) [`a1f44cb`](https://github.com/Effect-TS/effect/commit/a1f44cb5112713ff9a3ac3d91a63a2c99d6b7fc1) Thanks [@tim-smart](https://github.com/tim-smart)! - add option to /platform runMain to disable error reporting
+
+- [#2279](https://github.com/Effect-TS/effect/pull/2279) [`bdff193`](https://github.com/Effect-TS/effect/commit/bdff193365dd9ec2863573b08eb960aa8dee5c93) Thanks [@gcanti](https://github.com/gcanti)! - - `src/Worker.ts`
+  - use `CauseEncoded` in `Worker` namespace
+  - `src/WorkerError.ts`
+    - use `CauseEncoded` in `Cause`
+
+### Patch Changes
+
+- [#2284](https://github.com/Effect-TS/effect/pull/2284) [`1cb7f9c`](https://github.com/Effect-TS/effect/commit/1cb7f9cff7c2272a32fc7a324d87b02e2cd8a2f5) Thanks [@tim-smart](https://github.com/tim-smart)! - use Schema.declare for http multipart PersistedFile schema
+
+- [#2283](https://github.com/Effect-TS/effect/pull/2283) [`509be1a`](https://github.com/Effect-TS/effect/commit/509be1a0817118489750cf028523134677e44a8a) Thanks [@tim-smart](https://github.com/tim-smart)! - add SocketCloseError with additional metadata
+
+- [#2284](https://github.com/Effect-TS/effect/pull/2284) [`1cb7f9c`](https://github.com/Effect-TS/effect/commit/1cb7f9cff7c2272a32fc7a324d87b02e2cd8a2f5) Thanks [@tim-smart](https://github.com/tim-smart)! - add more http multipart data type refinements
+
+- [#2281](https://github.com/Effect-TS/effect/pull/2281) [`e7ca973`](https://github.com/Effect-TS/effect/commit/e7ca973c5430ae60716701e58bedd4632ff971fd) Thanks [@tim-smart](https://github.com/tim-smart)! - add OpenTimeout error to websocket client
+
+- [#2286](https://github.com/Effect-TS/effect/pull/2286) [`d910dd2`](https://github.com/Effect-TS/effect/commit/d910dd2ca1e8e5aa2f09d9bf3694ede745758f99) Thanks [@tim-smart](https://github.com/tim-smart)! - allow optional fields in http form schemas
+
+- [#2281](https://github.com/Effect-TS/effect/pull/2281) [`e7ca973`](https://github.com/Effect-TS/effect/commit/e7ca973c5430ae60716701e58bedd4632ff971fd) Thanks [@tim-smart](https://github.com/tim-smart)! - support closing a Socket by writing a CloseEvent
+
+- Updated dependencies [[`5d47ee0`](https://github.com/Effect-TS/effect/commit/5d47ee0855e492532085b6092879b1b952d84949), [`5d47ee0`](https://github.com/Effect-TS/effect/commit/5d47ee0855e492532085b6092879b1b952d84949), [`5d47ee0`](https://github.com/Effect-TS/effect/commit/5d47ee0855e492532085b6092879b1b952d84949), [`817a04c`](https://github.com/Effect-TS/effect/commit/817a04cb2df0f4140984dc97eb3e1bb14a6c4a38), [`d90a99d`](https://github.com/Effect-TS/effect/commit/d90a99d03d074adc7cd2533f15419138264da5a2), [`dd05faa`](https://github.com/Effect-TS/effect/commit/dd05faa621555ef3585ecd914ac13ecd89b710f4), [`dd05faa`](https://github.com/Effect-TS/effect/commit/dd05faa621555ef3585ecd914ac13ecd89b710f4), [`802674b`](https://github.com/Effect-TS/effect/commit/802674b379b7559ad3ff09b33388891445a9e48b)]:
+  - @effect/schema@0.64.0
+  - effect@2.4.4
+
+## 0.47.1
+
+### Patch Changes
+
+- [#2276](https://github.com/Effect-TS/effect/pull/2276) [`0680545`](https://github.com/Effect-TS/effect/commit/068054540f19bb23a79c7c021ed8b2fe34f3e19f) Thanks [@tim-smart](https://github.com/tim-smart)! - improve /platform error messages
+
+- Updated dependencies [[`20e63fb`](https://github.com/Effect-TS/effect/commit/20e63fb9207210f3fe2d136ec40d0a2dbff3225e), [`20e63fb`](https://github.com/Effect-TS/effect/commit/20e63fb9207210f3fe2d136ec40d0a2dbff3225e)]:
+  - effect@2.4.3
+  - @effect/schema@0.63.4
+
+## 0.47.0
+
+### Minor Changes
+
+- [#2261](https://github.com/Effect-TS/effect/pull/2261) [`fa9663c`](https://github.com/Effect-TS/effect/commit/fa9663cb854ca03dba672d7857ecff84f1140c9e) Thanks [@tim-smart](https://github.com/tim-smart)! - move Socket module to platform
+
+### Patch Changes
+
+- [#2267](https://github.com/Effect-TS/effect/pull/2267) [`0f3d99c`](https://github.com/Effect-TS/effect/commit/0f3d99c27521ec6b221b644a0fffc79199c3acca) Thanks [@tim-smart](https://github.com/tim-smart)! - propogate Socket handler errors to .run Effect
+
+- [#2269](https://github.com/Effect-TS/effect/pull/2269) [`4064ea0`](https://github.com/Effect-TS/effect/commit/4064ea04e0b3fa23108ee471cd89ab2482b2f6e5) Thanks [@jessekelly881](https://github.com/jessekelly881)! - added PlatformLogger module, for writing logs to a file
+
+  If you wanted to write logfmt logs to a file, you can do the following:
+
+  ```ts
+  import { PlatformLogger } from "@effect/platform";
+  import { NodeFileSystem, NodeRuntime } from "@effect/platform-node";
+  import { Effect, Layer, Logger } from "effect";
+
+  const fileLogger = Logger.logfmtLogger.pipe(PlatformLogger.toFile("log.txt"));
+  const LoggerLive = Logger.replaceScoped(
+    Logger.defaultLogger,
+    fileLogger,
+  ).pipe(Layer.provide(NodeFileSystem.layer));
+
+  Effect.log("a").pipe(
+    Effect.zipRight(Effect.log("b")),
+    Effect.zipRight(Effect.log("c")),
+    Effect.provide(LoggerLive),
+    NodeRuntime.runMain,
+  );
+  ```
+
+- [#2261](https://github.com/Effect-TS/effect/pull/2261) [`fa9663c`](https://github.com/Effect-TS/effect/commit/fa9663cb854ca03dba672d7857ecff84f1140c9e) Thanks [@tim-smart](https://github.com/tim-smart)! - add websocket support to platform http server
+
+  You can use the `Http.request.upgrade*` apis to access the `Socket` for the request.
+
+  Here is an example server that handles websockets on the `/ws` path:
+
+  ```ts
+  import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
+  import * as Http from "@effect/platform/HttpServer";
+  import { Console, Effect, Layer, Schedule, Stream } from "effect";
+  import { createServer } from "node:http";
+
+  const ServerLive = NodeHttpServer.server.layer(() => createServer(), {
+    port: 3000,
+  });
+
+  const HttpLive = Http.router.empty.pipe(
+    Http.router.get(
+      "/ws",
+      Effect.gen(function* (_) {
+        yield* _(
+          Stream.fromSchedule(Schedule.spaced(1000)),
+          Stream.map(JSON.stringify),
+          Stream.encodeText,
+          Stream.pipeThroughChannel(Http.request.upgradeChannel()),
+          Stream.decodeText(),
+          Stream.runForEach(Console.log),
+        );
+        return Http.response.empty();
+      }),
+    ),
+    Http.server.serve(Http.middleware.logger),
+    Http.server.withLogAddress,
+    Layer.provide(ServerLive),
+  );
+
+  NodeRuntime.runMain(Layer.launch(HttpLive));
+  ```
+
+- Updated dependencies [[`e03811e`](https://github.com/Effect-TS/effect/commit/e03811e80c93e986e6348b3b67ac2ed6d5fefff0), [`ac41d84`](https://github.com/Effect-TS/effect/commit/ac41d84776484cdce8165b7ca2c9c9b6377eee2d), [`6137533`](https://github.com/Effect-TS/effect/commit/613753300c7705518ab1fea2f370b032851c2750), [`f373529`](https://github.com/Effect-TS/effect/commit/f373529999f4b8bc92b634f6ea14f19271388eed), [`1bf9f31`](https://github.com/Effect-TS/effect/commit/1bf9f31f07667de677673f7c29a4e7a26ebad3c8), [`e3ff789`](https://github.com/Effect-TS/effect/commit/e3ff789226f89e71eb28ca38ce79f90af6a03f1a), [`6137533`](https://github.com/Effect-TS/effect/commit/613753300c7705518ab1fea2f370b032851c2750), [`507ba40`](https://github.com/Effect-TS/effect/commit/507ba4060ff043c1a8d541dae723fa6940633b00), [`e466afe`](https://github.com/Effect-TS/effect/commit/e466afe32f2de598ceafd8982bd0cfbd388e5671), [`465be79`](https://github.com/Effect-TS/effect/commit/465be7926afe98169837d8a4ed5ebc059a732d21), [`f373529`](https://github.com/Effect-TS/effect/commit/f373529999f4b8bc92b634f6ea14f19271388eed), [`de74eb8`](https://github.com/Effect-TS/effect/commit/de74eb80a79eebde5ff645033765e7a617e92f27), [`d8e6940`](https://github.com/Effect-TS/effect/commit/d8e694040f67da6fefc0f5c98fc8e15c0b48822e)]:
+  - effect@2.4.2
+  - @effect/schema@0.63.3
+
 ## 0.46.3
 
 ### Patch Changes

@@ -1,6 +1,7 @@
 import * as Chunk from "../Chunk.js"
 import type * as Config from "../Config.js"
 import * as ConfigError from "../ConfigError.js"
+import * as Duration from "../Duration.js"
 import * as Either from "../Either.js"
 import type { LazyArg } from "../Function.js"
 import { constTrue, dual, pipe } from "../Function.js"
@@ -289,6 +290,15 @@ export const logLevel = (name?: string): Config.Config<LogLevel.LogLevel> => {
 }
 
 /** @internal */
+export const duration = (name?: string): Config.Config<Duration.Duration> => {
+  const config = mapOrFail(string(), (value) => {
+    const duration = Duration.decodeUnknown(value)
+    return Either.fromOption(duration, () => configError.InvalidData([], `Expected a duration but received ${value}`))
+  })
+  return name === undefined ? config : nested(config, name)
+}
+
+/** @internal */
 export const map = dual<
   <A, B>(f: (a: A) => B) => (self: Config.Config<A>) => Config.Config<B>,
   <A, B>(self: Config.Config<A>, f: (a: A) => B) => Config.Config<B>
@@ -572,8 +582,8 @@ export const validate = dual<
 
 /** @internal */
 export const withDefault = dual<
-  <A2>(def: A2) => <A>(self: Config.Config<A>) => Config.Config<A | A2>,
-  <A, A2>(self: Config.Config<A>, def: A2) => Config.Config<A | A2>
+  <const A2>(def: A2) => <A>(self: Config.Config<A>) => Config.Config<A | A2>,
+  <A, const A2>(self: Config.Config<A>, def: A2) => Config.Config<A | A2>
 >(2, (self, def) =>
   orElseIf(self, {
     orElse: () => succeed(def),

@@ -1,12 +1,15 @@
 /**
  * @since 1.0.0
  */
+import type { ParseOptions } from "@effect/schema/AST"
 import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
+import type { YieldableError } from "effect/Cause"
 import type * as Channel from "effect/Channel"
 import type * as Chunk from "effect/Chunk"
 import type * as Effect from "effect/Effect"
 import type * as FiberRef from "effect/FiberRef"
+import type { Inspectable } from "effect/Inspectable"
 import type * as Option from "effect/Option"
 import type * as Scope from "effect/Scope"
 import type * as Stream from "effect/Stream"
@@ -35,13 +38,19 @@ export type Part = Field | File
 
 /**
  * @since 1.0.0
+ * @category refinements
+ */
+export const isPart: (u: unknown) => u is Part = internal.isPart
+
+/**
+ * @since 1.0.0
  */
 export declare namespace Part {
   /**
    * @since 1.0.0
    * @category models
    */
-  export interface Proto {
+  export interface Proto extends Inspectable {
     readonly [TypeId]: TypeId
     readonly _tag: string
   }
@@ -60,6 +69,12 @@ export interface Field extends Part.Proto {
 
 /**
  * @since 1.0.0
+ * @category refinements
+ */
+export const isField: (u: unknown) => u is Field = internal.isField
+
+/**
+ * @since 1.0.0
  * @category models
  */
 export interface File extends Part.Proto {
@@ -72,6 +87,12 @@ export interface File extends Part.Proto {
 
 /**
  * @since 1.0.0
+ * @category refinements
+ */
+export const isFile: (u: unknown) => u is File = internal.isFile
+
+/**
+ * @since 1.0.0
  * @category models
  */
 export interface PersistedFile extends Part.Proto {
@@ -81,6 +102,12 @@ export interface PersistedFile extends Part.Proto {
   readonly contentType: string
   readonly path: string
 }
+
+/**
+ * @since 1.0.0
+ * @category refinements
+ */
+export const isPersistedFile: (u: unknown) => u is PersistedFile = internal.isPersistedFile
 
 /**
  * @since 1.0.0
@@ -106,7 +133,7 @@ export type ErrorTypeId = typeof ErrorTypeId
  * @since 1.0.0
  * @category errors
  */
-export interface MultipartError {
+export interface MultipartError extends YieldableError {
   readonly [ErrorTypeId]: ErrorTypeId
   readonly _tag: "MultipartError"
   readonly reason: "FileTooLarge" | "FieldTooLarge" | "BodyTooLarge" | "TooManyParts" | "InternalError" | "Parse"
@@ -117,16 +144,12 @@ export interface MultipartError {
  * @since 1.0.0
  * @category errors
  */
-export const MultipartError: (
-  reason: MultipartError["reason"],
-  error: unknown
+export const MultipartError: new(
+  options: {
+    readonly reason: MultipartError["reason"]
+    readonly error: unknown
+  }
 ) => MultipartError = internal.MultipartError
-
-/**
- * @since 1.0.0
- * @category refinements
- */
-export const isField: (u: unknown) => u is Field = internal.isField
 
 /**
  * @since 1.0.0
@@ -192,14 +215,30 @@ export const withFieldMimeTypes: {
  * @since 1.0.0
  * @category schema
  */
-export const filesSchema: Schema.Schema<ReadonlyArray<PersistedFile>> = internal.filesSchema
+export const FileSchema: Schema.Schema<PersistedFile> = internal.FileSchema
+
+/**
+ * @since 1.0.0
+ * @category schema
+ */
+export const FilesSchema: Schema.Schema<ReadonlyArray<PersistedFile>> = internal.FilesSchema
+
+/**
+ * @since 1.0.0
+ * @category schema
+ */
+export const SingleFileSchema: Schema.transform<
+  Schema.Schema<ReadonlyArray<PersistedFile>>,
+  Schema.Schema<PersistedFile>
+> = internal.SingleFileSchema
 
 /**
  * @since 1.0.0
  * @category schema
  */
 export const schemaJson: <A, I, R>(
-  schema: Schema.Schema<A, I, R>
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => {
   (field: string): (persisted: Persisted) => Effect.Effect<A, ParseResult.ParseError, R>
   (persisted: Persisted, field: string): Effect.Effect<A, ParseResult.ParseError, R>
@@ -209,8 +248,9 @@ export const schemaJson: <A, I, R>(
  * @since 1.0.0
  * @category schema
  */
-export const schemaPersisted: <R, I extends Persisted, A>(
-  schema: Schema.Schema<A, I, R>
+export const schemaPersisted: <R, I extends Partial<Persisted>, A>(
+  schema: Schema.Schema<A, I, R>,
+  options?: ParseOptions | undefined
 ) => (persisted: Persisted) => Effect.Effect<A, ParseResult.ParseError, R> = internal.schemaPersisted
 
 /**

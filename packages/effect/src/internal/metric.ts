@@ -1,3 +1,4 @@
+import * as Arr from "../Array.js"
 import * as Clock from "../Clock.js"
 import * as Duration from "../Duration.js"
 import type * as Effect from "../Effect.js"
@@ -14,7 +15,6 @@ import type * as MetricPair from "../MetricPair.js"
 import type * as MetricRegistry from "../MetricRegistry.js"
 import type * as MetricState from "../MetricState.js"
 import { pipeArguments } from "../Pipeable.js"
-import * as ReadonlyArray from "../ReadonlyArray.js"
 import * as Cause from "./cause.js"
 import * as _effect from "./core-effect.js"
 import * as core from "./core.js"
@@ -54,10 +54,7 @@ export const make: Metric.MetricApply = function<Type, In, Out>(
 ): Metric.Metric<Type, In, Out> {
   const metric: Metric.Metric<Type, In, Out> = Object.assign(
     <A extends In, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
-      core.tap(
-        effect,
-        (a) => core.sync(() => unsafeUpdate(a, []))
-      ),
+      core.tap(effect, (a) => update(metric, a)),
     {
       [MetricTypeId]: metricVariance,
       keyType,
@@ -101,8 +98,10 @@ export const counter: {
 } = (name, options) => fromMetricKey(metricKey.counter(name, options as any)) as any
 
 /** @internal */
-export const frequency = (name: string, description?: string): Metric.Metric.Frequency<string> =>
-  fromMetricKey(metricKey.frequency(name, description))
+export const frequency = (name: string, options?: {
+  readonly description?: string | undefined
+  readonly preregisteredWords?: ReadonlyArray<string> | undefined
+}): Metric.Metric.Frequency<string> => fromMetricKey(metricKey.frequency(name, options))
 
 /** @internal */
 export const withConstantInput = dual<
@@ -276,7 +275,7 @@ export const taggedWithLabelsInput = dual<
       (input, extraTags) =>
         self.unsafeUpdate(
           input,
-          ReadonlyArray.union(f(input), extraTags)
+          Arr.union(f(input), extraTags)
         ),
       self.unsafeValue
     ),
@@ -295,8 +294,8 @@ export const taggedWithLabels = dual<
 >(2, (self, extraTags) => {
   return make(
     self.keyType,
-    (input, extraTags1) => self.unsafeUpdate(input, ReadonlyArray.union(extraTags, extraTags1)),
-    (extraTags1) => self.unsafeValue(ReadonlyArray.union(extraTags, extraTags1))
+    (input, extraTags1) => self.unsafeUpdate(input, Arr.union(extraTags, extraTags1)),
+    (extraTags1) => self.unsafeValue(Arr.union(extraTags, extraTags1))
   )
 })
 
@@ -345,14 +344,8 @@ export const trackAll = dual<
   ) => <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
 >(2, (self, input) => (effect) =>
   core.matchCauseEffect(effect, {
-    onFailure: (cause) => {
-      self.unsafeUpdate(input, [])
-      return core.failCause(cause)
-    },
-    onSuccess: (value) => {
-      self.unsafeUpdate(input, [])
-      return core.succeed(value)
-    }
+    onFailure: (cause) => core.zipRight(update(self, input), core.failCause(cause)),
+    onSuccess: (value) => core.zipRight(update(self, input), core.succeed(value))
   }))
 
 /* @internal */
@@ -378,14 +371,8 @@ export const trackDefectWith = dual<
     f: (defect: unknown) => In
   ) => Effect.Effect<A, E, R>
 >(3, (self, metric, f) => {
-  const updater = (defect: unknown): void => metric.unsafeUpdate(f(defect), [])
-  return _effect.tapDefect(self, (cause) =>
-    core.sync(() =>
-      pipe(
-        Cause.defects(cause),
-        ReadonlyArray.forEach(updater)
-      )
-    ))
+  const updater = (defect: unknown) => update(metric, f(defect))
+  return _effect.tapDefect(self, (cause) => core.forEachSequentialDiscard(Cause.defects(cause), updater))
 })
 
 /* @internal */
@@ -413,11 +400,10 @@ export const trackDurationWith = dual<
 >(3, (self, metric, f) =>
   Clock.clockWith((clock) => {
     const startTime = clock.unsafeCurrentTimeNanos()
-    return core.map(self, (a) => {
+    return core.tap(self, (_) => {
       const endTime = clock.unsafeCurrentTimeNanos()
       const duration = Duration.nanos(endTime - startTime)
-      metric.unsafeUpdate(f(duration), [])
-      return a
+      return update(metric, f(duration))
     })
   }))
 
