@@ -197,6 +197,10 @@ export const make = (
           `http.client ${request.method}`,
           { kind: "client", captureStackTrace: false },
           (span) => {
+            // add for legacy purposes
+            span.attribute("http.method", request.method)
+            span.attribute("http.url", url.toString())
+            // end
             span.attribute("http.request.method", request.method)
             span.attribute("server.address", url.origin)
             if (url.port !== "") {
@@ -222,6 +226,9 @@ export const make = (
                 Effect.withParentSpan(span),
                 Effect.matchCauseEffect({
                   onSuccess: (response) => {
+                    // add for legacy purposes
+                    span.attribute("http.status_code", response.status)
+                    // end
                     span.attribute("http.response.status_code", response.status)
                     const redactedHeaders = Headers.redact(response.headers, redactedHeaderNames)
                     for (const name in redactedHeaders) {
