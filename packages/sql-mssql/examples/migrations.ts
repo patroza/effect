@@ -1,23 +1,21 @@
 import * as DevTools from "@effect/experimental/DevTools"
 import { NodeFileSystem } from "@effect/platform-node"
-import * as Sql from "@effect/sql"
-import * as Mssql from "@effect/sql-mssql"
-import { Config, Effect, Layer, Logger, LogLevel, Secret, String } from "effect"
+import { MssqlClient, MssqlMigrator, MssqlTypes, Procedure } from "@effect/sql-mssql"
+import { Config, Effect, Layer, Logger, LogLevel, Redacted, String } from "effect"
 import { pipe } from "effect/Function"
 import { fileURLToPath } from "node:url"
 
 const peopleProcedure = pipe(
-  Mssql.procedure.make("people_proc"),
-  Mssql.procedure.param<string>()("name", Mssql.types.VarChar),
-  Mssql.procedure.withRows<{ readonly id: number; readonly name: string }>(),
-  Mssql.procedure.compile
+  Procedure.make("people_proc"),
+  Procedure.param<string>()("name", MssqlTypes.VarChar),
+  Procedure.withRows<{ readonly id: number; readonly name: string }>(),
+  Procedure.compile
 )
 
-const program = Effect.gen(function*(_) {
-  const sql = yield* _(Mssql.client.MssqlClient)
+const program = Effect.gen(function*() {
+  const sql = yield* MssqlClient.MssqlClient
 
-  yield* _(
-    sql`
+  yield* sql`
       CREATE OR ALTER PROC people_proc
         @name VARCHAR(255)
       AS
@@ -25,46 +23,41 @@ const program = Effect.gen(function*(_) {
         SELECT * FROM people WHERE name = @name
       END
     `
-  )
 
   // Insert
-  const [inserted] = yield* _(
-    sql`INSERT INTO ${sql("people")} ${
-      sql.insert({
-        name: "Tim",
-        createdAt: new Date()
-      })
-    }`
-  )
+  const [inserted] = yield* sql`INSERT INTO ${sql("people")} ${
+    sql.insert({
+      name: "Tim",
+      createdAt: new Date()
+    }).returning("*")
+  }`
+
   console.log(inserted)
 
   console.log(
-    yield* _(
-      Effect.all(
-        [
-          sql`SELECT TOP 3 * FROM ${sql("people")}`,
-          sql`SELECT TOP 3 * FROM ${sql("people")}`.values,
-          sql`SELECT TOP 3 * FROM ${sql("people")}`.withoutTransform,
-          sql.call(peopleProcedure({ name: "Tim" }))
-        ],
-        { concurrency: "unbounded" }
-      )
+    yield* Effect.all(
+      [
+        sql`SELECT TOP(3) * FROM ${sql("people")}`,
+        sql`SELECT TOP(3) * FROM ${sql("people")}`.values,
+        sql`SELECT TOP(3) * FROM ${sql("people")}`.withoutTransform,
+        sql.call(peopleProcedure({ name: "Tim" }))
+      ],
+      { concurrency: "unbounded" }
     )
   )
 
   console.log(
-    yield* _(sql`
+    yield* sql`
       UPDATE people
       SET name = data.name
-      OUTPUT inserted.*
-      FROM ${sql.updateValues([{ ...inserted, name: "New name" }], "data")}
+      ${sql.updateValues([{ ...inserted, name: "New name" }], "data").returning("*")}
       WHERE people.id = data.id
-    `)
+    `
   )
 
   console.log(
-    yield* _(
-      sql`SELECT TOP 3 * FROM ${sql("people")}`,
+    yield* pipe(
+      sql`SELECT TOP(3) * FROM ${sql("people")}`,
       Effect.zipRight(
         Effect.catchAllCause(
           sql.withTransaction(Effect.die("fail")),
@@ -72,24 +65,24 @@ const program = Effect.gen(function*(_) {
         )
       ),
       Effect.zipRight(
-        sql.withTransaction(sql`SELECT TOP 3 * FROM ${sql("people")}`)
+        sql.withTransaction(sql`SELECT TOP(3) * FROM ${sql("people")}`)
       ),
       sql.withTransaction
     )
   )
 })
 
-const SqlLive = Mssql.migrator.layer({
-  loader: Sql.migrator.fromFileSystem(
+const SqlLive = MssqlMigrator.layer({
+  loader: MssqlMigrator.fromFileSystem(
     fileURLToPath(new URL("./migrations", import.meta.url))
   )
 }).pipe(
   Layer.provideMerge(
-    Mssql.client.layer({
+    MssqlClient.layer({
       database: Config.succeed("msdb"),
       server: Config.succeed("localhost"),
       username: Config.succeed("sa"),
-      password: Config.succeed(Secret.fromString("Sq1Fx_password")),
+      password: Config.succeed(Redacted.make("Sq1Fx_password")),
       transformQueryNames: Config.succeed(String.camelToSnake),
       transformResultNames: Config.succeed(String.snakeToCamel)
     })

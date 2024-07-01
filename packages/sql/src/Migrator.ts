@@ -1,15 +1,14 @@
 /**
  * @since 1.0.0
  */
-import { FileSystem } from "@effect/platform/FileSystem"
 import * as Arr from "effect/Array"
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
 import * as Option from "effect/Option"
 import * as Order from "effect/Order"
-import * as Client from "./Client.js"
-import type { SqlError } from "./Error.js"
+import * as Client from "./SqlClient.js"
+import type { SqlError } from "./SqlError.js"
 
 /**
  * @category model
@@ -85,10 +84,10 @@ export const make = <RD = never>({
 }: MigratorOptions<R2>): Effect.Effect<
   ReadonlyArray<readonly [id: number, name: string]>,
   MigrationError | SqlError,
-  Client.Client | RD | R2
+  Client.SqlClient | RD | R2
 > =>
   Effect.gen(function*(_) {
-    const sql = yield* Client.Client
+    const sql = yield* Client.SqlClient
     const ensureMigrationsTable = sql.onDialect({
       mssql: () =>
         sql`IF OBJECT_ID(N'${sql.literal(table)}', N'U') IS NULL
@@ -192,7 +191,7 @@ export const make = <RD = never>({
     const run = Effect.gen(function*(_) {
       yield* sql.onDialect({
         mssql: () => Effect.void,
-        mysql: () => sql`LOCK TABLE ${sql(table)} IN ACCESS EXCLUSIVE MODE`,
+        mysql: () => Effect.void,
         pg: () => sql`LOCK TABLE ${sql(table)} IN ACCESS EXCLUSIVE MODE`,
         sqlite: () => Effect.void
       })
@@ -332,38 +331,4 @@ export const fromBabelGlob = (migrations: Record<string, any>): Loader =>
     ),
     Arr.sort(migrationOrder),
     Effect.succeed
-  )
-
-/**
- * @since 1.0.0
- * @category loaders
- */
-export const fromFileSystem = (directory: string): Loader<FileSystem> =>
-  FileSystem.pipe(
-    Effect.flatMap((FS) => FS.readDirectory(directory)),
-    Effect.mapError((error) => new MigrationError({ reason: "failed", message: error.message })),
-    Effect.map((files): ReadonlyArray<ResolvedMigration> =>
-      files
-        .map((file) => Option.fromNullable(file.match(/^(?:.*\/)?(\d+)_([^.]+)\.(js|ts)$/)))
-        .flatMap(
-          Option.match({
-            onNone: () => [],
-            onSome: ([basename, id, name]): ReadonlyArray<ResolvedMigration> =>
-              [
-                [
-                  Number(id),
-                  name,
-                  Effect.promise(
-                    () =>
-                      import(
-                        /* @vite-ignore */
-                        `${directory}/${basename}`
-                      )
-                  )
-                ]
-              ] as const
-          })
-        )
-        .sort(([a], [b]) => a - b)
-    )
   )

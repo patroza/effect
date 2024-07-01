@@ -194,11 +194,74 @@ export const appendElement: {
   <A extends ReadonlyArray<unknown>, B>(self: A, that: B): [...A, B]
 } = dual(2, <A extends ReadonlyArray<unknown>, B>(self: A, that: B): [...A, B] => [...self, that])
 
-/*
+/**
+ * Retrieves the element at a specified index from a tuple.
+ *
+ * @param self - A tuple from which to retrieve the element.
+ * @param index - The index of the element to retrieve.
+ *
+ * @example
+ * import { Tuple } from "effect"
+ *
+ * assert.deepStrictEqual(Tuple.at([1, 'hello', true], 1), 'hello')
+ *
+ * @category getters
+ * @since 3.4.0
+ */
+export const at: {
+  <N extends number>(index: N): <A extends ReadonlyArray<unknown>>(self: A) => A[N]
+  <A extends ReadonlyArray<unknown>, N extends number>(self: A, index: N): A[N]
+} = dual(2, <A extends ReadonlyArray<unknown>, N extends number>(self: A, index: N): A[N] => self[index])
 
-  TODO:
-
-  - at
-  - swap
-
-*/
+export {
+  /**
+   * Determine if an `Array` is a tuple with exactly `N` elements, narrowing down the type to `TupleOf`.
+   *
+   * An `Array` is considered to be a `TupleOf` if its length is exactly `N`.
+   *
+   * @param self - The `Array` to check.
+   * @param n - The exact number of elements that the `Array` should have to be considered a `TupleOf`.
+   *
+   * @example
+   * import { isTupleOf } from "effect/Tuple"
+   *
+   * assert.deepStrictEqual(isTupleOf([1, 2, 3], 3), true);
+   * assert.deepStrictEqual(isTupleOf([1, 2, 3], 2), false);
+   * assert.deepStrictEqual(isTupleOf([1, 2, 3], 4), false);
+   *
+   * const arr: number[] = [1, 2, 3];
+   * if (isTupleOf(arr, 3)) {
+   *   console.log(arr);
+   *   // ^? [number, number, number]
+   * }
+   *
+   * @category guards
+   * @since 3.3.0
+   */
+  isTupleOf,
+  /**
+   * Determine if an `Array` is a tuple with at least `N` elements, narrowing down the type to `TupleOfAtLeast`.
+   *
+   * An `Array` is considered to be a `TupleOfAtLeast` if its length is at least `N`.
+   *
+   * @param self - The `Array` to check.
+   * @param n - The minimum number of elements that the `Array` should have to be considered a `TupleOfAtLeast`.
+   *
+   * @example
+   * import { isTupleOfAtLeast } from "effect/Tuple"
+   *
+   * assert.deepStrictEqual(isTupleOfAtLeast([1, 2, 3], 3), true);
+   * assert.deepStrictEqual(isTupleOfAtLeast([1, 2, 3], 2), true);
+   * assert.deepStrictEqual(isTupleOfAtLeast([1, 2, 3], 4), false);
+   *
+   * const arr: number[] = [1, 2, 3, 4];
+   * if (isTupleOfAtLeast(arr, 3)) {
+   *   console.log(arr);
+   *   // ^? [number, number, number, ...number[]]
+   * }
+   *
+   * @category guards
+   * @since 3.3.0
+   */
+  isTupleOfAtLeast
+} from "./Predicate.js"

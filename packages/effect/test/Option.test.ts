@@ -1,4 +1,3 @@
-import * as Util from "effect-test/util"
 import * as Chunk from "effect/Chunk"
 import * as E from "effect/Either"
 import * as Equal from "effect/Equal"
@@ -7,6 +6,7 @@ import * as Hash from "effect/Hash"
 import * as N from "effect/Number"
 import * as Option from "effect/Option"
 import * as S from "effect/String"
+import * as Util from "effect/test/util"
 import { assert, assertType, describe, expect, it } from "vitest"
 
 const p = (n: number): boolean => n > 2
@@ -46,12 +46,17 @@ describe("Option", () => {
     const f = Option.gen(function*($) {
       yield* $(Option.none())
     })
+
+    const g = Option.gen({ ctx: "testContext" as const }, function*() {
+      return yield* Option.some(this.ctx)
+    })
     expect(a).toEqual(Option.some(3))
     expect(b).toEqual(Option.some(10))
     expect(c).toEqual(Option.some(undefined))
     expect(d).toEqual(Option.some(2))
     expect(e).toEqual(Option.none())
     expect(f).toEqual(Option.none())
+    expect(g).toEqual(Option.some("testContext"))
   })
 
   it("toString", () => {
@@ -345,14 +350,17 @@ describe("Option", () => {
   })
 
   it("liftPredicate", () => {
-    const f = Option.liftPredicate(p)
-    Util.deepStrictEqual(f(1), Option.none())
-    Util.deepStrictEqual(f(3), Option.some(3))
+    Util.deepStrictEqual(pipe(1, Option.liftPredicate(p)), Option.none())
+    Util.deepStrictEqual(pipe(3, Option.liftPredicate(p)), Option.some(3))
+    Util.deepStrictEqual(Option.liftPredicate(1, p), Option.none())
+    Util.deepStrictEqual(Option.liftPredicate(3, p), Option.some(3))
 
     type Direction = "asc" | "desc"
-    const parseDirection = Option.liftPredicate((s: string): s is Direction => s === "asc" || s === "desc")
-    Util.deepStrictEqual(parseDirection("asc"), Option.some("asc"))
-    Util.deepStrictEqual(parseDirection("foo"), Option.none())
+    const isDirection = (s: string): s is Direction => s === "asc" || s === "desc"
+    Util.deepStrictEqual(pipe("asc", Option.liftPredicate(isDirection)), Option.some("asc"))
+    Util.deepStrictEqual(pipe("foo", Option.liftPredicate(isDirection)), Option.none())
+    Util.deepStrictEqual(Option.liftPredicate("asc", isDirection), Option.some("asc"))
+    Util.deepStrictEqual(Option.liftPredicate("foo", isDirection), Option.none())
   })
 
   it("containsWith", () => {

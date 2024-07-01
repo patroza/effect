@@ -5,13 +5,14 @@ import * as Either from "../Either.js"
 import * as Equal from "../Equal.js"
 import type * as FiberId from "../FiberId.js"
 import { constFalse, constTrue, dual, identity, pipe } from "../Function.js"
+import { globalValue } from "../GlobalValue.js"
 import * as Hash from "../Hash.js"
 import * as HashSet from "../HashSet.js"
 import { NodeInspectSymbol, toJSON } from "../Inspectable.js"
 import * as Option from "../Option.js"
 import { pipeArguments } from "../Pipeable.js"
-import { hasProperty, isFunction } from "../Predicate.js"
 import type { Predicate, Refinement } from "../Predicate.js"
+import { hasProperty, isFunction } from "../Predicate.js"
 import type { AnySpan, Span } from "../Tracer.js"
 import type { NoInfer } from "../Types.js"
 import { getBugErrorMessage } from "./errors.js"
@@ -968,57 +969,43 @@ export const reduceWithContext = dual<
 // Pretty Printing
 // -----------------------------------------------------------------------------
 
-const filterStack = (stack: string) => {
-  const lines = stack.split("\n")
-  const out: Array<string> = []
-  for (let i = 0; i < lines.length; i++) {
-    out.push(lines[i].replace(/at .*effect_instruction_i.*\((.*)\)/, "at $1"))
-    if (lines[i].includes("effect_instruction_i")) {
-      return out.join("\n")
-    }
-  }
-  return out.join("\n")
-}
-
 /** @internal */
 export const pretty = <E>(cause: Cause.Cause<E>): string => {
   if (isInterruptedOnly(cause)) {
     return "All fibers interrupted without errors."
   }
-  const final = prettyErrors<E>(cause).map((e) => {
-    let message = e.message
-    if (e.stack) {
-      message += `\r\n${filterStack(e.stack)}`
-    }
-    if (e.span) {
-      let current: Span | AnySpan | undefined = e.span
-      let i = 0
-      while (current && current._tag === "Span" && i < 10) {
-        message += `\r\n    at ${current.name}`
-        current = Option.getOrUndefined(current.parent)
-        i++
-      }
-    }
-    return message
-  }).join("\r\n")
-  return final
+  return prettyErrors<E>(cause).map((e) => e.stack).join("\n")
 }
 
-class PrettyError {
-  constructor(
-    readonly message: string,
-    readonly stack: string | undefined,
-    readonly span: Span | undefined
-  ) {}
-  toJSON() {
-    const out: any = { message: this.message }
-    if (this.stack) {
-      out.stack = this.stack
+class PrettyError extends globalThis.Error implements Cause.PrettyError {
+  span: undefined | Span = undefined
+  constructor(originalError: unknown) {
+    const prevLimit = Error.stackTraceLimit
+    Error.stackTraceLimit = 0
+    super(prettyErrorMessage(originalError))
+    if (this.message === "") {
+      this.message = "An error has occurred"
     }
-    if (this.span) {
-      out.span = this.span
+    Error.stackTraceLimit = prevLimit
+    this.name = originalError instanceof Error ? originalError.name : "Error"
+    if (typeof originalError === "object" && originalError !== null) {
+      if (spanSymbol in originalError) {
+        this.span = originalError[spanSymbol] as Span
+      }
+      Object.keys(originalError).forEach((key) => {
+        if (!(key in this)) {
+          // @ts-expect-error
+          this[key] = originalError[key]
+        }
+      })
     }
-    return out
+    this.stack = prettyErrorStack(
+      `${this.name}: ${this.message}`,
+      originalError instanceof Error && originalError.stack
+        ? originalError.stack
+        : "",
+      this.span
+    )
   }
 }
 
@@ -1027,10 +1014,9 @@ class PrettyError {
  *
  * Rules:
  *
- * 1) If the input `u` is already a string, it's considered a message, and "Error" is added as a prefix.
- * 2) If `u` has a user-defined `toString()` method, it uses that method and adds "Error" as a prefix.
- * 3) If `u` is an object and its only (optional) properties are "name", "message", or "_tag", it constructs
- *    an error message based on those properties.
+ * 1) If the input `u` is already a string, it's considered a message.
+ * 2) If `u` is an Error instance with a message defined, it uses the message.
+ * 3) If `u` has a user-defined `toString()` method, it uses that method.
  * 4) Otherwise, it uses `JSON.stringify` to produce a string representation and uses it as the error message,
  *   with "Error" added as a prefix.
  *
@@ -1039,9 +1025,13 @@ class PrettyError {
 export const prettyErrorMessage = (u: unknown): string => {
   // 1)
   if (typeof u === "string") {
-    return `Error: ${u}`
+    return u
   }
   // 2)
+  if (typeof u === "object" && u !== null && u instanceof Error) {
+    return u.message
+  }
+  // 3)
   try {
     if (
       hasProperty(u, "toString") &&
@@ -1054,33 +1044,66 @@ export const prettyErrorMessage = (u: unknown): string => {
   } catch {
     // something's off, rollback to json
   }
-  // 3)
-  return `Error: ${JSON.stringify(u)}`
+  // 4)
+  return JSON.stringify(u)
+}
+
+const locationRegex = /\((.*)\)/
+
+/** @internal */
+export const spanToTrace = globalValue("effect/Tracer/spanToTrace", () => new WeakMap())
+
+const prettyErrorStack = (message: string, stack: string, span?: Span | undefined): string => {
+  const out: Array<string> = [message]
+  const lines = stack.startsWith(message) ? stack.slice(message.length).split("\n") : stack.split("\n")
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].includes("Generator.next")) {
+      break
+    }
+    if (lines[i].includes("effect_internal_function")) {
+      out.pop()
+      break
+    }
+    out.push(
+      lines[i]
+        .replace(/at .*effect_instruction_i.*\((.*)\)/, "at $1")
+        .replace(/EffectPrimitive\.\w+/, "<anonymous>")
+    )
+  }
+
+  if (span) {
+    let current: Span | AnySpan | undefined = span
+    let i = 0
+    while (current && current._tag === "Span" && i < 10) {
+      const stackFn = spanToTrace.get(current)
+      if (typeof stackFn === "function") {
+        const stack = stackFn()
+        const locationMatch = stack.match(locationRegex)
+        const location = locationMatch ? locationMatch[1] : stack.replace(/^at /, "")
+        out.push(`    at ${current.name} (${location})`)
+      } else {
+        out.push(`    at ${current.name}`)
+      }
+      current = Option.getOrUndefined(current.parent)
+      i++
+    }
+  }
+
+  return out.join("\n")
 }
 
 const spanSymbol = Symbol.for("effect/SpanAnnotation")
 
-const defaultRenderError = (error: unknown): PrettyError => {
-  const span: any = hasProperty(error, spanSymbol) && error[spanSymbol]
-  if (error instanceof Error) {
-    return new PrettyError(
-      prettyErrorMessage(error),
-      error.stack?.split("\n").filter((_) => _.match(/at (.*)/)).join("\n"),
-      span
-    )
-  }
-  return new PrettyError(prettyErrorMessage(error), void 0, span)
-}
-
 /** @internal */
-export const prettyErrors = <E>(cause: Cause.Cause<E>): ReadonlyArray<PrettyError> =>
+export const prettyErrors = <E>(cause: Cause.Cause<E>): Array<PrettyError> =>
   reduceWithContext(cause, void 0, {
-    emptyCase: (): ReadonlyArray<PrettyError> => [],
+    emptyCase: (): Array<PrettyError> => [],
     dieCase: (_, unknownError) => {
-      return [defaultRenderError(unknownError)]
+      return [new PrettyError(unknownError)]
     },
     failCase: (_, error) => {
-      return [defaultRenderError(error)]
+      return [new PrettyError(error)]
     },
     interruptCase: () => [],
     parallelCase: (_, l, r) => [...l, ...r],

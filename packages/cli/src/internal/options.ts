@@ -13,6 +13,7 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Order from "effect/Order"
 import { pipeArguments } from "effect/Pipeable"
+import type * as Redacted from "effect/Redacted"
 import * as Ref from "effect/Ref"
 import type * as Secret from "effect/Secret"
 import type * as CliConfig from "../CliConfig.js"
@@ -376,6 +377,10 @@ export const none: Options.Options<void> = (() => {
 })()
 
 /** @internal */
+export const redacted = (name: string): Options.Options<Redacted.Redacted> =>
+  makeSingle(name, Arr.empty(), InternalPrimitive.redacted)
+
+/** @internal */
 export const secret = (name: string): Options.Options<Secret.Secret> =>
   makeSingle(name, Arr.empty(), InternalPrimitive.secret)
 
@@ -647,7 +652,7 @@ export const withSchema = dual<
   return mapEffect(self, (_) =>
     Effect.mapError(
       decode(_ as any),
-      (error) => InternalValidationError.invalidValue(InternalHelpDoc.p(TreeFormatter.formatIssueSync(error.error)))
+      (error) => InternalValidationError.invalidValue(InternalHelpDoc.p(TreeFormatter.formatErrorSync(error)))
     ))
 })
 
@@ -1431,8 +1436,19 @@ const wizardInternal = (self: Instruction, config: CliConfig.CliConfig): Effect.
       return InternalSelectPrompt.select({
         message: InternalHelpDoc.toAnsiText(message).trimEnd(),
         choices: [
-          { title: `Default ['${JSON.stringify(self.fallback)}']`, value: true },
-          { title: "Custom", value: false }
+          {
+            title: "Yes",
+            value: true,
+            description: `use the default ${
+              Option.isOption(self.fallback)
+                ? Option.match(self.fallback, {
+                  onNone: () => "",
+                  onSome: (a) => `(${JSON.stringify(a)})`
+                })
+                : `(${JSON.stringify(self.fallback)})`
+            }`
+          },
+          { title: "No", value: false, description: "use a custom value" }
         ]
       }).pipe(
         Effect.zipLeft(Console.log()),

@@ -1,4 +1,4 @@
-import type * as Headers from "@effect/platform/Http/Headers"
+import type * as Headers from "@effect/platform/Headers"
 import * as Schema from "@effect/schema/Schema"
 import * as Serializable from "@effect/schema/Serializable"
 import * as Equal from "effect/Equal"
@@ -26,7 +26,9 @@ export const withRequestTag = <A>(
 }
 
 /** @internal */
-export const StreamRequestTypeId = Symbol.for("@effect/rpc/Rpc/StreamRequest")
+export const StreamRequestTypeId: Rpc.StreamRequestTypeId = Symbol.for(
+  "@effect/rpc/Rpc/StreamRequest"
+) as Rpc.StreamRequestTypeId
 
 /** @internal */
 export const makeRequest = <A extends Schema.TaggedRequest.Any>(

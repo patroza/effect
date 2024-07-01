@@ -1,5 +1,5 @@
 /**
- * @since 1.0.0
+ * @since 0.67.0
  */
 
 import * as Arr from "effect/Array"
@@ -14,7 +14,7 @@ import type * as Schema from "./Schema.js"
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface LazyArbitrary<A> {
   (fc: typeof FastCheck): FastCheck.Arbitrary<A>
@@ -22,19 +22,19 @@ export interface LazyArbitrary<A> {
 
 /**
  * @category hooks
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const ArbitraryHookId: unique symbol = Symbol.for("@effect/schema/ArbitraryHookId")
 
 /**
  * @category hooks
- * @since 1.0.0
+ * @since 0.67.0
  */
 export type ArbitraryHookId = typeof ArbitraryHookId
 
 /**
  * @category annotations
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const arbitrary =
   <A>(handler: (...args: ReadonlyArray<LazyArbitrary<any>>) => LazyArbitrary<A>) =>
@@ -44,7 +44,7 @@ export const arbitrary =
  * Returns a LazyArbitrary for the `A` type of the provided schema.
  *
  * @category arbitrary
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const makeLazy = <A, I, R>(schema: Schema.Schema<A, I, R>): LazyArbitrary<A> => go(schema.ast, {}, [])
 
@@ -52,7 +52,7 @@ export const makeLazy = <A, I, R>(schema: Schema.Schema<A, I, R>): LazyArbitrary
  * Returns a fast-check Arbitrary for the `A` type of the provided schema.
  *
  * @category arbitrary
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const make = <A, I, R>(schema: Schema.Schema<A, I, R>): FastCheck.Arbitrary<A> => makeLazy(schema)(FastCheck)
 
@@ -93,9 +93,6 @@ const getRefinementFromArbitrary = (ast: AST.Refinement, options: Options, path:
   return go(ast.from, constraints ? { ...options, constraints } : options, path)
 }
 
-const getArbitraryErrorMessage = (message: string, path: ReadonlyArray<PropertyKey>) =>
-  errors_.getErrorMessageWithPath(`cannot build an Arbitrary for ${message}`, path)
-
 const go = (ast: AST.AST, options: Options, path: ReadonlyArray<PropertyKey>): LazyArbitrary<any> => {
   const hook = getHook(ast)
   if (Option.isSome(hook)) {
@@ -110,7 +107,7 @@ const go = (ast: AST.AST, options: Options, path: ReadonlyArray<PropertyKey>): L
   }
   switch (ast._tag) {
     case "Declaration": {
-      throw new Error(getArbitraryErrorMessage(`a declaration without annotations (${ast})`, path))
+      throw new Error(errors_.getArbitraryMissingAnnotationErrorMessage(path, ast))
     }
     case "Literal":
       return (fc) => fc.constant(ast.literal)
@@ -121,7 +118,7 @@ const go = (ast: AST.AST, options: Options, path: ReadonlyArray<PropertyKey>): L
       return (fc) => fc.constant(undefined)
     case "NeverKeyword":
       return () => {
-        throw new Error(getArbitraryErrorMessage("`never`", path))
+        throw new Error(errors_.getArbitraryUnsupportedErrorMessage(path, ast))
       }
     case "UnknownKeyword":
     case "AnyKeyword":
@@ -190,7 +187,7 @@ const go = (ast: AST.AST, options: Options, path: ReadonlyArray<PropertyKey>): L
           hasOptionals = true
         }
       }
-      const rest = ast.rest.map((e) => go(e, options, path))
+      const rest = ast.rest.map((annotatedAST) => go(annotatedAST.type, options, path))
       return (fc) => {
         // ---------------------------------------------
         // handle elements
@@ -283,7 +280,7 @@ const go = (ast: AST.AST, options: Options, path: ReadonlyArray<PropertyKey>): L
     }
     case "Enums": {
       if (ast.enums.length === 0) {
-        throw new Error(getArbitraryErrorMessage("an empty enum", path))
+        throw new Error(errors_.getArbitraryEmptyEnumErrorMessage(path))
       }
       return (fc) => fc.oneof(...ast.enums.map(([_, value]) => fc.constant(value)))
     }

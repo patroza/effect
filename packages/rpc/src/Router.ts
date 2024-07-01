@@ -204,7 +204,7 @@ export const toHandler = <R extends Router<any, any>>(router: R, options?: {
         Schema.transform(
           rpc.schema,
           Schema.typeSchema(Schema.Tuple(rpc.schema, Schema.Any)),
-          { decode: (request) => [request, rpc] as const, encode: ([request]) => request }
+          { strict: true, decode: (request) => [request, rpc] as const, encode: ([request]) => request }
         )
       )
     )
@@ -244,7 +244,8 @@ export const toHandler = <R extends Router<any, any>>(router: R, options?: {
                     spanId: req.spanId,
                     sampled: req.sampled,
                     context: Context.empty()
-                  }
+                  },
+                  captureStackTrace: false
                 })
               )
             }
@@ -276,7 +277,8 @@ export const toHandler = <R extends Router<any, any>>(router: R, options?: {
                   spanId: req.spanId,
                   sampled: req.sampled,
                   context: Context.empty()
-                }
+                },
+                captureStackTrace: false
               })
             )
           }, { concurrency: "unbounded", discard: true }),
@@ -303,7 +305,7 @@ export const toHandlerEffect = <R extends Router<any, any>>(router: R, options?:
         Schema.transform(
           rpc.schema,
           Schema.typeSchema(Schema.Tuple(rpc.schema, Schema.Any)),
-          { decode: (request) => [request, rpc] as const, encode: ([request]) => request }
+          { strict: true, decode: (request) => [request, rpc] as const, encode: ([request]) => request }
         )
       )
     )
@@ -332,7 +334,8 @@ export const toHandlerEffect = <R extends Router<any, any>>(router: R, options?:
                 spanId: req.spanId,
                 sampled: req.sampled,
                 context: Context.empty()
-              }
+              },
+              captureStackTrace: false
             })
           )
         }
@@ -352,7 +355,8 @@ export const toHandlerEffect = <R extends Router<any, any>>(router: R, options?:
               spanId: req.spanId,
               sampled: req.sampled,
               context: Context.empty()
-            }
+            },
+            captureStackTrace: false
           })
         )
       }, { concurrency: "unbounded" })
@@ -372,7 +376,7 @@ export const toHandlerRaw = <R extends Router<any, any>>(router: R) => {
     Schema.transform(
       Schema.typeSchema(rpc.schema),
       Schema.typeSchema(Schema.Tuple(rpc.schema, Schema.Any)),
-      { decode: (request) => [request, rpc] as const, encode: ([request]) => request }
+      { strict: true, decode: (request) => [request, rpc] as const, encode: ([request]) => request }
     )
   ))
   const parse = Schema.decode(schema)
@@ -408,6 +412,6 @@ export const toHandlerUndecoded = <R extends Router<any, any>>(router: R) => {
       return Effect.flatMap(result, encode) as any
     }
     const encode = getEncodeChunk(request)
-    return Stream.mapChunksEffect(result, encode) as any
+    return Stream.mapChunksEffect(result as any, encode) as any
   }
 }

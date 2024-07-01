@@ -47,7 +47,7 @@ describe("ParseResult", () => {
   it("Error.stack", () => {
     expect(
       P.parseError(new P.Type(S.String.ast, 1)).stack?.startsWith(
-        `ParseError: Expected a string, actual 1`
+        `ParseError: Expected string, actual 1`
       )
     )
       .toEqual(true)
@@ -159,36 +159,44 @@ describe("ParseIssue.actual", () => {
     const result = S.decodeEither(S.transformOrFail(
       S.NumberFromString,
       S.Boolean,
-      { decode: (n, _, ast) => P.fail(new P.Type(ast, n)), encode: (b, _, ast) => P.fail(new P.Type(ast, b)) }
+      {
+        strict: true,
+        decode: (n, _, ast) => P.fail(new P.Type(ast, n)),
+        encode: (b, _, ast) => P.fail(new P.Type(ast, b))
+      }
     ))("1")
     if (Either.isRight(result)) throw new Error("Expected failure")
-    expect(result.left.error.actual).toEqual("1")
-    expect((result.left.error as P.Transformation).error.actual).toEqual(1)
+    expect(result.left.issue.actual).toEqual("1")
+    expect((result.left.issue as P.Transformation).issue.actual).toEqual(1)
   })
 
   it("transform encode", () => {
     const result = S.encodeEither(S.transformOrFail(
       S.Boolean,
       S.NumberFromString,
-      { decode: (n, _, ast) => P.fail(new P.Type(ast, n)), encode: (b, _, ast) => P.fail(new P.Type(ast, b)) }
+      {
+        strict: true,
+        decode: (n, _, ast) => P.fail(new P.Type(ast, n)),
+        encode: (b, _, ast) => P.fail(new P.Type(ast, b))
+      }
     ))(1)
     if (Either.isRight(result)) throw new Error("Expected failure")
-    expect(result.left.error.actual).toEqual(1)
-    expect((result.left.error as P.Transformation).error.actual).toEqual("1")
+    expect(result.left.issue.actual).toEqual(1)
+    expect((result.left.issue as P.Transformation).issue.actual).toEqual("1")
   })
 
   it("compose decode", () => {
     const result = S.decodeEither(S.compose(S.NumberFromString, S.negative()(S.Number)))("1")
     if (Either.isRight(result)) throw new Error("Expected failure")
-    expect(result.left.error.actual).toEqual("1")
-    expect((result.left.error as P.Transformation).error.actual).toEqual(1)
+    expect(result.left.issue.actual).toEqual("1")
+    expect((result.left.issue as P.Transformation).issue.actual).toEqual(1)
   })
 
   it("compose encode", () => {
     const result = S.encodeEither(S.compose(S.length(5)(S.String), S.NumberFromString))(1)
     if (Either.isRight(result)) throw new Error("Expected failure")
-    expect(result.left.error.actual).toEqual(1)
-    expect((result.left.error as P.Transformation).error.actual).toEqual("1")
+    expect(result.left.issue.actual).toEqual(1)
+    expect((result.left.issue as P.Transformation).issue.actual).toEqual("1")
   })
 
   it("decode", () => {
@@ -199,19 +207,25 @@ describe("ParseIssue.actual", () => {
     expect(Either.isEither(P.encode(S.String)("a")))
   })
 
-  it("mergeParseOptions", () => {
-    expect(P.mergeParseOptions(undefined, undefined)).toStrictEqual(undefined)
-    expect(P.mergeParseOptions({}, undefined)).toStrictEqual({})
-    expect(P.mergeParseOptions(undefined, {})).toStrictEqual({})
-    expect(P.mergeParseOptions({ errors: undefined }, undefined)).toStrictEqual({ errors: undefined })
-    expect(P.mergeParseOptions(undefined, { errors: undefined })).toStrictEqual({ errors: undefined })
-    expect(P.mergeParseOptions({ errors: "all" }, { errors: "first" })).toStrictEqual({
-      errors: "first",
-      onExcessProperty: undefined
+  it("mergeInternalOptions", () => {
+    expect(P.mergeInternalOptions(undefined, undefined)).toStrictEqual(undefined)
+    expect(P.mergeInternalOptions({}, undefined)).toStrictEqual({})
+    expect(P.mergeInternalOptions(undefined, {})).toStrictEqual({})
+    expect(P.mergeInternalOptions({ errors: undefined }, undefined)).toStrictEqual({ errors: undefined })
+    expect(P.mergeInternalOptions(undefined, { errors: undefined })).toStrictEqual({ errors: undefined })
+    expect(P.mergeInternalOptions({ errors: "all" }, { errors: "first" })).toStrictEqual({
+      errors: "first"
     })
-    expect(P.mergeParseOptions({ onExcessProperty: "ignore" }, { onExcessProperty: "error" })).toStrictEqual({
-      onExcessProperty: "error",
-      errors: undefined
+    expect(P.mergeInternalOptions({ onExcessProperty: "ignore" }, { onExcessProperty: "error" })).toStrictEqual({
+      onExcessProperty: "error"
+    })
+    expect(P.mergeInternalOptions({}, { exact: false })).toStrictEqual({ exact: false })
+    expect(P.mergeInternalOptions({ exact: true }, { exact: false })).toStrictEqual({ exact: false })
+
+    expect(P.mergeInternalOptions({ isEffectAllowed: true }, {})).toStrictEqual({ isEffectAllowed: true })
+    expect(P.mergeInternalOptions({}, { isEffectAllowed: true })).toStrictEqual({ isEffectAllowed: true })
+    expect(P.mergeInternalOptions({ isEffectAllowed: false }, { isEffectAllowed: true })).toStrictEqual({
+      isEffectAllowed: true
     })
   })
 
@@ -219,7 +233,7 @@ describe("ParseIssue.actual", () => {
     const schema = S.String
     expect(P.asserts(schema)("a")).toEqual(undefined)
     expect(() => P.asserts(schema)(1)).toThrow(
-      new Error(`Expected a string, actual 1`)
+      new Error(`Expected string, actual 1`)
     )
   })
 
@@ -269,7 +283,7 @@ describe("ParseIssue.actual", () => {
             _tag: S.transform(
               S.Literal("a"),
               S.Literal("b"),
-              { decode: () => "b" as const, encode: () => "a" as const }
+              { strict: true, decode: () => "b" as const, encode: () => "a" as const }
             )
           })
             .ast,

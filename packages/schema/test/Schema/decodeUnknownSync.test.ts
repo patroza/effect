@@ -1,8 +1,17 @@
+import * as ParseResult from "@effect/schema/ParseResult"
 import * as S from "@effect/schema/Schema"
 import * as Util from "@effect/schema/test/TestUtils"
 import { describe, expect, it } from "vitest"
 
 describe("decodeUnknownSync", () => {
+  it("the returned error should be a ParseError", () => {
+    try {
+      S.decodeUnknownSync(S.String)(1)
+    } catch (e) {
+      expect(ParseResult.isParseError(e)).toBe(true)
+    }
+  })
+
   it("should throw on async", () => {
     expect(() => S.decodeUnknownSync(Util.AsyncString)("a")).toThrow(
       new Error(

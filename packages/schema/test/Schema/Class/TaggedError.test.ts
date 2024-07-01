@@ -11,14 +11,6 @@ describe("TaggedError", () => {
     expect(TE._tag).toBe("TE")
   })
 
-  it("should accept a simple object as argument", () => {
-    const fields = { a: S.String, b: S.Number }
-    class A extends S.TaggedError<A>()("A", { fields }) {}
-    Util.expectFields(A.fields, { _tag: S.getClassTag("A"), ...fields })
-    class B extends S.TaggedError<B>()("B", { from: { fields } }) {}
-    Util.expectFields(B.fields, { _tag: S.getClassTag("B"), ...fields })
-  })
-
   it("should accept a Struct as argument", () => {
     const fields = { a: S.String, b: S.Number }
     class A extends S.TaggedError<A>()("A", S.Struct(fields)) {}
@@ -86,5 +78,19 @@ describe("TaggedError", () => {
     expect(err.stack).toContain("TaggedError.test.ts:")
     expect(err._tag).toEqual("MyError")
     expect(err.id).toEqual(1)
+  })
+
+  it("should expose a make constructor", () => {
+    class A extends S.TaggedError<A>()("A", {
+      n: S.NumberFromString
+    }) {
+      a() {
+        return this.n + "a"
+      }
+    }
+    const a = A.make({ n: 1 })
+    expect(a instanceof A).toEqual(true)
+    expect(a._tag).toEqual("A")
+    expect(a.a()).toEqual("1a")
   })
 })

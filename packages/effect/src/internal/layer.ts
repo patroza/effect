@@ -8,6 +8,7 @@ import type { FiberRef } from "../FiberRef.js"
 import * as FiberRefsPatch from "../FiberRefsPatch.js"
 import type { LazyArg } from "../Function.js"
 import { dual, pipe } from "../Function.js"
+import * as HashMap from "../HashMap.js"
 import type * as Layer from "../Layer.js"
 import { pipeArguments } from "../Pipeable.js"
 import { hasProperty } from "../Predicate.js"
@@ -1109,11 +1110,73 @@ export const unwrapScoped = <A, E1, R1, E, R>(
 }
 
 // -----------------------------------------------------------------------------
+// logging
+// -----------------------------------------------------------------------------
+
+export const annotateLogs = dual<
+  {
+    (key: string, value: unknown): <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>
+    (
+      values: Record<string, unknown>
+    ): <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>
+  },
+  {
+    <A, E, R>(self: Layer.Layer<A, E, R>, key: string, value: unknown): Layer.Layer<A, E, R>
+    <A, E, R>(self: Layer.Layer<A, E, R>, values: Record<string, unknown>): Layer.Layer<A, E, R>
+  }
+>(
+  (args) => isLayer(args[0]),
+  function<A, E, R>() {
+    const args = arguments
+    return fiberRefLocallyWith(
+      args[0] as Layer.Layer<A, E, R>,
+      core.currentLogAnnotations,
+      typeof args[1] === "string"
+        ? HashMap.set(args[1], args[2])
+        : (annotations) =>
+          Object.entries(args[1] as Record<string, unknown>).reduce(
+            (acc, [key, value]) => HashMap.set(acc, key, value),
+            annotations
+          )
+    )
+  }
+)
+
+// -----------------------------------------------------------------------------
 // tracing
 // -----------------------------------------------------------------------------
 
+export const annotateSpans = dual<
+  {
+    (key: string, value: unknown): <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>
+    (
+      values: Record<string, unknown>
+    ): <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, R>
+  },
+  {
+    <A, E, R>(self: Layer.Layer<A, E, R>, key: string, value: unknown): Layer.Layer<A, E, R>
+    <A, E, R>(self: Layer.Layer<A, E, R>, values: Record<string, unknown>): Layer.Layer<A, E, R>
+  }
+>(
+  (args) => isLayer(args[0]),
+  function<A, E, R>() {
+    const args = arguments
+    return fiberRefLocallyWith(
+      args[0] as Layer.Layer<A, E, R>,
+      core.currentTracerSpanAnnotations,
+      typeof args[1] === "string"
+        ? HashMap.set(args[1], args[2])
+        : (annotations) =>
+          Object.entries(args[1] as Record<string, unknown>).reduce(
+            (acc, [key, value]) => HashMap.set(acc, key, value),
+            annotations
+          )
+    )
+  }
+)
+
 /** @internal */
-export const withSpan = dual<
+export const withSpan: {
   (
     name: string,
     options?: Tracer.SpanOptions & {
@@ -1121,7 +1184,7 @@ export const withSpan = dual<
         | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
         | undefined
     }
-  ) => <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>,
+  ): <A, E, R>(self: Layer.Layer<A, E, R>) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
   <A, E, R>(
     self: Layer.Layer<A, E, R>,
     name: string,
@@ -1130,19 +1193,42 @@ export const withSpan = dual<
         | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
         | undefined
     }
-  ) => Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
->((args) => isLayer(args[0]), (self, name, options) =>
-  unwrapScoped(
-    core.map(
-      options?.onEnd
-        ? core.tap(
-          fiberRuntime.makeSpanScoped(name, options),
-          (span) => fiberRuntime.addFinalizer((exit) => options.onEnd!(span, exit))
-        )
-        : fiberRuntime.makeSpanScoped(name, options),
-      (span) => withParentSpan(self, span)
+  ): Layer.Layer<A, E, Exclude<R, Tracer.ParentSpan>>
+} = function() {
+  const dataFirst = typeof arguments[0] !== "string"
+  const name = dataFirst ? arguments[1] : arguments[0]
+  const options = tracer.addSpanStackTrace(dataFirst ? arguments[2] : arguments[1]) as Tracer.SpanOptions & {
+    readonly onEnd?:
+      | ((span: Tracer.Span, exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>)
+      | undefined
+  }
+  if (dataFirst) {
+    const self = arguments[0]
+    return unwrapScoped(
+      core.map(
+        options?.onEnd
+          ? core.tap(
+            fiberRuntime.makeSpanScoped(name, options),
+            (span) => fiberRuntime.addFinalizer((exit) => options.onEnd!(span, exit))
+          )
+          : fiberRuntime.makeSpanScoped(name, options),
+        (span) => withParentSpan(self, span)
+      )
     )
-  ))
+  }
+  return (self: Layer.Layer<any, any, any>) =>
+    unwrapScoped(
+      core.map(
+        options?.onEnd
+          ? core.tap(
+            fiberRuntime.makeSpanScoped(name, options),
+            (span) => fiberRuntime.addFinalizer((exit) => options.onEnd!(span, exit))
+          )
+          : fiberRuntime.makeSpanScoped(name, options),
+        (span) => withParentSpan(self, span)
+      )
+    )
+} as any
 
 /** @internal */
 export const withParentSpan = dual<
@@ -1181,6 +1267,7 @@ const provideSomeRuntime = dual<
   const patchFlags = runtimeFlags.diff(runtime.defaultRuntime.runtimeFlags, rt.runtimeFlags)
   return core.uninterruptibleMask((restore) =>
     core.withFiberRuntime((fiber) => {
+      const oldContext = fiber.getFiberRef(core.currentContext)
       const oldRefs = fiber.getFiberRefs()
       const newRefs = FiberRefsPatch.patch(fiber.id(), oldRefs)(patchRefs)
       const oldFlags = fiber._runtimeFlags
@@ -1190,7 +1277,7 @@ const provideSomeRuntime = dual<
       fiber.setFiberRefs(newRefs)
       fiber._runtimeFlags = newFlags
       return fiberRuntime.ensuring(
-        core.provideSomeContext(restore(self), rt.context),
+        core.provideSomeContext(restore(self), Context.merge(oldContext, rt.context)),
         core.withFiberRuntime((fiber) => {
           fiber.setFiberRefs(FiberRefsPatch.patch(fiber.id(), fiber.getFiberRefs())(rollbackRefs))
           fiber._runtimeFlags = runtimeFlags.patch(rollbackFlags)(fiber._runtimeFlags)

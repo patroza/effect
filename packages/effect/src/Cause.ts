@@ -36,6 +36,7 @@ import type { Pipeable } from "./Pipeable.js"
 import type { Predicate, Refinement } from "./Predicate.js"
 import type * as Sink from "./Sink.js"
 import type * as Stream from "./Stream.js"
+import type { Span } from "./Tracer.js"
 import type { Covariant, NoInfer } from "./Types.js"
 
 /**
@@ -191,7 +192,7 @@ export interface CauseReducer<in C, in E, in out Z> {
  */
 export interface YieldableError extends Pipeable, Inspectable, Readonly<Error> {
   readonly [Effect.EffectTypeId]: Effect.Effect.VarianceStruct<never, this, never>
-  readonly [Stream.StreamTypeId]: Effect.Effect.VarianceStruct<never, this, never>
+  readonly [Stream.StreamTypeId]: Stream.Stream.VarianceStruct<never, this, never>
   readonly [Sink.SinkTypeId]: Sink.Sink.VarianceStruct<never, unknown, never, this, never>
   readonly [Channel.ChannelTypeId]: Channel.Channel.VarianceStruct<never, unknown, this, unknown, never, unknown, never>
   [Symbol.iterator](): Effect.EffectGenerator<Effect.Effect<never, this, never>>
@@ -913,6 +914,22 @@ export const isUnknownException: (u: unknown) => u is UnknownException = core.is
  * @category rendering
  */
 export const pretty: <E>(cause: Cause<E>) => string = internal.pretty
+
+/**
+ * @since 3.2.0
+ * @category models
+ */
+export interface PrettyError extends Error {
+  readonly span: Span | undefined
+}
+
+/**
+ * Returns the specified `Cause` as a pretty-printed string.
+ *
+ * @since 3.2.0
+ * @category rendering
+ */
+export const prettyErrors: <E>(cause: Cause<E>) => Array<PrettyError> = internal.prettyErrors
 
 /**
  * Returns the original, unproxied, instance of a thrown error

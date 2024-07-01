@@ -50,6 +50,7 @@ import * as SinkEndReason from "./stream/sinkEndReason.js"
 import * as ZipAllState from "./stream/zipAllState.js"
 import * as ZipChunksState from "./stream/zipChunksState.js"
 import * as InternalTake from "./take.js"
+import * as InternalTracer from "./tracer.js"
 
 /** @internal */
 const StreamSymbolKey = "effect/Stream"
@@ -6541,45 +6542,103 @@ export const toQueueOfElements = dual<
   ))
 
 /** @internal */
-export const toReadableStream = <A, E>(source: Stream.Stream<A, E>) => {
-  let pull: Effect.Effect<void>
-  let scope: Scope.CloseableScope
-  return new ReadableStream<A>({
-    start(controller) {
-      scope = Effect.runSync(Scope.make())
-      pull = pipe(
-        toPull(source),
-        Scope.use(scope),
-        Effect.runSync,
-        Effect.tap((chunk) =>
-          Effect.sync(() => {
-            Chunk.map(chunk, (a) => {
-              controller.enqueue(a)
-            })
-          })
-        ),
-        Effect.tapErrorCause(() => Scope.close(scope, Exit.void)),
-        Effect.catchTags({
-          "None": () =>
+export const toReadableStream = dual<
+  <A>(
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => <E>(self: Stream.Stream<A, E>) => ReadableStream<A>,
+  <A, E>(
+    self: Stream.Stream<A, E>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => ReadableStream<A>
+>(
+  (args) => isStream(args[0]),
+  <A, E>(
+    self: Stream.Stream<A, E>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => toReadableStreamRuntime(self, Runtime.defaultRuntime, options)
+)
+
+/** @internal */
+export const toReadableStreamEffect = dual<
+  <A>(
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => <E, R>(self: Stream.Stream<A, E, R>) => Effect.Effect<ReadableStream<A>, never, R>,
+  <A, E, R>(
+    self: Stream.Stream<A, E, R>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => Effect.Effect<ReadableStream<A>, never, R>
+>(
+  (args) => isStream(args[0]),
+  <A, E, R>(
+    self: Stream.Stream<A, E, R>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => Effect.map(Effect.runtime<R>(), (runtime) => toReadableStreamRuntime(self, runtime, options))
+)
+
+/** @internal */
+export const toReadableStreamRuntime = dual<
+  <A, XR>(
+    runtime: Runtime.Runtime<XR>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => <E, R extends XR>(self: Stream.Stream<A, E, R>) => ReadableStream<A>,
+  <A, E, XR, R extends XR>(
+    self: Stream.Stream<A, E, R>,
+    runtime: Runtime.Runtime<XR>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ) => ReadableStream<A>
+>(
+  (args) => isStream(args[0]),
+  <A, E, XR, R extends XR>(
+    self: Stream.Stream<A, E, R>,
+    runtime: Runtime.Runtime<XR>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): ReadableStream<A> => {
+    const runSync = Runtime.runSync(runtime)
+    const runFork = Runtime.runFork(runtime)
+
+    let pull: Effect.Effect<void, never, R>
+    let scope: Scope.CloseableScope
+    return new ReadableStream<A>({
+      start(controller) {
+        scope = runSync(Scope.make())
+        pull = pipe(
+          toPull(self),
+          Scope.extend(scope),
+          runSync,
+          Effect.tap((chunk) =>
             Effect.sync(() => {
-              controller.close()
-            }),
-          "Some": (error) =>
-            Effect.sync(() => {
-              controller.error(error.value)
+              Chunk.map(chunk, (a) => {
+                controller.enqueue(a)
+              })
             })
-        }),
-        Effect.asVoid
-      )
-    },
-    pull() {
-      return Effect.runPromise(pull)
-    },
-    cancel() {
-      return Effect.runPromise(Scope.close(scope, Exit.void))
-    }
-  })
-}
+          ),
+          Effect.tapErrorCause(() => Scope.close(scope, Exit.void)),
+          Effect.catchTags({
+            "None": () =>
+              Effect.sync(() => {
+                controller.close()
+              }),
+            "Some": (error) =>
+              Effect.sync(() => {
+                controller.error(error.value)
+              })
+          }),
+          Effect.asVoid
+        )
+      },
+      pull() {
+        return new Promise<void>((resolve) => {
+          runFork(pull, { scope }).addObserver((_) => resolve())
+        })
+      },
+      cancel() {
+        return new Promise<void>((resolve) => {
+          runFork(Scope.close(scope, Exit.void)).addObserver((_) => resolve())
+        })
+      }
+    }, options?.strategy)
+  }
+)
 
 /** @internal */
 export const transduce = dual<
@@ -6801,17 +6860,26 @@ export const whenEffect = dual<
 )
 
 /** @internal */
-export const withSpan = dual<
+export const withSpan: {
   (
     name: string,
     options?: Tracer.SpanOptions
-  ) => <A, E, R>(self: Stream.Stream<A, E, R>) => Stream.Stream<A, E, Exclude<R, Tracer.ParentSpan>>,
+  ): <A, E, R>(self: Stream.Stream<A, E, R>) => Stream.Stream<A, E, Exclude<R, Tracer.ParentSpan>>
   <A, E, R>(
     self: Stream.Stream<A, E, R>,
     name: string,
     options?: Tracer.SpanOptions
-  ) => Stream.Stream<A, E, Exclude<R, Tracer.ParentSpan>>
->(3, (self, name, options) => new StreamImpl(channel.withSpan(toChannel(self), name, options)))
+  ): Stream.Stream<A, E, Exclude<R, Tracer.ParentSpan>>
+} = function() {
+  const dataFirst = typeof arguments[0] !== "string"
+  const name = dataFirst ? arguments[1] : arguments[0]
+  const options = InternalTracer.addSpanStackTrace(dataFirst ? arguments[2] : arguments[1])
+  if (dataFirst) {
+    const self = arguments[0]
+    return new StreamImpl(channel.withSpan(toChannel(self), name, options))
+  }
+  return (self: Stream.Stream<any, any, any>) => new StreamImpl(channel.withSpan(toChannel(self), name, options))
+} as any
 
 /** @internal */
 export const zip = dual<
@@ -7541,6 +7609,27 @@ export const zipLatest = dual<
   ): Stream.Stream<[A, A2], E2 | E, R2 | R> => pipe(self, zipLatestWith(that, (a, a2) => [a, a2]))
 )
 
+export const zipLatestAll = <T extends ReadonlyArray<Stream.Stream<any, any, any>>>(
+  ...streams: T
+): Stream.Stream<
+  [T[number]] extends [never] ? never
+    : { [K in keyof T]: T[K] extends Stream.Stream<infer A, infer _E, infer _R> ? A : never },
+  [T[number]] extends [never] ? never : T[number] extends Stream.Stream<infer _A, infer _E, infer _R> ? _E : never,
+  [T[number]] extends [never] ? never : T[number] extends Stream.Stream<infer _A, infer _E, infer _R> ? _R : never
+> => {
+  if (streams.length === 0) {
+    return empty
+  } else if (streams.length === 1) {
+    return map(streams[0]!, (x) => [x]) as any
+  }
+  const [head, ...tail] = streams
+  return zipLatestWith(
+    head,
+    zipLatestAll(...tail),
+    (first, second) => [first, ...second]
+  ) as any
+}
+
 /** @internal */
 export const zipLatestWith = dual<
   <A2, E2, R2, A, A3>(
@@ -8014,10 +8103,14 @@ export const encodeText = <E, R>(self: Stream.Stream<string, E, R>): Stream.Stre
   })
 
 /** @internal */
-export const fromEventListener = <A = Event>(
-  target: EventTarget,
+export const fromEventListener = <A = unknown>(
+  target: Stream.EventListener<A>,
   type: string,
-  options?: boolean | Omit<AddEventListenerOptions, "signal">
+  options?: boolean | {
+    readonly capture?: boolean
+    readonly passive?: boolean
+    readonly once?: boolean
+  } | undefined
 ): Stream.Stream<A> =>
   _async<A>((emit) => {
     let batch: Array<A> = []
@@ -8035,5 +8128,5 @@ export const fromEventListener = <A = Event>(
       }
     }
     target.addEventListener(type, cb as any, options)
-    return Effect.sync(() => target.removeEventListener(type, cb as any, options))
+    return Effect.sync(() => target.removeEventListener(type, cb, options))
   })

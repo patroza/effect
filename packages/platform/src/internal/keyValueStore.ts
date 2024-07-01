@@ -1,9 +1,11 @@
 import * as Schema from "@effect/schema/Schema"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
+import type { LazyArg } from "effect/Function"
 import { dual, pipe } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as PlatformError from "../Error.js"
 import * as FileSystem from "../FileSystem.js"
 import type * as KeyValueStore from "../KeyValueStore.js"
 import * as Path from "../Path.js"
@@ -71,7 +73,7 @@ export const SchemaStoreTypeId: KeyValueStore.SchemaStoreTypeId = Symbol.for(
 const makeSchemaStore = <A, I, R>(
   store: KeyValueStore.KeyValueStore,
   schema: Schema.Schema<A, I, R>
-): KeyValueStore.SchemaStore<R, A> => {
+): KeyValueStore.SchemaStore<A, R> => {
   const jsonSchema = Schema.parseJson(schema)
   const parse = Schema.decodeUnknown(jsonSchema)
   const encode = Schema.encode(jsonSchema)
@@ -170,7 +172,75 @@ export const layerSchema = <A, I, R>(
   schema: Schema.Schema<A, I, R>,
   tagIdentifier: string
 ) => {
-  const tag = Context.GenericTag<KeyValueStore.SchemaStore<R, A>>(tagIdentifier)
+  const tag = Context.GenericTag<KeyValueStore.SchemaStore<A, R>>(tagIdentifier)
   const layer = Layer.effect(tag, Effect.map(keyValueStoreTag, (store) => store.forSchema(schema)))
   return { tag, layer } as const
 }
+
+/** @internal */
+const storageError = (props: Omit<Parameters<typeof PlatformError.SystemError>[0], "reason" | "module">) =>
+  PlatformError.SystemError({
+    reason: "PermissionDenied",
+    module: "KeyValueStore",
+    ...props
+  })
+
+/** @internal */
+export const layerStorage = (evaluate: LazyArg<Storage>) =>
+  Layer.sync(keyValueStoreTag, () => {
+    const storage = evaluate()
+    return make({
+      get: (key: string) =>
+        Effect.try({
+          try: () => Option.fromNullable(storage.getItem(key)),
+          catch: () =>
+            storageError({
+              pathOrDescriptor: key,
+              method: "get",
+              message: `Unable to get item with key ${key}`
+            })
+        }),
+
+      set: (key: string, value: string) =>
+        Effect.try({
+          try: () => storage.setItem(key, value),
+          catch: () =>
+            storageError({
+              pathOrDescriptor: key,
+              method: "set",
+              message: `Unable to set item with key ${key}`
+            })
+        }),
+
+      remove: (key: string) =>
+        Effect.try({
+          try: () => storage.removeItem(key),
+          catch: () =>
+            storageError({
+              pathOrDescriptor: key,
+              method: "remove",
+              message: `Unable to remove item with key ${key}`
+            })
+        }),
+
+      clear: Effect.try({
+        try: () => storage.clear(),
+        catch: () =>
+          storageError({
+            pathOrDescriptor: "clear",
+            method: "clear",
+            message: `Unable to clear storage`
+          })
+      }),
+
+      size: Effect.try({
+        try: () => storage.length,
+        catch: () =>
+          storageError({
+            pathOrDescriptor: "size",
+            method: "size",
+            message: `Unable to get size`
+          })
+      })
+    })
+  })

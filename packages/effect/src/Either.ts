@@ -290,10 +290,9 @@ export const getEquivalence = <R, L>({ left, right }: {
   left: Equivalence.Equivalence<L>
 }): Equivalence.Equivalence<Either<R, L>> =>
   Equivalence.make((x, y) =>
-    x === y ||
-    (isLeft(x) ?
+    isLeft(x) ?
       isLeft(y) && left(x.left, y.left) :
-      isRight(y) && right(x.right, y.right))
+      isRight(y) && right(x.right, y.right)
   )
 
 /**
@@ -388,6 +387,57 @@ export const match: {
     readonly onLeft: (left: L) => B
     readonly onRight: (right: R) => C
   }): B | C => isLeft(self) ? onLeft(self.left) : onRight(self.right)
+)
+
+/**
+ * Transforms a `Predicate` function into a `Right` of the input value if the predicate returns `true`
+ * or `Left` of the result of the provided function if the predicate returns false
+ *
+ * @param predicate - A `Predicate` function that takes in a value of type `A` and returns a boolean.
+ *
+ * @example
+ * import { pipe, Either } from "effect"
+ *
+ * const isPositive = (n: number): boolean => n > 0
+ *
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     1,
+ *     Either.liftPredicate(isPositive, n => `${n} is not positive`)
+ *   ),
+ *   Either.right(1)
+ * )
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     0,
+ *     Either.liftPredicate(isPositive, n => `${n} is not positive`)
+ *   ),
+ *   Either.left("0 is not positive")
+ * )
+ *
+ * @category lifting
+ * @since 3.4.0
+ */
+export const liftPredicate: {
+  <A, B extends A, E>(refinement: Refinement<NoInfer<A>, B>, orLeftWith: (a: NoInfer<A>) => E): (a: A) => Either<B, E>
+  <A, E>(
+    predicate: Predicate<NoInfer<A>>,
+    orLeftWith: (a: NoInfer<A>) => E
+  ): (a: A) => Either<A, E>
+  <A, E, B extends A>(
+    self: A,
+    refinement: Refinement<A, B>,
+    orLeftWith: (a: A) => E
+  ): Either<B, E>
+  <A, E>(
+    self: A,
+    predicate: Predicate<NoInfer<A>>,
+    orLeftWith: (a: NoInfer<A>) => E
+  ): Either<A, E>
+} = dual(
+  3,
+  <A, E>(a: A, predicate: Predicate<A>, orLeftWith: (a: A) => E): Either<A, E> =>
+    predicate(a) ? right(a) : left(orLeftWith(a))
 )
 
 /**
@@ -700,7 +750,10 @@ const adapter = Gen.adapter<EitherTypeLambda>()
  * @category generators
  * @since 2.0.0
  */
-export const gen: Gen.Gen<EitherTypeLambda, Gen.Adapter<EitherTypeLambda>> = (f) => {
+export const gen: Gen.Gen<EitherTypeLambda, Gen.Adapter<EitherTypeLambda>> = (...args) => {
+  const f = (args.length === 1)
+    ? args[0]
+    : args[1].bind(args[0])
   const iterator = f(adapter)
   let state: IteratorYieldResult<any> | IteratorReturnResult<any> = iterator.next()
   if (state.done) {

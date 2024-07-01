@@ -10,6 +10,7 @@ import { pipe } from "effect/Function"
 import * as HashSet from "effect/HashSet"
 import * as LogLevel from "effect/LogLevel"
 import * as Option from "effect/Option"
+import * as Redacted from "effect/Redacted"
 import * as Secret from "effect/Secret"
 import { assert, describe, expect, it } from "vitest"
 
@@ -385,29 +386,40 @@ describe("Config", () => {
         _: Config.Config.Wrap<{
           key1: number
           list: ReadonlyArray<number>
-          nested: {
-            key2: string
-          }
+          option: Option.Option<number>
+          secret: Redacted.Redacted
+          nested?:
+            | Partial<{
+              key2: string
+            }>
+            | undefined
         }>
       ) => Config.unwrap(_)
 
       const config = wrapper({
         key1: Config.integer("key1"),
         list: Config.array(Config.integer(), "items"),
+        option: Config.option(Config.integer("option")),
+        secret: Config.redacted("secret"),
         nested: {
           key2: Config.string("key2")
         }
       })
-      assertSuccess(config, [["key1", "123"], ["items", "1,2,3"], ["key2", "value"]], {
+      assertSuccess(config, [["key1", "123"], ["items", "1,2,3"], ["option", "123"], ["secret", "sauce"], [
+        "key2",
+        "value"
+      ]], {
         key1: 123,
         list: [1, 2, 3],
+        option: Option.some(123),
+        secret: Redacted.make("sauce"),
         nested: {
           key2: "value"
         }
       })
       assertFailure(
         config,
-        [["key1", "123"], ["items", "1,value,3"], ["key2", "value"]],
+        [["key1", "123"], ["items", "1,value,3"], ["option", "123"], ["secret", "sauce"], ["key2", "value"]],
         ConfigError.InvalidData(["items"], "Expected an integer value but received value")
       )
     })
@@ -460,6 +472,18 @@ describe("Config", () => {
         [["NUMBER", "1"], ["BOOL", "value"]],
         ConfigError.InvalidData(["BOOL"], "Expected a boolean value but received value")
       )
+    })
+  })
+
+  describe("Config.redacted", () => {
+    it("name = undefined", () => {
+      const config = Config.array(Config.redacted(), "ITEMS")
+      assertSuccess(config, [["ITEMS", "a"]], [Redacted.make("a")])
+    })
+
+    it("name != undefined", () => {
+      const config = Config.redacted("SECRET")
+      assertSuccess(config, [["SECRET", "a"]], Redacted.make("a"))
     })
   })
 

@@ -3,6 +3,12 @@ import * as S from "@effect/schema/Schema"
 import { describe, expect, it } from "vitest"
 
 describe("encodedAST", () => {
+  it("refinements", () => {
+    const ast = S.String.pipe(S.minLength(2)).ast
+    const encodedAST = AST.encodedAST(ast)
+    expect(encodedAST).toBe(S.String.ast)
+  })
+
   describe(`should return the same reference if the AST doesn't represent a transformation`, () => {
     it("declaration (true)", () => {
       const schema = S.OptionFromSelf(S.String)

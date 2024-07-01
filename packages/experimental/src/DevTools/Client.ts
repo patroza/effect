@@ -121,12 +121,7 @@ export const make: Effect.Effect<ClientImpl, never, Scope.Scope | Socket.Socket>
         }
       }
     }),
-    Effect.tapErrorCause(Effect.logDebug),
-    Effect.retry(
-      Schedule.exponential("500 millis").pipe(
-        Schedule.union(Schedule.spaced("10 seconds"))
-      )
-    ),
+    Effect.retry(Schedule.spaced("3 seconds")),
     Effect.forkScoped,
     Effect.interruptible
   )
@@ -199,11 +194,9 @@ export const makeTracer: Effect.Effect<Tracer.Tracer, never, Client> = Effect.ge
  * @since 1.0.0
  * @category layers
  */
-export const layerTracer = (url = "ws://localhost:34437"): Layer.Layer<never, never, Socket.WebSocketConstructor> =>
-  pipe(
-    makeTracer,
-    Effect.map(Layer.setTracer),
-    Layer.unwrapEffect,
-    Layer.provide(layer),
-    Layer.provide(Socket.layerWebSocket(url))
-  )
+export const layerTracer: Layer.Layer<never, never, Socket.Socket> = pipe(
+  makeTracer,
+  Effect.map(Layer.setTracer),
+  Layer.unwrapEffect,
+  Layer.provide(layer)
+)

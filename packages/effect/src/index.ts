@@ -480,6 +480,14 @@ export * as MetricRegistry from "./MetricRegistry.js"
 export * as MetricState from "./MetricState.js"
 
 /**
+ * A lightweight alternative to the `Effect` data type, with a subset of the functionality.
+ *
+ * @since 3.4.0
+ * @experimental
+ */
+export * as Micro from "./Micro.js"
+
+/**
  * @since 2.0.0
  *
  * Enables low level framework authors to run on their own isolated effect version
@@ -615,6 +623,16 @@ export * as Record from "./Record.js"
 export * as RedBlackTree from "./RedBlackTree.js"
 
 /**
+ * The Redacted module provides functionality for handling sensitive information
+ * securely within your application. By using the `Redacted` data type, you can
+ * ensure that sensitive values are not accidentally exposed in logs or error
+ * messages.
+ *
+ * @since 3.3.0
+ */
+export * as Redacted from "./Redacted.js"
+
+/**
  * @since 2.0.0
  */
 export * as Ref from "./Ref.js"
@@ -713,6 +731,7 @@ export * as ScopedRef from "./ScopedRef.js"
 
 /**
  * @since 2.0.0
+ * @deprecated
  */
 export * as Secret from "./Secret.js"
 
@@ -962,3 +981,8 @@ export * as UpstreamPullStrategy from "./UpstreamPullStrategy.js"
  * @since 2.0.0
  */
 export * as Utils from "./Utils.js"
+
+/**
+ * useful in e.g frontend projects that do not use tsplus, but still has the most useful extensions installed.
+ */
+export * as fluentExtensions from "./fluentExtensions.js"

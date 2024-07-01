@@ -266,8 +266,38 @@ export const isEffect: (u: unknown) => u is Effect<unknown, unknown, unknown> = 
 // -------------------------------------------------------------------------------------
 
 /**
- * Returns an effect that, if evaluated, will return the cached result of this
- * effect. Cached results will expire after `timeToLive` duration.
+ * Returns an effect that caches its result for a specified duration, known as
+ * the `timeToLive`. When the cache expires after the duration, the effect will be
+ * recomputed upon next evaluation.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * let i = 1
+ * const expensiveTask = Effect.promise<string>(() => {
+ *   console.log("expensive task...")
+ *   return new Promise((resolve) => {
+ *     setTimeout(() => {
+ *       resolve(`result ${i++}`)
+ *     }, 100)
+ *   })
+ * })
+ *
+ * const program = Effect.gen(function* () {
+ *   const cached = yield* Effect.cachedWithTTL(expensiveTask, "150 millis")
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ *   yield* Effect.sleep("100 millis")
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ * })
+ *
+ * Effect.runFork(program)
+ * // Output:
+ * // expensive task...
+ * // result 1
+ * // result 1
+ * // expensive task...
+ * // result 2
  *
  * @since 2.0.0
  * @category caching
@@ -278,10 +308,41 @@ export const cachedWithTTL: {
 } = circular.cached
 
 /**
- * Returns an effect that, if evaluated, will return the cached result of this
- * effect. Cached results will expire after `timeToLive` duration. In
- * addition, returns an effect that can be used to invalidate the current
- * cached value before the `timeToLive` duration expires.
+ * Similar to {@link cachedWithTTL}, this function caches an effect's result for a
+ * specified duration. It also includes an additional effect for manually
+ * invalidating the cached value before it naturally expires.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * let i = 1
+ * const expensiveTask = Effect.promise<string>(() => {
+ *   console.log("expensive task...")
+ *   return new Promise((resolve) => {
+ *     setTimeout(() => {
+ *       resolve(`result ${i++}`)
+ *     }, 100)
+ *   })
+ * })
+ *
+ * const program = Effect.gen(function* () {
+ *   const [cached, invalidate] = yield* Effect.cachedInvalidateWithTTL(
+ *     expensiveTask,
+ *     "1 hour"
+ *   )
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ *   yield* invalidate
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ * })
+ *
+ * Effect.runFork(program)
+ * // Output:
+ * // expensive task...
+ * // result 1
+ * // result 1
+ * // expensive task...
+ * // result 2
  *
  * @since 2.0.0
  * @category caching
@@ -297,8 +358,44 @@ export const cachedInvalidateWithTTL: {
 } = circular.cachedInvalidateWithTTL
 
 /**
- * Returns an effect that, if evaluated, will return the lazily computed
- * result of this effect.
+ * Returns an effect that computes a result lazily and caches it. Subsequent
+ * evaluations of this effect will return the cached result without re-executing
+ * the logic.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * let i = 1
+ * const expensiveTask = Effect.promise<string>(() => {
+ *   console.log("expensive task...")
+ *   return new Promise((resolve) => {
+ *     setTimeout(() => {
+ *       resolve(`result ${i++}`)
+ *     }, 100)
+ *   })
+ * })
+ *
+ * const program = Effect.gen(function* () {
+ *   console.log("non-cached version:")
+ *   yield* expensiveTask.pipe(Effect.andThen(Console.log))
+ *   yield* expensiveTask.pipe(Effect.andThen(Console.log))
+ *   console.log("cached version:")
+ *   const cached = yield* Effect.cached(expensiveTask)
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ *   yield* cached.pipe(Effect.andThen(Console.log))
+ * })
+ *
+ * Effect.runFork(program)
+ * // Output:
+ * // non-cached version:
+ * // expensive task...
+ * // result 1
+ * // expensive task...
+ * // result 2
+ * // cached version:
+ * // expensive task...
+ * // result 3
+ * // result 3
  *
  * @since 2.0.0
  * @category caching
@@ -306,7 +403,33 @@ export const cachedInvalidateWithTTL: {
 export const cached: <A, E, R>(self: Effect<A, E, R>) => Effect<Effect<A, E, R>> = effect.memoize
 
 /**
- * Returns a memoized version of the specified effectual function.
+ * Returns a memoized version of a function with effects. Memoization ensures
+ * that results are stored and reused for the same inputs, reducing the need to
+ * recompute them.
+ *
+ * @example
+ * import { Effect, Random } from "effect"
+ *
+ * const program = Effect.gen(function* () {
+ *   const randomNumber = (n: number) => Random.nextIntBetween(1, n)
+ *   console.log("non-memoized version:")
+ *   console.log(yield* randomNumber(10))
+ *   console.log(yield* randomNumber(10))
+ *
+ *   console.log("memoized version:")
+ *   const memoized = yield* Effect.cachedFunction(randomNumber)
+ *   console.log(yield* memoized(10))
+ *   console.log(yield* memoized(10))
+ * })
+ *
+ * Effect.runFork(program)
+ * // Example Output:
+ * // non-memoized version:
+ * // 2
+ * // 8
+ * // memoized version:
+ * // 5
+ * // 5
  *
  * @since 2.0.0
  * @category caching
@@ -317,24 +440,25 @@ export const cachedFunction: <A, B, E, R>(
 ) => Effect<(a: A) => Effect<B, E, R>> = circular.cachedFunction
 
 /**
- * Returns an effect that will be executed at most once, even if it is
- * evaluated multiple times.
+ * Returns an effect that executes only once, regardless of how many times it's
+ * called.
  *
  * @example
  * import { Effect, Console } from "effect"
  *
- * const program = Effect.gen(function* (_) {
- *   const twice = Console.log("twice")
- *   yield* _(twice, Effect.repeatN(1))
- *   const once = yield* _(Console.log("once"), Effect.once)
- *   yield* _(once, Effect.repeatN(1))
+ * const program = Effect.gen(function* () {
+ *   const task1 = Console.log("task1")
+ *   yield* Effect.repeatN(task1, 2)
+ *   const task2 = yield* Effect.once(Console.log("task2"))
+ *   yield* Effect.repeatN(task2, 2)
  * })
  *
  * Effect.runFork(program)
  * // Output:
- * // twice
- * // twice
- * // once
+ * // task1
+ * // task1
+ * // task1
+ * // task2
  *
  * @since 2.0.0
  * @category caching
@@ -2036,6 +2160,40 @@ export const uninterruptibleMask: <A, E, R>(
 ) => Effect<A, E, R> = core.uninterruptibleMask
 
 // -------------------------------------------------------------------------------------
+// lifting
+// -------------------------------------------------------------------------------------
+
+/**
+ * Transforms a `Predicate` function into an `Effect` returning the input value if the predicate returns `true`
+ * or failing with specified error if the predicate fails
+ *
+ * @param predicate - A `Predicate` function that takes in a value of type `A` and returns a boolean.
+ *
+ * @example
+ * import { Effect } from "effect"
+ *
+ * const isPositive = (n: number): boolean => n > 0
+ *
+ * // succeeds with `1`
+ * Effect.liftPredicate(1, isPositive, n => `${n} is not positive`)
+ *
+ * // fails with `"0 is not positive"`
+ * Effect.liftPredicate(0, isPositive, n => `${n} is not positive`)
+ *
+ * @category lifting
+ * @since 3.4.0
+ */
+export const liftPredicate: {
+  <A, B extends A, E>(
+    refinement: Refinement<NoInfer<A>, B>,
+    orFailWith: (a: NoInfer<A>) => E
+  ): (a: A) => Effect<B, E>
+  <A, E>(predicate: Predicate<NoInfer<A>>, orFailWith: (a: NoInfer<A>) => E): (a: A) => Effect<A, E>
+  <A, E, B extends A>(self: A, refinement: Refinement<A, B>, orFailWith: (a: A) => E): Effect<B, E>
+  <A, E>(self: A, predicate: Predicate<NoInfer<A>>, orFailWith: (a: NoInfer<A>) => E): Effect<A, E>
+} = effect.liftPredicate
+
+// -------------------------------------------------------------------------------------
 // mapping
 // -------------------------------------------------------------------------------------
 
@@ -2457,7 +2615,7 @@ export const scopeWith: <A, E, R>(f: (scope: Scope.Scope) => Effect<A, E, R>) =>
   fiberRuntime.scopeWith
 
 /**
- * Scopes all resources uses in this workflow to the lifetime of the workflow,
+ * Scopes all resources used in this workflow to the lifetime of the workflow,
  * ensuring that their finalizers are run as soon as this workflow completes
  * execution, whether by success, failure, or interruption.
  *
@@ -3893,8 +4051,27 @@ export const tap: {
 } = core.tap
 
 /**
- * Returns an effect that effectfully "peeks" at the failure or success of
- * this effect.
+ * Inspects both success and failure outcomes of an effect, performing different actions based on the result.
+ *
+ * @example
+ * import { Effect, Random, Console } from "effect"
+ *
+ * // Simulate an effect that might fail
+ * const task = Effect.filterOrFail(
+ *   Random.nextRange(-1, 1),
+ *   (n) => n >= 0,
+ *   () => "random number is negative"
+ * )
+ *
+ * // Define an effect that logs both success and failure outcomes of the 'task'
+ * const tapping = Effect.tapBoth(task, {
+ *   onFailure: (error) => Console.log(`failure: ${error}`),
+ *   onSuccess: (randomNumber) => Console.log(`random number: ${randomNumber}`)
+ * })
+ *
+ * Effect.runFork(tapping)
+ * // Example Output:
+ * // failure: random number is negative
  *
  * @since 2.0.0
  * @category sequencing
@@ -3916,7 +4093,36 @@ export const tapBoth: {
 } = effect.tapBoth
 
 /**
- * Returns an effect that effectually "peeks" at the defect of this effect.
+ * Specifically inspects non-recoverable failures or defects in an effect (i.e., one or more `Die` causes).
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * // Create an effect that is designed to fail, simulating an occurrence of a network error
+ * const task1: Effect.Effect<number, string> = Effect.fail("NetworkError")
+ *
+ * // this won't log anything because is not a defect
+ * const tapping1 = Effect.tapDefect(task1, (cause) =>
+ *   Console.log(`defect: ${cause}`)
+ * )
+ *
+ * Effect.runFork(tapping1)
+ * // No Output
+ *
+ * // Simulate a severe failure in the system by causing a defect with a specific message.
+ * const task2: Effect.Effect<number, string> = Effect.dieMessage(
+ *   "Something went wrong"
+ * )
+ *
+ * // This will only log defects, not errors
+ * const tapping2 = Effect.tapDefect(task2, (cause) =>
+ *   Console.log(`defect: ${cause}`)
+ * )
+ *
+ * Effect.runFork(tapping2)
+ * // Output:
+ * // defect: RuntimeException: Something went wrong
+ * //   ... stack trace ...
  *
  * @since 2.0.0
  * @category sequencing
@@ -3932,7 +4138,23 @@ export const tapDefect: {
 } = effect.tapDefect
 
 /**
- * Returns an effect that effectfully "peeks" at the failure of this effect.
+ * Executes an effectful operation to inspect the failure of an effect without altering it.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * // Create an effect that is designed to fail, simulating an occurrence of a network error
+ * const task: Effect.Effect<number, string> = Effect.fail("NetworkError")
+ *
+ * // Log the error message if the task fails. This function only executes if there is an error,
+ * // providing a method to handle or inspect errors without altering the outcome of the original effect.
+ * const tapping = Effect.tapError(task, (error) =>
+ *   Console.log(`expected error: ${error}`)
+ * )
+ *
+ * Effect.runFork(tapping)
+ * // Output:
+ * // expected error: NetworkError
  *
  * @since 2.0.0
  * @category sequencing
@@ -3945,7 +4167,33 @@ export const tapError: {
 } = effect.tapError
 
 /**
- * Returns an effect that effectfully "peeks" at the specific tagged failure of this effect.
+ * Specifically inspects a failure with a particular tag, allowing focused error handling.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * class NetworkError {
+ *   readonly _tag = "NetworkError"
+ *   constructor(readonly statusCode: number) {}
+ * }
+ * class ValidationError {
+ *   readonly _tag = "ValidationError"
+ *   constructor(readonly field: string) {}
+ * }
+ *
+ * // Create an effect that is designed to fail, simulating an occurrence of a network error
+ * const task: Effect.Effect<number, NetworkError | ValidationError> =
+ *   Effect.fail(new NetworkError(504))
+ *
+ * // Apply an error handling function only to errors tagged as "NetworkError",
+ * // and log the corresponding status code of the error.
+ * const tapping = Effect.tapErrorTag(task, "NetworkError", (error) =>
+ *   Console.log(`expected error: ${error.statusCode}`)
+ * )
+ *
+ * Effect.runFork(tapping)
+ * // Output:
+ * // expected error: 504
  *
  * @since 2.0.0
  * @category sequencing
@@ -3963,8 +4211,37 @@ export const tapErrorTag: {
 } = effect.tapErrorTag
 
 /**
- * Returns an effect that effectually "peeks" at the cause of the failure of
- * this effect.
+ * Inspects the underlying cause of an effect's failure.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * // Create an effect that is designed to fail, simulating an occurrence of a network error
+ * const task1: Effect.Effect<number, string> = Effect.fail("NetworkError")
+ *
+ * // This will log the cause of any expected error or defect
+ * const tapping1 = Effect.tapErrorCause(task1, (cause) =>
+ *   Console.log(`error cause: ${cause}`)
+ * )
+ *
+ * Effect.runFork(tapping1)
+ * // Output:
+ * // error cause: Error: NetworkError
+ *
+ * // Simulate a severe failure in the system by causing a defect with a specific message.
+ * const task2: Effect.Effect<number, string> = Effect.dieMessage(
+ *   "Something went wrong"
+ * )
+ *
+ * // This will log the cause of any expected error or defect
+ * const tapping2 = Effect.tapErrorCause(task2, (cause) =>
+ *   Console.log(`error cause: ${cause}`)
+ * )
+ *
+ * Effect.runFork(tapping2)
+ * // Output:
+ * // error cause: RuntimeException: Something went wrong
+ * //   ... stack trace ...
  *
  * @since 2.0.0
  * @category sequencing
@@ -4130,11 +4407,44 @@ export declare namespace Repeat {
 }
 
 /**
- * Returns a new effect that repeats this effect according to the specified
- * schedule or until the first failure. Scheduled recurrences are in addition
- * to the first execution, so that `io.repeat(Schedule.once)` yields an effect
- * that executes `io`, and then if that succeeds, executes `io` an additional
- * time.
+ * The `repeat` function returns a new effect that repeats the given effect
+ * according to a specified schedule or until the first failure. The scheduled
+ * recurrences are in addition to the initial execution, so `Effect.repeat(action,
+ * Schedule.once)` executes `action` once initially, and if it succeeds, repeats it
+ * an additional time.
+ *
+ * @example
+ * // Success Example
+ * import { Effect, Schedule, Console } from "effect"
+ *
+ * const action = Console.log("success")
+ * const policy = Schedule.addDelay(Schedule.recurs(2), () => "100 millis")
+ * const program = Effect.repeat(action, policy)
+ *
+ * Effect.runPromise(program).then((n) => console.log(`repetitions: ${n}`))
+ *
+ * @example
+ * // Failure Example
+ * import { Effect, Schedule } from "effect"
+ *
+ * let count = 0
+ *
+ * // Define an async effect that simulates an action with possible failures
+ * const action = Effect.async<string, string>((resume) => {
+ *   if (count > 1) {
+ *     console.log("failure")
+ *     resume(Effect.fail("Uh oh!"))
+ *   } else {
+ *     count++
+ *     console.log("success")
+ *     resume(Effect.succeed("yay!"))
+ *   }
+ * })
+ *
+ * const policy = Schedule.addDelay(Schedule.recurs(2), () => "100 millis")
+ * const program = Effect.repeat(action, policy)
+ *
+ * Effect.runPromiseExit(program).then(console.log)
  *
  * @since 2.0.0
  * @category repetition / recursion
@@ -4156,10 +4466,18 @@ export const repeat: {
 } = _schedule.repeat_combined
 
 /**
- * Returns a new effect that repeats this effect the specified number of times
- * or until the first failure. Repeats are in addition to the first execution,
- * so that `io.repeatN(1)` yields an effect that executes `io`, and then if
- * that succeeds, executes `io` an additional time.
+ * The `repeatN` function returns a new effect that repeats the specified effect a
+ * given number of times or until the first failure. The repeats are in addition
+ * to the initial execution, so `Effect.repeatN(action, 1)` executes `action` once
+ * initially and then repeats it one additional time if it succeeds.
+ *
+ * @example
+ * import { Effect, Console } from "effect"
+ *
+ * const action = Console.log("success")
+ * const program = Effect.repeatN(action, 2)
+ *
+ * Effect.runPromise(program)
  *
  * @since 2.0.0
  * @category repetition / recursion
@@ -4170,13 +4488,43 @@ export const repeatN: {
 } = effect.repeatN
 
 /**
- * Returns a new effect that repeats this effect according to the specified
- * schedule or until the first failure, at which point, the failure value and
- * schedule output are passed to the specified handler.
+ * The `repeatOrElse` function returns a new effect that repeats the specified
+ * effect according to the given schedule or until the first failure. When a
+ * failure occurs, the failure value and schedule output are passed to a
+ * specified handler. Scheduled recurrences are in addition to the initial
+ * execution, so `Effect.repeat(action, Schedule.once)` executes `action` once
+ * initially and then repeats it an additional time if it succeeds.
  *
- * Scheduled recurrences are in addition to the first execution, so that
- * `pipe(effect, Effect.repeat(Schedule.once()))` yields an effect that executes
- * `effect`, and then if that succeeds, executes `effect` an additional time.
+ * @example
+ * import { Effect, Schedule } from "effect"
+ *
+ * let count = 0
+ *
+ * // Define an async effect that simulates an action with possible failures
+ * const action = Effect.async<string, string>((resume) => {
+ *   if (count > 1) {
+ *     console.log("failure")
+ *     resume(Effect.fail("Uh oh!"))
+ *   } else {
+ *     count++
+ *     console.log("success")
+ *     resume(Effect.succeed("yay!"))
+ *   }
+ * })
+ *
+ * const policy = Schedule.addDelay(
+ *   Schedule.recurs(2), // Repeat for a maximum of 2 times
+ *   () => "100 millis" // Add a delay of 100 milliseconds between repetitions
+ * )
+ *
+ * const program = Effect.repeatOrElse(action, policy, () =>
+ *   Effect.sync(() => {
+ *     console.log("orElse")
+ *     return count - 1
+ *   })
+ * )
+ *
+ * Effect.runPromise(program).then((n) => console.log(`repetitions: ${n}`))
  *
  * @since 2.0.0
  * @category repetition / recursion
@@ -4957,6 +5305,55 @@ export const validateWith: {
 } = fiberRuntime.validateWith
 
 /**
+ * The `Effect.zip` function allows you to combine two effects into a single
+ * effect. This combined effect yields a tuple containing the results of both
+ * input effects once they succeed.
+ *
+ * Note that `Effect.zip` processes effects sequentially: it first completes the
+ * effect on the left and then the effect on the right.
+ *
+ * If you want to run the effects concurrently, you can use the `concurrent` option.
+ *
+ * @example
+ * import { Effect } from "effect"
+ *
+ * const task1 = Effect.succeed(1).pipe(
+ *   Effect.delay("200 millis"),
+ *   Effect.tap(Effect.log("task1 done"))
+ * )
+ * const task2 = Effect.succeed("hello").pipe(
+ *   Effect.delay("100 millis"),
+ *   Effect.tap(Effect.log("task2 done"))
+ * )
+ *
+ * const task3 = Effect.zip(task1, task2)
+ *
+ * Effect.runPromise(task3).then(console.log)
+ * // Output:
+ * // timestamp=... level=INFO fiber=#0 message="task1 done"
+ * // timestamp=... level=INFO fiber=#0 message="task2 done"
+ * // [ 1, 'hello' ]
+ *
+ * @example
+ * import { Effect } from "effect"
+ *
+ * const task1 = Effect.succeed(1).pipe(
+ *   Effect.delay("200 millis"),
+ *   Effect.tap(Effect.log("task1 done"))
+ * )
+ * const task2 = Effect.succeed("hello").pipe(
+ *   Effect.delay("100 millis"),
+ *   Effect.tap(Effect.log("task2 done"))
+ * )
+ *
+ * const task3 = Effect.zip(task1, task2, { concurrent: true })
+ *
+ * Effect.runPromise(task3).then(console.log)
+ * // Output:
+ * // timestamp=... level=INFO fiber=#0 message="task2 done"
+ * // timestamp=... level=INFO fiber=#0 message="task1 done"
+ * // [ 1, 'hello' ]
+ *
  * @since 2.0.0
  * @category zipping
  */
@@ -5051,6 +5448,35 @@ export const zipRight: {
 } = fiberRuntime.zipRightOptions
 
 /**
+ * The `Effect.zipWith` function operates similarly to {@link zip} by combining
+ * two effects. However, instead of returning a tuple, it allows you to apply a
+ * function to the results of the combined effects, transforming them into a
+ * single value
+ *
+ * @example
+ * import { Effect } from "effect"
+ *
+ * const task1 = Effect.succeed(1).pipe(
+ *   Effect.delay("200 millis"),
+ *   Effect.tap(Effect.log("task1 done"))
+ * )
+ * const task2 = Effect.succeed("hello").pipe(
+ *   Effect.delay("100 millis"),
+ *   Effect.tap(Effect.log("task2 done"))
+ * )
+ *
+ * const task3 = Effect.zipWith(
+ *   task1,
+ *   task2,
+ *   (number, string) => number + string.length
+ * )
+ *
+ * Effect.runPromise(task3).then(console.log)
+ * // Output:
+ * // timestamp=... level=INFO fiber=#3 message="task1 done"
+ * // timestamp=... level=INFO fiber=#2 message="task2 done"
+ * // 6
+ *
  * @since 2.0.0
  * @category zipping
  */
@@ -5365,6 +5791,46 @@ export const withSpan: {
 } = effect.withSpan
 
 /**
+ * Wraps a function that returns an effect with a new span for tracing.
+ *
+ * @since 3.2.0
+ * @category models
+ */
+export interface FunctionWithSpanOptions {
+  readonly name: string
+  readonly attributes?: Record<string, unknown> | undefined
+  readonly links?: ReadonlyArray<Tracer.SpanLink> | undefined
+  readonly parent?: Tracer.AnySpan | undefined
+  readonly root?: boolean | undefined
+  readonly context?: Context.Context<never> | undefined
+  readonly kind?: Tracer.SpanKind | undefined
+}
+
+/**
+ * Wraps a function that returns an effect with a new span for tracing.
+ *
+ * @since 3.2.0
+ * @category tracing
+ * @example
+ * import { Effect } from "effect"
+ *
+ * const getTodo = Effect.functionWithSpan({
+ *   body: (id: number) => Effect.succeed(`Got todo ${id}!`),
+ *   options: (id) => ({
+ *     name: `getTodo-${id}`,
+ *     attributes: { id }
+ *   })
+ * })
+ */
+export const functionWithSpan: <Args extends Array<any>, Ret extends Effect<any, any, any>>(
+  options: {
+    readonly body: (...args: Args) => Ret
+    readonly options: FunctionWithSpanOptions | ((...args: Args) => FunctionWithSpanOptions)
+    readonly captureStackTrace?: boolean | undefined
+  }
+) => (...args: Args) => Unify.Unify<Ret> = effect.functionWithSpan
+
+/**
  * Wraps the effect with a new span for tracing.
  *
  * The span is ended when the Scope is finalized.
@@ -5421,9 +5887,37 @@ export const optionFromOptional: <A, E, R>(
 
 /**
  * @since 2.0.0
+ * @category models
+ */
+export declare namespace Tag {
+  /**
+   * @since 2.0.0
+   * @category models
+   */
+  export interface ProhibitedType {
+    _op?: "propety name _op is forbidden"
+    _tag?: "propety name _tag is forbidden"
+    of?: "propety name of is forbidden"
+    context?: "propety name context is forbidden"
+    key?: "propety name key is forbidden"
+    stack?: "propety name stack is forbidden"
+  }
+
+  /**
+   * @since 2.0.0
+   * @category models
+   */
+  export type AllowedType = (Record<PropertyKey, any> & ProhibitedType) | string | number | symbol
+}
+
+/**
+ * @since 2.0.0
  * @category constructors
  */
-export const Tag: <const Id extends string>(id: Id) => <Self, Type>() =>
+export const Tag: <const Id extends string>(id: Id) => <
+  Self,
+  Type extends Tag.AllowedType
+>() =>
   & Context.TagClass<Self, Id, Type>
   & (Type extends Record<PropertyKey, any> ? {
       [

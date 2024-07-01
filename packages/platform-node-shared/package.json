@@ -1,7 +1,7 @@
 {
   "name": "@effect/platform-node-shared",
   "type": "module",
-  "version": "0.4.23",
+  "version": "0.8.16",
   "license": "MIT",
   "description": "Unified interfaces for common platform-specific services",
   "homepage": "https://effect.website",
@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@parcel/watcher": "^2.4.1",
-    "multipasta": "^0.2.1"
+    "multipasta": "^0.2.2"
   },
   "peerDependencies": {
     "@effect/platform": "workspace:^",
@@ -51,7 +51,7 @@
   "devDependencies": {
     "@effect/platform": "workspace:^",
     "@effect/schema": "workspace:^",
-    "@types/node": "^20.12.7",
+    "@types/node": "^20.14.8",
     "@types/tar": "^6.1.12",
     "effect": "workspace:^",
     "tar": "^6"

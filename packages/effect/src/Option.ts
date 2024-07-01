@@ -1057,7 +1057,7 @@ export const filter: {
  * @since 2.0.0
  */
 export const getEquivalence = <A>(isEquivalent: Equivalence.Equivalence<A>): Equivalence.Equivalence<Option<A>> =>
-  Equivalence.make((x, y) => x === y || (isNone(x) ? isNone(y) : isNone(y) ? false : isEquivalent(x.value, y.value)))
+  Equivalence.make((x, y) => isNone(x) ? isNone(y) : isNone(y) ? false : isEquivalent(x.value, y.value))
 
 /**
  * The `Order` instance allows `Option` values to be compared with
@@ -1115,7 +1115,18 @@ export const lift2 = <A, B, C>(f: (a: A, b: B) => C): {
 export const liftPredicate: { // Note: I intentionally avoid using the NoInfer pattern here.
   <A, B extends A>(refinement: Refinement<A, B>): (a: A) => Option<B>
   <B extends A, A = B>(predicate: Predicate<A>): (b: B) => Option<B>
-} = <B extends A, A = B>(predicate: Predicate<A>) => (b: B): Option<B> => predicate(b) ? some(b) : none()
+  <A, B extends A>(
+    self: A,
+    refinement: Refinement<A, B>
+  ): Option<B>
+  <B extends A, A = B>(
+    self: B,
+    predicate: Predicate<A>
+  ): Option<B>
+} = dual(
+  2,
+  <B extends A, A = B>(b: B, predicate: Predicate<A>): Option<B> => predicate(b) ? some(b) : none()
+)
 
 /**
  * Returns a function that checks if a `Option` contains a given value using a provided `isEquivalent` function.
@@ -1345,7 +1356,13 @@ const adapter = Gen.adapter<OptionTypeLambda>()
  * @category generators
  * @since 2.0.0
  */
-export const gen: Gen.Gen<OptionTypeLambda, Gen.Adapter<OptionTypeLambda>> = (f) => {
+export const gen: Gen.Gen<OptionTypeLambda, Gen.Adapter<OptionTypeLambda>> = (...args) => {
+  let f: any
+  if (args.length === 1) {
+    f = args[0]
+  } else {
+    f = args[1].bind(args[0])
+  }
   const iterator = f(adapter)
   let state: IteratorYieldResult<any> | IteratorReturnResult<any> = iterator.next()
   if (state.done) {

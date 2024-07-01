@@ -23,6 +23,7 @@ const NameString = S.String.pipe(
   S.transformOrFail(
     S.String,
     {
+      strict: true,
       decode: (_, _opts, ast) =>
         Name.pipe(
           Effect.filterOrFail(
@@ -87,13 +88,24 @@ describe("Class", () => {
 └─ ["a"]
    └─ NonEmpty
       └─ Predicate refinement failure
-         └─ Expected NonEmpty (a non empty string), actual ""`)
+         └─ Expected NonEmpty, actual ""`)
+    )
+    expect(() => A.make({ a: "" })).toThrow(
+      new Error(`A (Constructor)
+└─ ["a"]
+   └─ NonEmpty
+      └─ Predicate refinement failure
+         └─ Expected NonEmpty, actual ""`)
     )
   })
 
   it("the constructor validation can be disabled", () => {
     class A extends S.Class<A>("A")({ a: S.NonEmpty }) {}
     expect(new A({ a: "" }, true).a).toStrictEqual("")
+    expect(new A({ a: "" }, { disableValidation: true }).a).toStrictEqual("")
+
+    expect(A.make({ a: "" }, true).a).toStrictEqual("")
+    expect(A.make({ a: "" }, { disableValidation: true }).a).toStrictEqual("")
   })
 
   it("the constructor should support defaults", () => {
@@ -106,6 +118,11 @@ describe("Class", () => {
     expect({ ...new A({ a: "a" }) }).toStrictEqual({ a: "a", [b]: 1 })
     expect({ ...new A({ [b]: 2 }) }).toStrictEqual({ a: "", [b]: 2 })
     expect({ ...new A({}) }).toStrictEqual({ a: "", [b]: 1 })
+
+    expect({ ...A.make({ a: "a", [b]: 2 }) }).toStrictEqual({ a: "a", [b]: 2 })
+    expect({ ...A.make({ a: "a" }) }).toStrictEqual({ a: "a", [b]: 1 })
+    expect({ ...A.make({ [b]: 2 }) }).toStrictEqual({ a: "", [b]: 2 })
+    expect({ ...A.make({}) }).toStrictEqual({ a: "", [b]: 1 })
   })
 
   it("the constructor should support lazy defaults", () => {
@@ -117,6 +134,11 @@ describe("Class", () => {
     expect({ ...new A({}) }).toStrictEqual({ a: 2 })
     new A({ a: 10 })
     expect({ ...new A({}) }).toStrictEqual({ a: 3 })
+
+    expect({ ...A.make({}) }).toStrictEqual({ a: 4 })
+    expect({ ...A.make({}) }).toStrictEqual({ a: 5 })
+    new A({ a: 10 })
+    expect({ ...A.make({}) }).toStrictEqual({ a: 6 })
   })
 
   it("a Class with no fields should have a void constructor", () => {
@@ -124,6 +146,10 @@ describe("Class", () => {
     expect({ ...new A() }).toStrictEqual({})
     expect({ ...new A(undefined, true) }).toStrictEqual({})
     expect({ ...new A({}) }).toStrictEqual({})
+
+    expect({ ...A.make() }).toStrictEqual({})
+    expect({ ...A.make(undefined, true) }).toStrictEqual({})
+    expect({ ...A.make({}) }).toStrictEqual({})
   })
 
   it("a Class with all defaulted fields should have a void constructor", () => {
@@ -133,6 +159,10 @@ describe("Class", () => {
     expect({ ...new A() }).toStrictEqual({ a: "" })
     expect({ ...new A(undefined) }).toStrictEqual({ a: "" })
     expect({ ...new A({}) }).toStrictEqual({ a: "" })
+
+    expect({ ...A.make() }).toStrictEqual({ a: "" })
+    expect({ ...A.make(undefined) }).toStrictEqual({ a: "" })
+    expect({ ...A.make({}) }).toStrictEqual({ a: "" })
   })
 
   it("should support methods", () => {
@@ -194,7 +224,7 @@ describe("Class", () => {
       └─ ["a"]
          └─ NonEmpty
             └─ Predicate refinement failure
-               └─ Expected NonEmpty (a non empty string), actual ""`
+               └─ Expected NonEmpty, actual ""`
     )
   })
 
@@ -211,7 +241,7 @@ describe("Class", () => {
       └─ ["a"]
          └─ NonEmpty
             └─ Predicate refinement failure
-               └─ Expected NonEmpty (a non empty string), actual ""`
+               └─ Expected NonEmpty, actual ""`
     )
   })
 
@@ -227,7 +257,10 @@ describe("Class", () => {
     expect(() => {
       class A2 extends A.extend<A2>("A2")({ a: S.String }) {}
       console.log(A2)
-    }).toThrow(new Error(`Duplicate property signature "a"`))
+    }).toThrow(
+      new Error(`Duplicate property signature
+details: Duplicate key "a"`)
+    )
   })
 
   it("can be extended with Class fields", () => {
@@ -267,7 +300,7 @@ describe("Class", () => {
     await Util.expectDecodeUnknownFailure(
       PersonFromSelf,
       { id: 1, name: "John" },
-      `Expected Person (an instance of Person), actual {"id":1,"name":"John"}`
+      `Expected Person, actual {"id":1,"name":"John"}`
     )
   })
 
@@ -294,16 +327,8 @@ describe("Class", () => {
     await Util.expectDecodeUnknownFailure(
       PersonFromSelf,
       { id: 1, name: "John" },
-      `Expected Person (an instance of Person), actual {"id":1,"name":"John"}`
+      `Expected Person, actual {"id":1,"name":"John"}`
     )
-  })
-
-  it("should accept a simple object as argument", () => {
-    const fields = { a: S.String, b: S.Number }
-    class A extends S.Class<A>("A")({ fields }) {}
-    Util.expectFields(A.fields, fields)
-    class B extends S.Class<B>("B")({ from: { fields } }) {}
-    Util.expectFields(B.fields, fields)
   })
 
   it("should accept a Struct as argument", () => {
@@ -423,8 +448,7 @@ describe("Class", () => {
         await Util.expectEncodeFailure(
           schema,
           null as any,
-          `A
-└─ Expected A (Type side), actual null`
+          `Expected A (Type side), actual null`
         )
       })
     })
@@ -433,5 +457,18 @@ describe("Class", () => {
   it("arbitrary", () => {
     class A extends S.Class<A>("A")({ a: S.String }) {}
     Util.expectArbitrary(A)
+  })
+
+  it("should expose a make constructor", () => {
+    class A extends S.Class<A>("A")({
+      n: S.NumberFromString
+    }) {
+      a() {
+        return this.n + "a"
+      }
+    }
+    const a = A.make({ n: 1 })
+    expect(a instanceof A).toEqual(true)
+    expect(a.a()).toEqual("1a")
   })
 })

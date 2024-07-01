@@ -67,15 +67,13 @@ export const makeManager = Effect.gen(function*() {
     spawn<I, O, E>({
       encode,
       initialMessage,
-      permits = 1,
       queue,
       transfers = (_) => []
     }: Worker.Worker.Options<I>) {
-      return Effect.gen(function*() {
-        const spawn = yield* Spawner
+      return Effect.gen(function*(_) {
+        const spawn = yield* _(Spawner)
         const id = idCounter++
         let requestIdCounter = 0
-        const semaphore = yield* Effect.makeSemaphore(permits)
         const requestMap = new Map<
           number,
           readonly [Queue.Queue<Exit.Exit<ReadonlyArray<O>, E | WorkerError>>, Deferred.Deferred<void>]
@@ -125,11 +123,7 @@ export const makeManager = Effect.gen(function*() {
           Effect.onError((cause) =>
             Effect.forEach(requestMap.values(), ([queue]) => Queue.offer(queue, Exit.failCause(cause)))
           ),
-          Effect.retry(
-            Schedule.exponential("250 millis").pipe(
-              Schedule.union(Schedule.spaced("30 seconds"))
-            )
-          ),
+          Effect.retry(Schedule.spaced(1000)),
           Effect.annotateLogs({
             package: "@effect/platform",
             module: "Worker"
@@ -241,10 +235,9 @@ export const makeManager = Effect.gen(function*() {
             executeRelease
           )
 
-        yield* semaphore.take(1).pipe(
-          Effect.zipRight(outbound.take),
+        yield* outbound.take.pipe(
           Effect.flatMap(([id, request, span]) =>
-            pipe(
+            Effect.fork(
               Effect.suspend(() => {
                 const result = requestMap.get(id)
                 if (!result) return Effect.void
@@ -264,14 +257,12 @@ export const makeManager = Effect.gen(function*() {
                   Effect.catchAllCause((cause) => Queue.offer(result[0], Exit.failCause(cause))),
                   Effect.zipRight(Deferred.await(result[1]))
                 )
-              }),
-              Effect.ensuring(semaphore.release(1)),
-              Effect.fork
+              })
             )
           ),
           Effect.forever,
-          Effect.interruptible,
-          Effect.forkScoped
+          Effect.forkScoped,
+          Effect.interruptible
         )
 
         if (initialMessage) {
@@ -303,16 +294,20 @@ export const makePool = <I, O, E>(
       Effect.tap((worker) => Effect.addFinalizer(() => Effect.sync(() => workers.delete(worker)))),
       options.onCreate ? Effect.tap(options.onCreate) : identity
     )
-    const backing = yield* "timeToLive" in options ?
-      Pool.makeWithTTL({
+    const backing = "minSize" in options ?
+      yield* Pool.makeWithTTL({
         acquire,
         min: options.minSize,
         max: options.maxSize,
+        concurrency: options.concurrency,
+        targetUtilization: options.targetUtilization,
         timeToLive: options.timeToLive
       }) :
-      Pool.make({
+      yield* Pool.make({
         acquire,
-        size: options.size
+        size: options.size,
+        concurrency: options.concurrency,
+        targetUtilization: options.targetUtilization
       })
     const pool: Worker.WorkerPool<I, O, E> = {
       backing,
@@ -322,18 +317,19 @@ export const makePool = <I, O, E>(
           discard: true
         }),
       execute: (message: I) =>
-        Stream.unwrap(
-          Effect.map(
-            Effect.scoped(backing.get),
-            (worker) => worker.execute(message)
-          )
-        ),
+        Stream.unwrapScoped(Effect.map(
+          backing.get,
+          (worker) => worker.execute(message)
+        )),
       executeEffect: (message: I) =>
-        Effect.flatMap(
-          Effect.scoped(backing.get),
+        Effect.scoped(Effect.flatMap(
+          backing.get,
           (worker) => worker.executeEffect(message)
-        )
+        ))
     }
+
+    // report any spawn errors
+    yield* Effect.scoped(backing.get)
 
     return pool
   })
@@ -408,11 +404,15 @@ export const makePoolSerialized = <I extends Schema.TaggedRequest.Any>(
         acquire,
         min: options.minSize,
         max: options.maxSize,
+        concurrency: options.concurrency,
+        targetUtilization: options.targetUtilization,
         timeToLive: options.timeToLive
       }) :
       Pool.make({
         acquire,
-        size: options.size
+        size: options.size,
+        concurrency: options.concurrency,
+        targetUtilization: options.targetUtilization
       })
     const pool: Worker.SerializedWorkerPool<I> = {
       backing,
@@ -422,18 +422,13 @@ export const makePoolSerialized = <I extends Schema.TaggedRequest.Any>(
           discard: true
         }) as any,
       execute: <Req extends I>(message: Req) =>
-        Stream.unwrap(
-          Effect.map(
-            Effect.scoped(backing.get),
-            (worker) => worker.execute(message)
-          )
-        ) as any,
+        Stream.unwrapScoped(Effect.map(backing.get, (worker) => worker.execute(message))) as any,
       executeEffect: <Req extends I>(message: Req) =>
-        Effect.flatMap(
-          Effect.scoped(backing.get),
-          (worker) => worker.executeEffect(message)
-        ) as any
+        Effect.scoped(Effect.flatMap(backing.get, (worker) => worker.executeEffect(message))) as any
     }
+
+    // report any spawn errors
+    yield* Effect.scoped(backing.get)
 
     return pool
   })

@@ -279,21 +279,21 @@ const copyToArray = <A>(self: Chunk<A>, array: Array<any>, initial: number): voi
   }
 }
 
-/**
- * Converts the specified `Chunk` to a `Array`.
- *
- * @category conversions
- * @since 2.0.0
- */
-export const toArray = <A>(self: Chunk<A>): Array<A> => toReadonlyArray(self).slice()
+const toArray_ = <A>(self: Chunk<A>): Array<A> => toReadonlyArray(self).slice()
 
 /**
- * Converts the specified `Chunk` to a `ReadonlyArray`.
+ * Converts a `Chunk` into an `Array`. If the provided `Chunk` is non-empty
+ * (`NonEmptyChunk`), the function will return a `NonEmptyArray`, ensuring the
+ * non-empty property is preserved.
  *
  * @category conversions
  * @since 2.0.0
  */
-export const toReadonlyArray = <A>(self: Chunk<A>): ReadonlyArray<A> => {
+export const toArray: <S extends Chunk<any>>(
+  self: S
+) => S extends NonEmptyChunk<any> ? RA.NonEmptyArray<Chunk.Infer<S>> : Array<Chunk.Infer<S>> = toArray_ as any
+
+const toReadonlyArray_ = <A>(self: Chunk<A>): ReadonlyArray<A> => {
   switch (self.backing._tag) {
     case "IEmpty": {
       return emptyArray
@@ -317,10 +317,19 @@ export const toReadonlyArray = <A>(self: Chunk<A>): ReadonlyArray<A> => {
 }
 
 /**
+ * Converts a `Chunk` into a `ReadonlyArray`. If the provided `Chunk` is
+ * non-empty (`NonEmptyChunk`), the function will return a
+ * `NonEmptyReadonlyArray`, ensuring the non-empty property is preserved.
+ *
+ * @category conversions
  * @since 2.0.0
- * @category elements
  */
-export const reverse = <A>(self: Chunk<A>): Chunk<A> => {
+export const toReadonlyArray: <S extends Chunk<any>>(
+  self: S
+) => S extends NonEmptyChunk<any> ? RA.NonEmptyReadonlyArray<Chunk.Infer<S>> : ReadonlyArray<Chunk.Infer<S>> =
+  toReadonlyArray_ as any
+
+const reverseChunk = <A>(self: Chunk<A>): Chunk<A> => {
   switch (self.backing._tag) {
     case "IEmpty":
     case "ISingleton":
@@ -335,6 +344,22 @@ export const reverse = <A>(self: Chunk<A>): Chunk<A> => {
       return unsafeFromArray(RA.reverse(toReadonlyArray(self)))
   }
 }
+
+/**
+ * Reverses the order of elements in a `Chunk`.
+ * Importantly, if the input chunk is a `NonEmptyChunk`, the reversed chunk will also be a `NonEmptyChunk`.
+ *
+ * @example
+ * import { Chunk } from "effect"
+ *
+ * const numbers = Chunk.make(1, 2, 3)
+ * const reversedNumbers = Chunk.reverse(numbers)
+ * assert.deepStrictEqual(reversedNumbers, Chunk.make(3, 2, 1))
+ *
+ * @since 2.0.0
+ * @category elements
+ */
+export const reverse: <S extends Chunk<any>>(self: S) => Chunk.With<S, Chunk.Infer<S>> = reverseChunk as any
 
 /**
  * This function provides a safe way to read a value at a particular index from a `Chunk`.
@@ -794,6 +819,8 @@ export const head: <A>(self: Chunk<A>) => Option<A> = get(0)
 /**
  * Returns the first element of this chunk.
  *
+ * It will throw an error if the chunk is empty.
+ *
  * @since 2.0.0
  * @category unsafe
  */
@@ -818,10 +845,20 @@ export const last = <A>(self: Chunk<A>): Option<A> => get(self, self.length - 1)
 /**
  * Returns the last element of this chunk.
  *
+ * It will throw an error if the chunk is empty.
+ *
  * @since 2.0.0
  * @category unsafe
  */
 export const unsafeLast = <A>(self: Chunk<A>): A => unsafeGet(self, self.length - 1)
+
+/**
+ * Returns the last element of this non empty chunk.
+ *
+ * @since 3.4.0
+ * @category elements
+ */
+export const lastNonEmpty: <A>(self: NonEmptyChunk<A>) => A = unsafeLast
 
 /**
  * @since 2.0.0
@@ -1387,3 +1424,33 @@ export const reduceRight: {
   <B, A>(b: B, f: (b: B, a: A, i: number) => B): (self: Chunk<A>) => B
   <A, B>(self: Chunk<A>, b: B, f: (b: B, a: A, i: number) => B): B
 } = RA.reduceRight
+
+/**
+ * Creates a `Chunk` of values not included in the other given `Chunk` using the provided `isEquivalent` function.
+ * The order and references of result values are determined by the first `Chunk`.
+ *
+ * @since 3.2.0
+ */
+export const differenceWith = <A>(isEquivalent: (self: A, that: A) => boolean): {
+  (that: Chunk<A>): (self: Chunk<A>) => Chunk<A>
+  (self: Chunk<A>, that: Chunk<A>): Chunk<A>
+} => {
+  return dual(
+    2,
+    (self: Chunk<A>, that: Chunk<A>): Chunk<A> => unsafeFromArray(RA.differenceWith(isEquivalent)(that, self))
+  )
+}
+
+/**
+ * Creates a `Chunk` of values not included in the other given `Chunk`.
+ * The order and references of result values are determined by the first `Chunk`.
+ *
+ * @since 3.2.0
+ */
+export const difference: {
+  <A>(that: Chunk<A>): (self: Chunk<A>) => Chunk<A>
+  <A>(self: Chunk<A>, that: Chunk<A>): Chunk<A>
+} = dual(
+  2,
+  <A>(self: Chunk<A>, that: Chunk<A>): Chunk<A> => unsafeFromArray(RA.difference(that, self))
+)

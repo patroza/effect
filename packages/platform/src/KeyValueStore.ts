@@ -5,6 +5,7 @@ import type * as ParseResult from "@effect/schema/ParseResult"
 import type * as Schema from "@effect/schema/Schema"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
+import type { LazyArg } from "effect/Function"
 import type * as Layer from "effect/Layer"
 import type * as Option from "effect/Option"
 import type * as PlatformError from "./Error.js"
@@ -76,7 +77,7 @@ export interface KeyValueStore {
   /**
    * Create a SchemaStore for the specified schema.
    */
-  readonly forSchema: <A, I, R>(schema: Schema.Schema<A, I, R>) => SchemaStore<R, A>
+  readonly forSchema: <A, I, R>(schema: Schema.Schema<A, I, R>) => SchemaStore<A, R>
 }
 
 /**
@@ -143,7 +144,7 @@ export type SchemaStoreTypeId = typeof SchemaStoreTypeId
  * @since 1.0.0
  * @category models
  */
-export interface SchemaStore<R, A> {
+export interface SchemaStore<A, R> {
   readonly [SchemaStoreTypeId]: SchemaStoreTypeId
   /**
    * Returns the value of the specified key if it exists.
@@ -202,6 +203,17 @@ export const layerSchema: <A, I, R>(
   schema: Schema.Schema<A, I, R>,
   tagIdentifier: string
 ) => {
-  readonly tag: Context.Tag<SchemaStore<R, A>, SchemaStore<R, A>>
-  readonly layer: Layer.Layer<SchemaStore<R, A>, never, KeyValueStore>
+  readonly tag: Context.Tag<SchemaStore<A, R>, SchemaStore<A, R>>
+  readonly layer: Layer.Layer<SchemaStore<A, R>, never, KeyValueStore>
 } = internal.layerSchema
+
+/**
+ * Creates an KeyValueStorage from an instance of the `Storage` api.
+ *
+ * @since 1.0.0
+ * @category layers
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API
+ */
+export const layerStorage: (
+  evaluate: LazyArg<Storage>
+) => Layer.Layer<KeyValueStore> = internal.layerStorage

@@ -2,13 +2,75 @@ import * as S from "@effect/schema/Schema"
 import { hole } from "effect/Function"
 
 // ---------------------------------------------
+// check that there are no conflicts with the `fields` and `from` fields
+// ---------------------------------------------
+
+type HasFields<Fields extends S.Struct.Fields> = S.Struct<Fields> | {
+  readonly [S.refineTypeId]: HasFields<Fields>
+}
+
+declare const checkForConflicts: <Fields extends S.Struct.Fields>(
+  fieldsOr: Fields | HasFields<Fields>
+) => S.Struct<Fields>
+
+// $ExpectType Struct<{ fields: typeof String$; }>
+checkForConflicts({ fields: S.String })
+
+// $ExpectType Struct<{ from: typeof String$; }>
+checkForConflicts({ from: S.String })
+
+// $ExpectType Struct<{ fields: typeof String$; }>
+checkForConflicts(S.Struct({ fields: S.String }))
+
+// $ExpectType Struct<{ from: typeof String$; }>
+checkForConflicts(S.Struct({ from: S.String }))
+
+// $ExpectType Struct<{ fields: typeof String$; }>
+checkForConflicts(S.Struct({ fields: S.String }).pipe(S.filter(() => true)))
+
+// $ExpectType Struct<{ from: typeof String$; }>
+checkForConflicts(S.Struct({ from: S.String }).pipe(S.filter(() => true)))
+
+// $ExpectType Struct<{ fields: typeof String$; }>
+checkForConflicts(S.Struct({ fields: S.String }).pipe(S.filter(() => true), S.filter(() => true)))
+
+// $ExpectType Struct<{ from: typeof String$; }>
+checkForConflicts(S.Struct({ from: S.String }).pipe(S.filter(() => true), S.filter(() => true)))
+
+// $ExpectType Struct<{ fields: Struct<{ a: typeof String$; }>; }>
+checkForConflicts({ fields: S.Struct({ a: S.String }) })
+
+// $ExpectType Struct<{ fields: filter<Struct<{ a: typeof String$; }>>; }>
+checkForConflicts({ fields: S.Struct({ a: S.String }).pipe(S.filter(() => true)) })
+
+// $ExpectType Struct<{ fields: filter<filter<Struct<{ a: typeof String$; }>>>; }>
+checkForConflicts({ fields: S.Struct({ a: S.String }).pipe(S.filter(() => true), S.filter(() => true)) })
+
+// $ExpectType Struct<{ from: Struct<{ a: typeof String$; }>; }>
+checkForConflicts({ from: S.Struct({ a: S.String }) })
+
+// $ExpectType Struct<{ from: filter<Struct<{ a: typeof String$; }>>; }>
+checkForConflicts({ from: S.Struct({ a: S.String }).pipe(S.filter(() => true)) })
+
+// $ExpectType Struct<{ from: filter<filter<Struct<{ a: typeof String$; }>>>; }>
+checkForConflicts({ from: S.Struct({ a: S.String }).pipe(S.filter(() => true), S.filter(() => true)) })
+
+// ---------------------------------------------
 // A class with no fields should permit an empty argument in the constructor.
 // ---------------------------------------------
 
 class NoFields extends S.Class<NoFields>("NoFields")({}) {}
 
-// $ExpectType [props?: void | {}, disableValidation?: boolean | undefined]
+// $ExpectType [props?: void | {}, options?: MakeOptions | undefined]
 hole<ConstructorParameters<typeof NoFields>>()
+
+new NoFields()
+
+NoFields.make()
+
+new NoFields({})
+
+NoFields.make({})
 
 // ---------------------------------------------
 // A class with all fields with a default should permit an empty argument in the constructor.
@@ -18,8 +80,16 @@ class AllDefaultedFields extends S.Class<AllDefaultedFields>("AllDefaultedFields
   a: S.String.pipe(S.propertySignature, S.withConstructorDefault(() => ""))
 }) {}
 
-// $ExpectType [props?: void | {}, disableValidation?: boolean | undefined]
+// $ExpectType [props?: void | { readonly a?: string; }, options?: MakeOptions | undefined]
 hole<ConstructorParameters<typeof AllDefaultedFields>>()
+
+new AllDefaultedFields()
+
+AllDefaultedFields.make()
+
+new AllDefaultedFields({})
+
+AllDefaultedFields.make({})
 
 // ---------------------------------------------
 // test Context
@@ -44,7 +114,7 @@ hole<S.Schema.Context<typeof WithContext>>()
 // should be a constructor
 // ---------------------------------------------
 
-// $ExpectType [props: { readonly a: string; readonly b: number; }, disableValidation?: boolean | undefined]
+// $ExpectType [props: { readonly a: string; readonly b: number; }, options?: MakeOptions | undefined]
 hole<ConstructorParameters<typeof WithContext>>()
 
 // ---------------------------------------------
@@ -74,7 +144,7 @@ hole<S.Schema.Context<typeof Extended>>()
 // $ExpectType { readonly a: Schema<string, string, "a">; readonly b: Schema<number, number, "b">; readonly c: Schema<boolean, boolean, "c">; }
 Extended.fields
 
-// $ExpectType [props: { readonly a: string; readonly b: number; readonly c: boolean; }, disableValidation?: boolean | undefined]
+// $ExpectType [props: { readonly a: string; readonly b: number; readonly c: boolean; }, options?: MakeOptions | undefined]
 hole<ConstructorParameters<typeof Extended>>()
 
 // ---------------------------------------------
@@ -99,7 +169,7 @@ hole<S.Schema.Context<typeof ExtendedFromClassFields>>()
 // $ExpectType { readonly b: typeof String$; readonly c: Schema<boolean, boolean, "c">; readonly a: Schema<string, string, "a">; }
 ExtendedFromClassFields.fields
 
-// $ExpectType [props: { readonly a: string; readonly b: string; readonly c: boolean; }, disableValidation?: boolean | undefined]
+// $ExpectType [props: { readonly a: string; readonly b: string; readonly c: boolean; }, options?: MakeOptions | undefined]
 hole<ConstructorParameters<typeof ExtendedFromClassFields>>()
 
 // ---------------------------------------------
@@ -126,14 +196,12 @@ hole<S.Schema.Context<typeof ExtendedFromTaggedClassFields>>()
 // $ExpectType { readonly _tag: PropertySignature<":", "ExtendedFromTaggedClassFields", never, ":", "ExtendedFromTaggedClassFields", true, never>; readonly b: typeof String$; readonly c: Schema<boolean, boolean, "c">; readonly a: Schema<string, string, "a">; }
 ExtendedFromTaggedClassFields.fields
 
-// $ExpectType [props: { readonly a: string; readonly b: string; readonly c: boolean; }, disableValidation?: boolean | undefined]
+// $ExpectType [props: { readonly a: string; readonly b: string; readonly c: boolean; }, options?: MakeOptions | undefined]
 hole<ConstructorParameters<typeof ExtendedFromTaggedClassFields>>()
 
 // ---------------------------------------------
 // should accept a HasFields as argument
 // ---------------------------------------------
-
-export class FromHasFields extends S.Class<FromHasFields>("FromHasFields")({ fields: { a: S.String } }) {}
 
 export class FromStruct extends S.Class<FromStruct>("FromStruct")(S.Struct({ a: S.String })) {}
 

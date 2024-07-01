@@ -1,5 +1,5 @@
 /**
- * @since 1.0.0
+ * @since 0.67.0
  */
 
 import * as Arr from "effect/Array"
@@ -15,19 +15,19 @@ import type * as Schema from "./Schema.js"
 
 /**
  * @category hooks
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const EquivalenceHookId: unique symbol = Symbol.for("@effect/schema/EquivalenceHookId")
 
 /**
  * @category hooks
- * @since 1.0.0
+ * @since 0.67.0
  */
 export type EquivalenceHookId = typeof EquivalenceHookId
 
 /**
  * @category annotations
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const equivalence =
   <A>(handler: (...args: ReadonlyArray<Equivalence.Equivalence<any>>) => Equivalence.Equivalence<A>) =>
@@ -35,7 +35,7 @@ export const equivalence =
 
 /**
  * @category Equivalence
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const make = <A, I, R>(schema: Schema.Schema<A, I, R>): Equivalence.Equivalence<A> => go(schema.ast, [])
 
@@ -44,9 +44,6 @@ const getHook = AST.getAnnotation<
 >(
   EquivalenceHookId
 )
-
-const getEquivalenceErrorMessage = (message: string, path: ReadonlyArray<PropertyKey>) =>
-  errors_.getErrorMessageWithPath(`cannot build an Equivalence for ${message}`, path)
 
 const go = (ast: AST.AST, path: ReadonlyArray<PropertyKey>): Equivalence.Equivalence<any> => {
   const hook = getHook(ast)
@@ -62,7 +59,7 @@ const go = (ast: AST.AST, path: ReadonlyArray<PropertyKey>): Equivalence.Equival
   }
   switch (ast._tag) {
     case "NeverKeyword":
-      throw new Error(getEquivalenceErrorMessage("`never`", path))
+      throw new Error(errors_.getEquivalenceUnsupportedErrorMessage(ast, path))
     case "Transformation":
       return go(ast.to, path)
     case "Declaration":
@@ -89,7 +86,7 @@ const go = (ast: AST.AST, path: ReadonlyArray<PropertyKey>): Equivalence.Equival
     }
     case "TupleType": {
       const elements = ast.elements.map((element, i) => go(element.type, path.concat(i)))
-      const rest = ast.rest.map((ast) => go(ast, path))
+      const rest = ast.rest.map((annotatedAST) => go(annotatedAST.type, path))
       return Equivalence.make((a, b) => {
         const len = a.length
         if (len !== b.length) {

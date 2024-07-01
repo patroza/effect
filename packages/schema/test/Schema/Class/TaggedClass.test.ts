@@ -43,15 +43,10 @@ describe("TaggedClass", () => {
     expect(() => {
       class _TA extends S.TaggedClass<_TA>()("TA", { _tag: S.Literal("X"), a: S.String }) {}
       console.log(_TA)
-    }).toThrow(new Error(`Duplicate property signature "_tag"`))
-  })
-
-  it("should accept a simple object as argument", () => {
-    const fields = { a: S.String, b: S.Number }
-    class A extends S.TaggedClass<A>()("A", { fields }) {}
-    Util.expectFields(A.fields, { _tag: S.getClassTag("A"), ...fields })
-    class B extends S.TaggedClass<B>()("B", { from: { fields } }) {}
-    Util.expectFields(B.fields, { _tag: S.getClassTag("B"), ...fields })
+    }).toThrow(
+      new Error(`Duplicate property signature
+details: Duplicate key "_tag"`)
+    )
   })
 
   it("should accept a Struct as argument", () => {
@@ -105,7 +100,7 @@ describe("TaggedClass", () => {
       └─ ["a"]
          └─ NonEmpty
             └─ Predicate refinement failure
-               └─ Expected NonEmpty (a non empty string), actual ""`
+               └─ Expected NonEmpty, actual ""`
     )
   })
 
@@ -122,7 +117,7 @@ describe("TaggedClass", () => {
       └─ ["a"]
          └─ NonEmpty
             └─ Predicate refinement failure
-               └─ Expected NonEmpty (a non empty string), actual ""`
+               └─ Expected NonEmpty, actual ""`
     )
   })
 
@@ -216,5 +211,19 @@ describe("TaggedClass", () => {
     })
     expect(person._tag).toEqual("TaggedPerson")
     expect(person.upperName).toEqual("JOHN")
+  })
+
+  it("should expose a make constructor", () => {
+    class TA extends S.TaggedClass<TA>()("TA", {
+      n: S.NumberFromString
+    }) {
+      a() {
+        return this.n + "a"
+      }
+    }
+    const ta = TA.make({ n: 1 })
+    expect(ta instanceof TA).toEqual(true)
+    expect(ta._tag).toEqual("TA")
+    expect(ta.a()).toEqual("1a")
   })
 })

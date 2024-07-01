@@ -1,5 +1,5 @@
 /**
- * @since 1.0.0
+ * @since 0.67.0
  */
 
 import * as Option from "effect/Option"
@@ -7,11 +7,12 @@ import * as Predicate from "effect/Predicate"
 import * as Record from "effect/Record"
 import * as AST from "./AST.js"
 import * as errors_ from "./internal/errors.js"
+import * as filters_ from "./internal/filters.js"
 import type * as Schema from "./Schema.js"
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchemaAnnotations {
   title?: string
@@ -22,7 +23,7 @@ export interface JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Any extends JsonSchemaAnnotations {
   $id: "/schemas/any"
@@ -30,7 +31,7 @@ export interface JsonSchema7Any extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Unknown extends JsonSchemaAnnotations {
   $id: "/schemas/unknown"
@@ -38,7 +39,7 @@ export interface JsonSchema7Unknown extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7object extends JsonSchemaAnnotations {
   $id: "/schemas/object"
@@ -50,7 +51,7 @@ export interface JsonSchema7object extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7empty extends JsonSchemaAnnotations {
   $id: "/schemas/{}"
@@ -62,7 +63,7 @@ export interface JsonSchema7empty extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Ref extends JsonSchemaAnnotations {
   $ref: string
@@ -70,7 +71,7 @@ export interface JsonSchema7Ref extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Const extends JsonSchemaAnnotations {
   const: AST.LiteralValue
@@ -78,7 +79,7 @@ export interface JsonSchema7Const extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7String extends JsonSchemaAnnotations {
   type: "string"
@@ -89,7 +90,7 @@ export interface JsonSchema7String extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Numeric extends JsonSchemaAnnotations {
   minimum?: number
@@ -100,7 +101,7 @@ export interface JsonSchema7Numeric extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Number extends JsonSchema7Numeric {
   type: "number"
@@ -108,7 +109,7 @@ export interface JsonSchema7Number extends JsonSchema7Numeric {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Integer extends JsonSchema7Numeric {
   type: "integer"
@@ -116,7 +117,7 @@ export interface JsonSchema7Integer extends JsonSchema7Numeric {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Boolean extends JsonSchemaAnnotations {
   type: "boolean"
@@ -124,7 +125,7 @@ export interface JsonSchema7Boolean extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Array extends JsonSchemaAnnotations {
   type: "array"
@@ -136,7 +137,7 @@ export interface JsonSchema7Array extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7OneOf extends JsonSchemaAnnotations {
   oneOf: Array<JsonSchema7>
@@ -144,7 +145,7 @@ export interface JsonSchema7OneOf extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Enum extends JsonSchemaAnnotations {
   enum: Array<AST.LiteralValue>
@@ -152,7 +153,7 @@ export interface JsonSchema7Enum extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Enums extends JsonSchemaAnnotations {
   $comment: "/schemas/enums"
@@ -164,7 +165,7 @@ export interface JsonSchema7Enums extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7AnyOf extends JsonSchemaAnnotations {
   anyOf: Array<JsonSchema7>
@@ -172,7 +173,7 @@ export interface JsonSchema7AnyOf extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface JsonSchema7Object extends JsonSchemaAnnotations {
   type: "object"
@@ -184,7 +185,7 @@ export interface JsonSchema7Object extends JsonSchemaAnnotations {
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export type JsonSchema7 =
   | JsonSchema7Any
@@ -206,7 +207,7 @@ export type JsonSchema7 =
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export type JsonSchema7Root = JsonSchema7 & {
   $schema?: string
@@ -215,7 +216,7 @@ export type JsonSchema7Root = JsonSchema7 & {
 
 /**
  * @category encoding
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const make = <A, I, R>(schema: Schema.Schema<A, I, R>): JsonSchema7Root => {
   const $defs: Record<string, any> = {}
@@ -274,14 +275,6 @@ const pruneUndefinedKeyword = (ps: AST.PropertySignature): AST.AST => {
   return type
 }
 
-const getMissingAnnotationErrorMessage = (name: string, path: ReadonlyArray<PropertyKey>): string =>
-  errors_.getErrorMessageWithPath(`cannot build a JSON Schema for ${name} without a JSON Schema annotation`, path)
-
-const getUnsupportedIndexSignatureParameterErrorMessage = (
-  parameter: AST.AST,
-  path: ReadonlyArray<PropertyKey>
-): string => errors_.getErrorMessageWithPath(`unsupported index signature parameter (${parameter})`, path)
-
 /** @internal */
 export const DEFINITION_PREFIX = "#/$defs/"
 
@@ -305,6 +298,16 @@ const hasTransformation = (ast: AST.Refinement): boolean => {
   return false
 }
 
+const isParseJsonTransformation = (ast: AST.AST): boolean =>
+  ast.annotations[AST.TypeAnnotationId] === filters_.ParseJsonTypeId
+
+function merge(a: JsonSchemaAnnotations, b: JsonSchema7): JsonSchema7
+function merge(a: JsonSchema7, b: JsonSchemaAnnotations): JsonSchema7
+function merge(a: JsonSchema7, b: JsonSchema7): JsonSchema7
+function merge(a: object, b: object): object {
+  return { ...a, ...b }
+}
+
 const go = (
   ast: AST.AST,
   $defs: Record<string, JsonSchema7>,
@@ -316,9 +319,9 @@ const go = (
     const handler = hook.value as JsonSchema7
     if (AST.isRefinement(ast) && !hasTransformation(ast)) {
       try {
-        return { ...go(ast.from, $defs, true, path), ...getJsonSchemaAnnotations(ast), ...handler }
+        return merge(merge(go(ast.from, $defs, true, path), getJsonSchemaAnnotations(ast)), handler)
       } catch (e) {
-        return { ...getJsonSchemaAnnotations(ast), ...handler }
+        return merge(getJsonSchemaAnnotations(ast), handler)
       }
     }
     return handler
@@ -341,48 +344,60 @@ const go = (
   }
   switch (ast._tag) {
     case "Declaration":
-      throw new Error(getMissingAnnotationErrorMessage("a declaration", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "Literal": {
       const literal = ast.literal
       if (literal === null) {
-        return { const: null, ...getJsonSchemaAnnotations(ast) }
-      } else if (Predicate.isString(literal)) {
-        return { const: literal, ...getJsonSchemaAnnotations(ast) }
-      } else if (Predicate.isNumber(literal)) {
-        return { const: literal, ...getJsonSchemaAnnotations(ast) }
-      } else if (Predicate.isBoolean(literal)) {
-        return { const: literal, ...getJsonSchemaAnnotations(ast) }
+        return merge({ const: null }, getJsonSchemaAnnotations(ast))
+      } else if (Predicate.isString(literal) || Predicate.isNumber(literal) || Predicate.isBoolean(literal)) {
+        return merge({ const: literal }, getJsonSchemaAnnotations(ast))
       }
-      throw new Error(getMissingAnnotationErrorMessage("a bigint literal", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     }
     case "UniqueSymbol":
-      throw new Error(getMissingAnnotationErrorMessage("a unique symbol", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "UndefinedKeyword":
-      throw new Error(getMissingAnnotationErrorMessage("`undefined`", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "VoidKeyword":
-      throw new Error(getMissingAnnotationErrorMessage("`void`", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "NeverKeyword":
-      throw new Error(getMissingAnnotationErrorMessage("`never`", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "UnknownKeyword":
-      return { ...unknownJsonSchema, ...getJsonSchemaAnnotations(ast) }
+      return merge(unknownJsonSchema, getJsonSchemaAnnotations(ast))
     case "AnyKeyword":
-      return { ...anyJsonSchema, ...getJsonSchemaAnnotations(ast) }
+      return merge(anyJsonSchema, getJsonSchemaAnnotations(ast))
     case "ObjectKeyword":
-      return { ...objectJsonSchema, ...getJsonSchemaAnnotations(ast) }
-    case "StringKeyword":
-      return { type: "string", ...getJsonSchemaAnnotations(ast) }
-    case "NumberKeyword":
-      return { type: "number", ...getJsonSchemaAnnotations(ast) }
-    case "BooleanKeyword":
-      return { type: "boolean", ...getJsonSchemaAnnotations(ast) }
+      return merge(objectJsonSchema, getJsonSchemaAnnotations(ast))
+    case "StringKeyword": {
+      const out: JsonSchema7 = { type: "string" }
+      return ast === AST.stringKeyword ? out : merge(out, getJsonSchemaAnnotations(ast))
+    }
+    case "NumberKeyword": {
+      const out: JsonSchema7 = { type: "number" }
+      return ast === AST.numberKeyword ? out : merge(out, getJsonSchemaAnnotations(ast))
+    }
+    case "BooleanKeyword": {
+      const out: JsonSchema7 = { type: "boolean" }
+      return ast === AST.booleanKeyword ? out : merge(out, getJsonSchemaAnnotations(ast))
+    }
     case "BigIntKeyword":
-      throw new Error(getMissingAnnotationErrorMessage("`bigint`", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "SymbolKeyword":
-      throw new Error(getMissingAnnotationErrorMessage("`symbol`", path))
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     case "TupleType": {
       const len = ast.elements.length
-      const elements = ast.elements.map((e, i) => go(e.type, $defs, true, path.concat(i)))
-      const rest = ast.rest.map((ast) => go(ast, $defs, true, path))
+      const elements = ast.elements.map((e, i) =>
+        merge(
+          go(e.type, $defs, true, path.concat(i)),
+          getJsonSchemaAnnotations(e)
+        )
+      )
+      const rest = ast.rest.map((annotatedAST) =>
+        merge(
+          go(annotatedAST.type, $defs, true, path),
+          getJsonSchemaAnnotations(annotatedAST)
+        )
+      )
       const output: JsonSchema7Array = { type: "array" }
       // ---------------------------------------------
       // handle elements
@@ -406,12 +421,7 @@ const go = (
         // handle post rest elements
         // ---------------------------------------------
         if (rest.length > 1) {
-          throw new Error(
-            errors_.getErrorMessageWithPath(
-              "Generating a JSON Schema for post-rest elements is not currently supported. You're welcome to contribute by submitting a Pull Request.",
-              path
-            )
-          )
+          throw new Error(errors_.getJSONSchemaUnsupportedPostRestElementsErrorMessage(path))
         }
       } else {
         if (len > 0) {
@@ -421,11 +431,11 @@ const go = (
         }
       }
 
-      return { ...output, ...getJsonSchemaAnnotations(ast) }
+      return merge(output, getJsonSchemaAnnotations(ast))
     }
     case "TypeLiteral": {
       if (ast.propertySignatures.length === 0 && ast.indexSignatures.length === 0) {
-        return { ...empty(), ...getJsonSchemaAnnotations(ast) }
+        return merge(empty(), getJsonSchemaAnnotations(ast))
       }
       let additionalProperties: JsonSchema7 | undefined = undefined
       let patternProperties: Record<string, JsonSchema7> | undefined = undefined
@@ -453,17 +463,17 @@ const go = (
               }
               break
             }
-            throw new Error(getUnsupportedIndexSignatureParameterErrorMessage(parameter, path))
+            throw new Error(errors_.getJSONSchemaUnsupportedParameterErrorMessage(path, parameter))
           }
           case "SymbolKeyword":
-            throw new Error(getUnsupportedIndexSignatureParameterErrorMessage(parameter, path))
+            throw new Error(errors_.getJSONSchemaUnsupportedParameterErrorMessage(path, parameter))
         }
       }
       const propertySignatures = ast.propertySignatures.map((ps) => {
-        return {
-          ...go(pruneUndefinedKeyword(ps), $defs, true, path.concat(ps.name)),
-          ...getJsonSchemaAnnotations(ps)
-        }
+        return merge(
+          go(pruneUndefinedKeyword(ps), $defs, true, path.concat(ps.name)),
+          getJsonSchemaAnnotations(ps)
+        )
       })
       const output: JsonSchema7Object = {
         type: "object",
@@ -485,7 +495,7 @@ const go = (
             output.required.push(name)
           }
         } else {
-          throw new Error(errors_.getErrorMessageWithPath(`cannot encode ${String(name)} key to JSON Schema`, path))
+          throw new Error(errors_.getJSONSchemaUnsupportedKeyErrorMessage(name, path))
         }
       }
       // ---------------------------------------------
@@ -498,7 +508,7 @@ const go = (
         output.patternProperties = patternProperties
       }
 
-      return { ...output, ...getJsonSchemaAnnotations(ast) }
+      return merge(output, getJsonSchemaAnnotations(ast))
     }
     case "Union": {
       const enums: Array<AST.LiteralValue> = []
@@ -517,9 +527,9 @@ const go = (
       }
       if (anyOf.length === 0) {
         if (enums.length === 1) {
-          return { const: enums[0], ...getJsonSchemaAnnotations(ast) }
+          return merge({ const: enums[0] }, getJsonSchemaAnnotations(ast))
         } else {
-          return { enum: enums, ...getJsonSchemaAnnotations(ast) }
+          return merge({ enum: enums }, getJsonSchemaAnnotations(ast))
         }
       } else {
         if (enums.length === 1) {
@@ -527,46 +537,40 @@ const go = (
         } else if (enums.length > 1) {
           anyOf.push({ enum: enums })
         }
-        return { anyOf, ...getJsonSchemaAnnotations(ast) }
+        return merge({ anyOf }, getJsonSchemaAnnotations(ast))
       }
     }
     case "Enums": {
-      return {
+      return merge({
         $comment: "/schemas/enums",
-        oneOf: ast.enums.map((e) => ({ title: e[0], const: e[1] })),
-        ...getJsonSchemaAnnotations(ast)
-      }
+        oneOf: ast.enums.map((e) => ({ title: e[0], const: e[1] }))
+      }, getJsonSchemaAnnotations(ast))
     }
     case "Refinement": {
-      throw new Error(
-        errors_.getErrorMessageWithPath(
-          "cannot build a JSON Schema for a refinement without a JSON Schema annotation",
-          path
-        )
-      )
+      throw new Error(errors_.getJSONSchemaMissingAnnotationErrorMessage(path, ast))
     }
     case "TemplateLiteral": {
       const regex = AST.getTemplateLiteralRegExp(ast)
-      return {
+      return merge({
         type: "string",
         description: "a template literal",
-        pattern: regex.source,
-        ...getJsonSchemaAnnotations(ast)
-      }
+        pattern: regex.source
+      }, getJsonSchemaAnnotations(ast))
     }
     case "Suspend": {
       const identifier = Option.orElse(AST.getJSONIdentifier(ast), () => AST.getJSONIdentifier(ast.f()))
       if (Option.isNone(identifier)) {
-        throw new Error(
-          errors_.getErrorMessageWithPath(
-            "Generating a JSON Schema for suspended schemas requires an identifier annotation",
-            path
-          )
-        )
+        throw new Error(errors_.getJSONSchemaMissingIdentifierAnnotationErrorMessage(path, ast))
       }
       return go(ast.f(), $defs, true, path)
     }
-    case "Transformation":
-      return go(ast.from, $defs, true, path)
+    case "Transformation": {
+      // Properly handle S.parseJson transformations by focusing on
+      // the 'to' side of the AST. This approach prevents the generation of useless schemas
+      // derived from the 'from' side (type: string), ensuring the output matches the intended
+      // complex schema type.
+      const next = isParseJsonTransformation(ast.from) ? ast.to : ast.from
+      return go(next, $defs, true, path)
+    }
   }
 }

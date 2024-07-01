@@ -53,16 +53,6 @@ describe("extend", () => {
     expect(person.nick).toEqual("Joe")
   })
 
-  it("should accept a simple object as argument", () => {
-    const baseFields = { base: S.String }
-    class Base extends S.Class<Base>("Base")(baseFields) {}
-    const fields = { a: S.String, b: S.Number }
-    class A extends Base.extend<A>("A")({ fields }) {}
-    Util.expectFields(A.fields, { ...baseFields, ...fields })
-    class B extends Base.extend<B>("B")({ from: { fields } }) {}
-    Util.expectFields(B.fields, { ...baseFields, ...fields })
-  })
-
   it("should accept a Struct as argument", () => {
     const baseFields = { base: S.String }
     class Base extends S.Class<Base>("Base")(baseFields) {}
@@ -106,5 +96,26 @@ describe("extend", () => {
       └─ ["age"]
          └─ is missing`
     )
+  })
+
+  it("should expose a make constructor", () => {
+    class A extends S.Class<A>("A")({
+      n: S.NumberFromString
+    }) {
+      a() {
+        return this.n + "a"
+      }
+    }
+    class B extends A.extend<B>("B")({
+      c: S.String
+    }) {
+      b() {
+        return this.n + "b"
+      }
+    }
+    const b = B.make({ n: 1, c: "c" })
+    expect(b instanceof B).toEqual(true)
+    expect(b.a()).toEqual("1a")
+    expect(b.b()).toEqual("1b")
   })
 })

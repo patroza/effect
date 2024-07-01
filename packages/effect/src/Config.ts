@@ -13,6 +13,7 @@ import * as internal from "./internal/config.js"
 import type * as LogLevel from "./LogLevel.js"
 import type * as Option from "./Option.js"
 import type { Predicate, Refinement } from "./Predicate.js"
+import type * as Redacted from "./Redacted.js"
 import type * as Secret from "./Secret.js"
 import type * as Types from "./Types.js"
 
@@ -69,12 +70,15 @@ export declare namespace Config {
    * @since 2.0.0
    * @category models
    */
-  export type Wrap<A> =
-    | (A extends Record<string, any> ? {
-        [K in keyof A]: Wrap<A[K]>
-      }
-      : never)
-    | Config<A>
+  export type Wrap<A> = [NonNullable<A>] extends [infer T] ? [IsPlainObject<T>] extends [true] ?
+        | { readonly [K in keyof A]: Wrap<A[K]> }
+        | Config<A>
+    : Config<A>
+    : Config<A>
+
+  type IsPlainObject<A> = [A] extends [Record<string, any>]
+    ? [keyof A] extends [never] ? false : [keyof A] extends [string] ? true : false
+    : false
 }
 
 /**
@@ -108,7 +112,7 @@ export const all: <const Arg extends Iterable<Config<any>> | Record<string, Conf
  * @since 2.0.0
  * @category constructors
  */
-export const array: <A>(config: Config<A>, name?: string) => Config<ReadonlyArray<A>> = internal.array
+export const array: <A>(config: Config<A>, name?: string) => Config<Array<A>> = internal.array
 
 /**
  * Constructs a config for a boolean value.
@@ -329,8 +333,17 @@ export const repeat: <A>(self: Config<A>) => Config<Array<A>> = internal.repeat
  *
  * @since 2.0.0
  * @category constructors
+ * @deprecated
  */
 export const secret: (name?: string) => Config<Secret.Secret> = internal.secret
+
+/**
+ * Constructs a config for a redacted value.
+ *
+ * @since 2.0.0
+ * @category constructors
+ */
+export const redacted: (name?: string) => Config<Redacted.Redacted> = internal.redacted
 
 /**
  * Constructs a config for a sequence of values.

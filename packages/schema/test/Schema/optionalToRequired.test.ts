@@ -8,9 +8,13 @@ describe("optionalToRequired", () => {
     const ps = S.optionalToRequired(
       S.NumberFromString,
       S.BigIntFromNumber,
-      { decode: Option.getOrElse(() => 0), encode: Option.some }
+      { decode: Option.getOrElse(() => 0), encode: Option.liftPredicate((n) => n !== 0) }
     )
     const schema = S.Struct({ a: ps })
+    await Util.expectDecodeUnknownSuccess(schema, {}, { a: 0n })
     await Util.expectDecodeUnknownSuccess(schema, { a: "1" }, { a: 1n })
+
+    await Util.expectEncodeSuccess(schema, { a: 0n }, {})
+    await Util.expectEncodeSuccess(schema, { a: 1n }, { a: "1" })
   })
 })

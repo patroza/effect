@@ -3,6 +3,7 @@
  */
 import { dual, isFunction as isFunction_ } from "./Function.js"
 import type { TypeLambda } from "./HKT.js"
+import type { TupleOf, TupleOfAtLeast } from "./Types.js"
 
 /**
  * @category models
@@ -51,6 +52,64 @@ export const mapInput: {
   <B, A>(f: (b: B) => A): (self: Predicate<A>) => Predicate<B>
   <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B>
 } = dual(2, <A, B>(self: Predicate<A>, f: (b: B) => A): Predicate<B> => (b) => self(f(b)))
+
+/**
+ * Determine if an `Array` is a tuple with exactly `N` elements, narrowing down the type to `TupleOf`.
+ *
+ * An `Array` is considered to be a `TupleOf` if its length is exactly `N`.
+ *
+ * @param self - The `Array` to check.
+ * @param n - The exact number of elements that the `Array` should have to be considered a `TupleOf`.
+ *
+ * @example
+ * import { isTupleOf } from "effect/Predicate"
+ *
+ * assert.deepStrictEqual(isTupleOf([1, 2, 3], 3), true);
+ * assert.deepStrictEqual(isTupleOf([1, 2, 3], 2), false);
+ * assert.deepStrictEqual(isTupleOf([1, 2, 3], 4), false);
+ *
+ * const arr: number[] = [1, 2, 3];
+ * if (isTupleOf(arr, 3)) {
+ *   console.log(arr);
+ *   // ^? [number, number, number]
+ * }
+ *
+ * @category guards
+ * @since 3.3.0
+ */
+export const isTupleOf: {
+  <N extends number>(n: N): <T>(self: ReadonlyArray<T>) => self is TupleOf<N, T>
+  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOf<N, T>
+} = dual(2, <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOf<N, T> => self.length === n)
+
+/**
+ * Determine if an `Array` is a tuple with at least `N` elements, narrowing down the type to `TupleOfAtLeast`.
+ *
+ * An `Array` is considered to be a `TupleOfAtLeast` if its length is at least `N`.
+ *
+ * @param self - The `Array` to check.
+ * @param n - The minimum number of elements that the `Array` should have to be considered a `TupleOfAtLeast`.
+ *
+ * @example
+ * import { isTupleOfAtLeast } from "effect/Predicate"
+ *
+ * assert.deepStrictEqual(isTupleOfAtLeast([1, 2, 3], 3), true);
+ * assert.deepStrictEqual(isTupleOfAtLeast([1, 2, 3], 2), true);
+ * assert.deepStrictEqual(isTupleOfAtLeast([1, 2, 3], 4), false);
+ *
+ * const arr: number[] = [1, 2, 3, 4];
+ * if (isTupleOfAtLeast(arr, 3)) {
+ *   console.log(arr);
+ *   // ^? [number, number, number, ...number[]]
+ * }
+ *
+ * @category guards
+ * @since 3.3.0
+ */
+export const isTupleOfAtLeast: {
+  <N extends number>(n: N): <T>(self: ReadonlyArray<T>) => self is TupleOfAtLeast<N, T>
+  <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOfAtLeast<N, T>
+} = dual(2, <T, N extends number>(self: ReadonlyArray<T>, n: N): self is TupleOfAtLeast<N, T> => self.length >= n)
 
 /**
  * Tests if a value is `truthy`.
@@ -572,7 +631,9 @@ export const isPromiseLike = (
  */
 export const compose: {
   <A, B extends A, C extends B>(bc: Refinement<B, C>): (ab: Refinement<A, B>) => Refinement<A, C>
+  <A, B extends A>(bc: Predicate<NoInfer<B>>): (ab: Refinement<A, B>) => Refinement<A, B>
   <A, B extends A, C extends B>(ab: Refinement<A, B>, bc: Refinement<B, C>): Refinement<A, C>
+  <A, B extends A>(ab: Refinement<A, B>, bc: Predicate<NoInfer<B>>): Refinement<A, B>
 } = dual(
   2,
   <A, B extends A, C extends B>(ab: Refinement<A, B>, bc: Refinement<B, C>): Refinement<A, C> => (a): a is C =>
@@ -740,15 +801,55 @@ export const eqv: {
 } = dual(2, <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => self(a) === that(a))
 
 /**
+ * Represents the logical implication combinator for predicates. In formal
+ * logic, the implication operator `->` denotes that if the first proposition
+ * (antecedent) is true, then the second proposition (consequent) must also be
+ * true. In simpler terms, `p implies q` can be interpreted as "if p then q". If
+ * the first predicate holds, then the second predicate must hold
+ * for the given context.
+ *
+ * In practical terms within TypeScript, `p implies q` is equivalent to `!p || (p && q)`.
+ *
+ * Note that if the antecedent is `false`, the result is `true` by default
+ * because the outcome of the consequent cannot be determined.
+ *
+ * This function is useful in situations where you need to enforce rules or
+ * constraints that are contingent on certain conditions.
+ * It proves especially helpful in defining property tests.
+ *
+ * The example below illustrates the transitive property of order using the
+ * `implies` function. In simple terms, if `a <= b` and `b <= c`, then `a <= c`
+ * must be true.
+ *
+ * @example
+ * import { Predicate } from "effect"
+ *
+ * type Triple = {
+ *   readonly a: number
+ *   readonly b: number
+ *   readonly c: number
+ * }
+ *
+ * const transitivity = Predicate.implies(
+ *   // antecedent
+ *   (input: Triple) => input.a <= input.b && input.b <= input.c,
+ *   // consequent
+ *   (input: Triple) => input.a <= input.c
+ * )
+ *
+ * assert.equal(transitivity({ a: 1, b: 2, c: 3 }), true)
+ * // antecedent is `false`, so the result is `true`
+ * assert.equal(transitivity({ a: 1, b: 0, c: 0 }), true)
+ *
  * @category combinators
  * @since 2.0.0
  */
 export const implies: {
-  <A>(that: Predicate<A>): (self: Predicate<A>) => Predicate<A>
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A>
+  <A>(consequent: Predicate<A>): (antecedent: Predicate<A>) => Predicate<A>
+  <A>(antecedent: Predicate<A>, consequent: Predicate<A>): Predicate<A>
 } = dual(
   2,
-  <A>(self: Predicate<A>, that: Predicate<A>): Predicate<A> => (a) => self(a) ? that(a) : true
+  <A>(antecedent: Predicate<A>, consequent: Predicate<A>): Predicate<A> => (a) => antecedent(a) ? consequent(a) : true
 )
 
 /**

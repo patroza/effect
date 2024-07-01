@@ -1,3 +1,4 @@
+import * as Otel from "@opentelemetry/semantic-conventions"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
 import * as FiberRef from "effect/FiberRef"
@@ -8,8 +9,8 @@ import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import type { Scope } from "effect/Scope"
 import * as Stream from "effect/Stream"
-import type * as Connection from "../Connection.js"
-import type * as Error from "../Error.js"
+import type * as Connection from "../SqlConnection.js"
+import type * as Error from "../SqlError.js"
 import type * as Statement from "../Statement.js"
 
 /** @internal */
@@ -89,7 +90,7 @@ export class StatementPrimitive<A> extends Effectable.Class<ReadonlyArray<A>, Er
   ): Effect.Effect<XA, E | Error.SqlError> {
     return Effect.useSpan(
       "sql.execute",
-      { kind: "client" },
+      { kind: "client", captureStackTrace: false },
       (span) =>
         Effect.withFiberRuntime((fiber) => {
           const transform = fiber.getFiberRef(currentTransformer)
@@ -100,8 +101,8 @@ export class StatementPrimitive<A> extends Effectable.Class<ReadonlyArray<A>, Er
           for (const [key, value] of this.spanAttributes) {
             span.attribute(key, value)
           }
-          span.attribute("db.operation.name", operation)
-          span.attribute("db.query.text", sql)
+          span.attribute(Otel.SEMATTRS_DB_OPERATION, operation)
+          span.attribute(Otel.SEMATTRS_DB_STATEMENT, sql)
           return Effect.scoped(Effect.flatMap(this.acquirer, (_) => f(_, sql, params)))
         })
     )
@@ -117,7 +118,7 @@ export class StatementPrimitive<A> extends Effectable.Class<ReadonlyArray<A>, Er
 
   get stream(): Stream.Stream<A, Error.SqlError> {
     return Stream.unwrapScoped(Effect.flatMap(
-      Effect.makeSpanScoped("sql.execute", { kind: "client" }),
+      Effect.makeSpanScoped("sql.execute", { kind: "client", captureStackTrace: false }),
       (span) =>
         Effect.withFiberRuntime<Stream.Stream<A, Error.SqlError>, Error.SqlError, Scope>((fiber) => {
           const transform = fiber.getFiberRef(currentTransformer)
@@ -128,8 +129,8 @@ export class StatementPrimitive<A> extends Effectable.Class<ReadonlyArray<A>, Er
           for (const [key, value] of this.spanAttributes) {
             span.attribute(key, value)
           }
-          span.attribute("db.operation.name", "executeStream")
-          span.attribute("db.query.text", sql)
+          span.attribute(Otel.SEMATTRS_DB_OPERATION, "executeStream")
+          span.attribute(Otel.SEMATTRS_DB_STATEMENT, sql)
           return Effect.map(this.acquirer, (_) => _.executeStream(sql, params))
         })
     ))

@@ -1,5 +1,437 @@
 # effect
 
+## 3.4.6
+
+### Patch Changes
+
+- [#3096](https://github.com/Effect-TS/effect/pull/3096) [`5c0ceb0`](https://github.com/Effect-TS/effect/commit/5c0ceb00826cce9e50bf9d41d83e191d5352c030) Thanks @gcanti! - Micro: align with `Effect` module (renamings and new combinators).
+
+  General naming convention rule: `<reference module (start with lowercase)><api (start with Uppercase)>`.
+
+  - `Failure` -> `MicroCause`
+    - `Failure.Expected<E>` -> `MicroCause.Fail<E>`
+    - `Failure.Unexpected` -> `MicroCause.Die`
+    - `Failure.Aborted` -> `MicroCause.Interrupt`
+    - `FailureExpected` -> `causeFail`
+    - `FailureUnexpected` -> `causeDie`
+    - `FailureAborted` -> `causeInterrupt`
+    - `failureIsExpected` -> `causeIsFail`
+    - `failureIsExpected` -> `causeIsFail`
+    - `failureIsUnexpected` -> `causeIsDie`
+    - `failureIsAborted` -> `causeIsInterrupt`
+    - `failureSquash` -> `causeSquash`
+    - `failureWithTrace` -> `causeWithTrace`
+  - `Result` -> `MicroExit`
+    - `ResultAborted` -> `exitInterrupt`
+    - `ResultSuccess` -> `exitSucceed`
+    - `ResultFail` -> `exitFail`
+    - `ResultFailUnexpected` -> `exitDie`
+    - `ResultFailWith` -> `exitFailCause`
+    - `resultIsSuccess` -> `exitIsSuccess`
+    - `resultIsFailure` -> `exitIsFailure`
+    - `resultIsAborted` -> `exitIsInterrupt`
+    - `resultIsFailureExpected` -> `exitIsFail`
+    - `resultIsFailureUnexpected` -> `exitIsDie`
+    - `resultVoid` -> `exitVoid`
+  - `DelayFn` -> `MicroSchedule`
+    - `delayExponential` -> `scheduleExponential`
+    - `delaySpaced` -> `scheduleSpaced`
+    - `delayWithMax` -> `scheduleWithMaxDelay`
+    - `delayWithMaxElapsed` -> `scheduleWithMaxElapsed`
+    - `delayWithRecurs` -> `scheduleRecurs` and make it a constructor
+    - add `scheduleAddDelay` combinator
+    - add `scheduleUnion` combinator
+    - add `scheduleIntersect` combinator
+  - `Handle`
+    - `abort` -> `interrupt`
+    - `unsafeAbort` -> `unsafeInterrupt`
+  - `provideServiceMicro` -> `provideServiceEffect`
+  - `fromResult` -> `fromExit`
+  - `fromResultSync` -> `fromExitSync`
+  - `failWith` -> `failCause`
+  - `failWithSync` -> `failCauseSync`
+  - `asResult` -> `exit`
+  - `filterOrFailWith` -> `filterOrFailCause`
+  - `repeatResult` -> `repeatExit`
+  - `catchFailure` -> `catchAllCause`
+  - `catchFailureIf` -> `catchCauseIf`
+  - `catchExpected` -> `catchAll`
+  - `catchUnexpected` -> `catchAllDefect`
+  - `tapFailure` -> `tapErrorCause`
+  - `tapFailureIf` -> `tapErrorCauseIf`
+  - `tapExpected` -> `tapError`
+  - `tapUnexpected` -> `tapDefect`
+  - `mapFailure` -> `mapErrorCause`
+  - `matchFailureMicro` -> `matchCauseEffect`
+  - `matchFailure` -> `matchCause`
+  - `matchMicro` -> `matchEffect`
+  - `onResult` -> `onExit`
+  - `onResultIf` -> `onExitIf`
+  - `onFailure` -> `onError`
+  - `onAbort` -> `onInterrupt`
+  - `abort` -> `interrupt`
+  - `runPromiseResult` -> `runPromiseExit`
+  - `runSyncResult` -> `runSyncExit`
+  - rename `delay` option to `schedule`
+
+- [#3096](https://github.com/Effect-TS/effect/pull/3096) [`5c0ceb0`](https://github.com/Effect-TS/effect/commit/5c0ceb00826cce9e50bf9d41d83e191d5352c030) Thanks @gcanti! - Micro: rename `timeout` to `timeoutOption`, and add a `timeout` that fails with a `TimeoutException`
+
+- [#3121](https://github.com/Effect-TS/effect/pull/3121) [`33735b1`](https://github.com/Effect-TS/effect/commit/33735b16b41bd26929d8f4754c190925db6323b7) Thanks @KhraksMamtsov! - Support for the tacit usage of external handlers for `Match.tag` and `Match.tagStartsWith` functions
+
+  ```ts
+  type Value = { _tag: "A"; a: string } | { _tag: "B"; b: number };
+  const handlerA = (_: { _tag: "A"; a: number }) => _.a;
+
+  // $ExpectType string | number
+  pipe(
+    M.type<Value>(),
+    M.tag("A", handlerA), // <-- no type issue
+    M.orElse((_) => _.b),
+  )(value);
+  ```
+
+- [#3096](https://github.com/Effect-TS/effect/pull/3096) [`5c0ceb0`](https://github.com/Effect-TS/effect/commit/5c0ceb00826cce9e50bf9d41d83e191d5352c030) Thanks @gcanti! - Micro: move MicroExit types to a namespace
+
+- [#3134](https://github.com/Effect-TS/effect/pull/3134) [`139d4b3`](https://github.com/Effect-TS/effect/commit/139d4b39fb3bff2eeaa7c0c809c581da42425a83) Thanks @tim-smart! - use Channel.acquireUseRelease for Channel.withSpan
+
+## 3.4.5
+
+### Patch Changes
+
+- [#3099](https://github.com/Effect-TS/effect/pull/3099) [`a047af9`](https://github.com/Effect-TS/effect/commit/a047af99447dfffc729e9c8ef0ca143537927e91) Thanks @tim-smart! - fix using unions with Match.withReturnType
+
+## 3.4.4
+
+### Patch Changes
+
+- [#3083](https://github.com/Effect-TS/effect/pull/3083) [`72638e3`](https://github.com/Effect-TS/effect/commit/72638e3d99f0e93a24febf6c225256ce92d4a20b) Thanks @gcanti! - Micro: add `NoSuchElementException` error and update `fromOption` to change the failure type from `Option.None<never>` to `NoSuchElementException`
+
+- [#3095](https://github.com/Effect-TS/effect/pull/3095) [`d7dde2b`](https://github.com/Effect-TS/effect/commit/d7dde2b4af08b37af859d4c327c1f5c6f00cf9d9) Thanks @tim-smart! - remove global AbortController from Micro
+
+- [#3085](https://github.com/Effect-TS/effect/pull/3085) [`9b2fc3b`](https://github.com/Effect-TS/effect/commit/9b2fc3b9dfd304a2bd0508ef2313cfc54357be0c) Thanks @gcanti! - Micro: add `zipWith`
+
+## 3.4.3
+
+### Patch Changes
+
+- [#3065](https://github.com/Effect-TS/effect/pull/3065) [`c342739`](https://github.com/Effect-TS/effect/commit/c3427396226e1ad7b95b40595a23f9bdff3e3365) Thanks @KhraksMamtsov! - Support `this` argument for `Micro.gen`
+
+- [#3067](https://github.com/Effect-TS/effect/pull/3067) [`8898e5e`](https://github.com/Effect-TS/effect/commit/8898e5e238622f6337583d91ee23609c1f5ccdf7) Thanks @KhraksMamtsov! - Cleanup signal "abort" event handler in `Micro.runFork`
+
+- [#3082](https://github.com/Effect-TS/effect/pull/3082) [`ff78636`](https://github.com/Effect-TS/effect/commit/ff786367c522975f40f0f179a0ecdfcfab7ecbdb) Thanks @gcanti! - Align the `Micro.catchIf` signature with `Effect.catchIf`
+
+- [#3078](https://github.com/Effect-TS/effect/pull/3078) [`c86bd4e`](https://github.com/Effect-TS/effect/commit/c86bd4e134c23146c216f9ff97e03781d55991b6) Thanks @KhraksMamtsov! - Support unification for Micro module
+
+- [#3079](https://github.com/Effect-TS/effect/pull/3079) [`bbdd365`](https://github.com/Effect-TS/effect/commit/bbdd36567706c94cdec45bacea825941c347b6cd) Thanks @tim-smart! - update to typescript 5.5
+
+## 3.4.2
+
+### Patch Changes
+
+- [#3062](https://github.com/Effect-TS/effect/pull/3062) [`3da1497`](https://github.com/Effect-TS/effect/commit/3da1497b5c9cc886d300258bc928fd68a4fefe6f) Thanks @KhraksMamtsov! - Reuse centralized do-notation code
+
+## 3.4.1
+
+### Patch Changes
+
+- [#3056](https://github.com/Effect-TS/effect/pull/3056) [`66a1910`](https://github.com/Effect-TS/effect/commit/66a19109ff90c4252123b8809b8c8a74681dba6a) Thanks @gcanti! - add missing `TypeLambda` to `Micro` module
+
+## 3.4.0
+
+### Minor Changes
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`c0ce180`](https://github.com/Effect-TS/effect/commit/c0ce180861ad0938053c0e6145e813fa6404df3b) Thanks @LaureRC! - Make Option.liftPredicate dual
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`61707b6`](https://github.com/Effect-TS/effect/commit/61707b6ffc7397c2ba0dce22512b44955724f60f) Thanks @LaureRC! - Add Effect.liftPredicate
+
+  `Effect.liftPredicate` transforms a `Predicate` function into an `Effect` returning the input value if the predicate returns `true` or failing with specified error if the predicate fails.
+
+  ```ts
+  import { Effect } from "effect";
+
+  const isPositive = (n: number): boolean => n > 0;
+
+  // succeeds with `1`
+  Effect.liftPredicate(1, isPositive, (n) => `${n} is not positive`);
+
+  // fails with `"0 is not positive"`
+  Effect.liftPredicate(0, isPositive, (n) => `${n} is not positive`);
+  ```
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`9c1b5b3`](https://github.com/Effect-TS/effect/commit/9c1b5b39e6c19604ce834f072a114ad392c50a06) Thanks @tim-smart! - add EventListener type to Stream to avoid use of dom lib
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`a35faf8`](https://github.com/Effect-TS/effect/commit/a35faf8d116f94899bfc03feab33b004c8ddfdf7) Thanks @gcanti! - Add `lastNonEmpty` function to `Chunk` module, closes #2946
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`ff73c0c`](https://github.com/Effect-TS/effect/commit/ff73c0cacd66132bfad2e5211b3eae347729c667) Thanks @dilame! - feat(Stream): implement Success, Error, Context type accessors
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`984d516`](https://github.com/Effect-TS/effect/commit/984d516ccd9412dc41188f6a46b748dd20dd5848) Thanks @tim-smart! - add Micro module
+
+  A lightweight alternative to Effect, for when bundle size really matters.
+
+  At a minimum, Micro adds 5kb gzipped to your bundle, and scales with the amount
+  of features you use.
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`8c3b8a2`](https://github.com/Effect-TS/effect/commit/8c3b8a2ce208eab753b6206a51605a424f104e98) Thanks @gcanti! - add `ManagedRuntime` type utils (`Context`, and `Error`)
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`017e2f9`](https://github.com/Effect-TS/effect/commit/017e2f9b371ce24ea4945e5d7390c934ad3c39cf) Thanks @LaureRC! - Add Either.liftPredicate
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`91bf8a2`](https://github.com/Effect-TS/effect/commit/91bf8a2e9d1959393b3cf7366cc1d584d3e666b7) Thanks @msensys! - Add `Tuple.at` api, to retrieve an element at a specified index from a tuple.
+
+  ```ts
+  import { Tuple } from "effect";
+
+  assert.deepStrictEqual(Tuple.at([1, "hello", true], 1), "hello");
+  ```
+
+- [#2938](https://github.com/Effect-TS/effect/pull/2938) [`c6a4a26`](https://github.com/Effect-TS/effect/commit/c6a4a266606575fd2c7165940c4072ad4c57d01f) Thanks @datner! - add `ensure` util for Array, used to normalize `A | ReadonlyArray<A>`
+
+  ```ts
+  import { ensure } from "effect/Array";
+
+  // lets say you are not 100% sure if it's a member or a collection
+  declare const someValue: { foo: string } | Array<{ foo: string }>;
+
+  // $ExpectType ({ foo: string })[]
+  const normalized = ensure(someValue);
+  ```
+
+## 3.3.5
+
+### Patch Changes
+
+- [#3012](https://github.com/Effect-TS/effect/pull/3012) [`6c89408`](https://github.com/Effect-TS/effect/commit/6c89408cd7b9204ec4c5828a46cd5312d8afb5e7) Thanks @tim-smart! - ensure Config.Wrap only destructures plain objects
+
+## 3.3.4
+
+### Patch Changes
+
+- [#3001](https://github.com/Effect-TS/effect/pull/3001) [`a67b8fe`](https://github.com/Effect-TS/effect/commit/a67b8fe2ace08419424811b5f0d9a5378eaea352) Thanks @tim-smart! - use Math.random for Hash.random
+
+## 3.3.3
+
+### Patch Changes
+
+- [#2999](https://github.com/Effect-TS/effect/pull/2999) [`06ede85`](https://github.com/Effect-TS/effect/commit/06ede85d6e84710e6622463be95ff3927fb30dad) Thanks @KhraksMamtsov! - Added tests for `Chunk.toArray` and `Chunk.toReadonlyArray` with use cases in the `pipe`
+
+- [#3000](https://github.com/Effect-TS/effect/pull/3000) [`7204ca5`](https://github.com/Effect-TS/effect/commit/7204ca5761c2b1d27999a624db23aa10b6e0504d) Thanks @tim-smart! - fix support for Predicates in Predicate.compose
+
+## 3.3.2
+
+### Patch Changes
+
+- [#2981](https://github.com/Effect-TS/effect/pull/2981) [`3572646`](https://github.com/Effect-TS/effect/commit/3572646d5e0804f85bc7f64633fb95722533f9dd) Thanks @tim-smart! - ensure multiline error messages are preserved in cause rendering
+
+- [#2970](https://github.com/Effect-TS/effect/pull/2970) [`1aed347`](https://github.com/Effect-TS/effect/commit/1aed347a125ed3847ec90863424810d6759cbc85) Thanks @gcanti! - Updated `Chunk.toArray` and `Chunk.toReadonlyArray`. Improved function signatures to preserve non-empty status of chunks during conversion.
+
+- [#2977](https://github.com/Effect-TS/effect/pull/2977) [`df4bf4b`](https://github.com/Effect-TS/effect/commit/df4bf4b62e7b316c6647da0271fc5544a84e7ba2) Thanks @tim-smart! - fix discard option in Effect.all
+
+- [#2917](https://github.com/Effect-TS/effect/pull/2917) [`f085f92`](https://github.com/Effect-TS/effect/commit/f085f92dfa204afb41823ffc27d437225137643d) Thanks @mikearnaldi! - Fix Unify for Stream
+
+## 3.3.1
+
+### Patch Changes
+
+- [#2952](https://github.com/Effect-TS/effect/pull/2952) [`eb98c5b`](https://github.com/Effect-TS/effect/commit/eb98c5b79ab50aa0cde239bd4e660dd19dbab612) Thanks @KhraksMamtsov! - Change `Config.array` to return `Array<A>` instead of `ReadonlyArray<A>`
+
+- [#2950](https://github.com/Effect-TS/effect/pull/2950) [`184fed8`](https://github.com/Effect-TS/effect/commit/184fed83ac36cba05a75a5a8013f740f9f696e3b) Thanks @gcanti! - Ensure `Chunk.reverse` preserves `NonEmpty` status, closes #2947
+
+- [#2954](https://github.com/Effect-TS/effect/pull/2954) [`6068e07`](https://github.com/Effect-TS/effect/commit/6068e073d4cc8b3c8583583fd5eb3efe43f7d5ba) Thanks @jessekelly881! - Fix runtime error in `Struct.evolve` by enhancing compile-time checks, closes #2953
+
+- [#2948](https://github.com/Effect-TS/effect/pull/2948) [`3a77e20`](https://github.com/Effect-TS/effect/commit/3a77e209783933bac3aaddba1b05ff6a9ac72b36) Thanks @gcanti! - Remove unnecessary `===` comparison in `getEquivalence` functions
+
+  In some `getEquivalence` functions that use `make`, there is an unnecessary `===` comparison. The `make` function already handles this comparison.
+
+## 3.3.0
+
+### Minor Changes
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`1f4ac00`](https://github.com/Effect-TS/effect/commit/1f4ac00a91c336c9c9c9b8c3ed9ceb9920ebc9bd) Thanks @dilame! - add `Stream.zipLatestAll` api
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`9305b76`](https://github.com/Effect-TS/effect/commit/9305b764cceeae4f16564435ae7172f79c2bf822) Thanks @mattrossman! - Add queuing strategy option for Stream.toReadableStream
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`0f40d98`](https://github.com/Effect-TS/effect/commit/0f40d989da10f68df3ecd72b36849401ad679bfb) Thanks @tim-smart! - add `timeToLiveStrategy` to `Pool` options
+
+  The `timeToLiveStrategy` determines how items are invalidated. If set to
+  "creation", then items are invalidated based on their creation time. If set
+  to "usage", then items are invalidated based on pool usage.
+
+  By default, the `timeToLiveStrategy` is set to "usage".
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`b761ef0`](https://github.com/Effect-TS/effect/commit/b761ef00eaf6c67b7ffe34798b98aae5347ab376) Thanks @tim-smart! - add Layer.annotateLogs & Layer.annotateSpans
+
+  This allows you to add log & span annotation to a Layer.
+
+  ```ts
+  import { Effect, Layer } from "effect";
+
+  Layer.effectDiscard(Effect.log("hello")).pipe(
+    Layer.annotateLogs({
+      service: "my-service",
+    }),
+  );
+  ```
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`b53f69b`](https://github.com/Effect-TS/effect/commit/b53f69bff1452a487b21198cd83961f844e02d36) Thanks @dilame! - Types: implement `TupleOf` and `TupleOfAtLeast` types
+
+  Predicate: implement `isTupleOf` and `isTupleOfAtLeast` type guards
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`0f40d98`](https://github.com/Effect-TS/effect/commit/0f40d989da10f68df3ecd72b36849401ad679bfb) Thanks @tim-smart! - add `concurrency` & `targetUtilization` option to `Pool.make` & `Pool.makeWithTTL`
+
+  This option allows you to specify the level of concurrent access per pool item.
+  I.e. setting `concurrency: 2` will allow each pool item to be in use by 2 concurrent tasks.
+
+  `targetUtilization` determines when to create new pool items. It is a value
+  between 0 and 1, where 1 means only create new pool items when all the existing
+  items are fully utilized.
+
+  A `targetUtilization` of 0.5 will create new pool items when the existing items are
+  50% utilized.
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`5bd549e`](https://github.com/Effect-TS/effect/commit/5bd549e4bd7144727db438ecca6b8dc9b3ef7e22) Thanks @KhraksMamtsov! - Support `this` argument for `{STM, Either, Option}.gen`
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`67f160a`](https://github.com/Effect-TS/effect/commit/67f160a213de0219a565d4bf653b3cbf24f58e8f) Thanks @KhraksMamtsov! - Introduced `Redacted<out T = string>` module - `Secret` generalization
+  `Secret extends Redacted`
+  The use of the `Redacted` has been replaced by the use of the `Redacted` in packages with version `0.*.*`
+
+## 3.2.9
+
+### Patch Changes
+
+- [#2921](https://github.com/Effect-TS/effect/pull/2921) [`8c5d280`](https://github.com/Effect-TS/effect/commit/8c5d280c0402284a4e58372867a15a431cb99461) Thanks @tim-smart! - remove usage of performance.timeOrigin
+
+- [#2912](https://github.com/Effect-TS/effect/pull/2912) [`6ba6d26`](https://github.com/Effect-TS/effect/commit/6ba6d269f5891e6b11aa35c5281dde4bf3273004) Thanks @mikearnaldi! - Remove toJSON from PrettyError and fix message generation
+
+- [#2923](https://github.com/Effect-TS/effect/pull/2923) [`3f28bf2`](https://github.com/Effect-TS/effect/commit/3f28bf274333611906175446b772243f34f1b6d5) Thanks @tim-smart! - only wrap objects with string keys in Config.Wrap
+
+- [#2914](https://github.com/Effect-TS/effect/pull/2914) [`5817820`](https://github.com/Effect-TS/effect/commit/58178204a770d1a78c06945ef438f9fffbb50afa) Thanks @mikearnaldi! - Fix id extraction in Context.Tag.Identifier
+
+## 3.2.8
+
+### Patch Changes
+
+- [#2894](https://github.com/Effect-TS/effect/pull/2894) [`fb91f17`](https://github.com/Effect-TS/effect/commit/fb91f17098b48497feca9ec976feb87e4a82451b) Thanks @mikearnaldi! - ensure Equal considers Date by value
+
+## 3.2.7
+
+### Patch Changes
+
+- [#2887](https://github.com/Effect-TS/effect/pull/2887) [`6801fca`](https://github.com/Effect-TS/effect/commit/6801fca44366be3ee1b6b99f54bd4f38a1b5e4f4) Thanks @mikearnaldi! - Ensure provide of runtime is additive on context
+
+## 3.2.6
+
+### Patch Changes
+
+- [#2879](https://github.com/Effect-TS/effect/pull/2879) [`cc8ac50`](https://github.com/Effect-TS/effect/commit/cc8ac5080daba8622ca2ff5dab5c37ddfab732ba) Thanks @TylorS! - Support tuples in Types.DeepMutable
+
+## 3.2.5
+
+### Patch Changes
+
+- [#2823](https://github.com/Effect-TS/effect/pull/2823) [`608b01f`](https://github.com/Effect-TS/effect/commit/608b01fc342dbae2a642b308a67b84ead530ecea) Thanks @gcanti! - Array: simplify signatures (`ReadonlyArray<any> | Iterable<any> = Iterable<any>`)
+
+- [#2834](https://github.com/Effect-TS/effect/pull/2834) [`031c712`](https://github.com/Effect-TS/effect/commit/031c7122a24ac42e48d6a434646b4f5d279d7442) Thanks @tim-smart! - attach Stream.toReadableStream fibers to scope
+
+- [#2744](https://github.com/Effect-TS/effect/pull/2744) [`a44e532`](https://github.com/Effect-TS/effect/commit/a44e532cf3a6a498b12a5aacf8124aa267e24ba0) Thanks @KhraksMamtsov! - make `Array.separate`, `Array.getRights`, `Array.getLefts`, `Array.getSomes` heterogeneous
+
+## 3.2.4
+
+### Patch Changes
+
+- [#2801](https://github.com/Effect-TS/effect/pull/2801) [`1af94df`](https://github.com/Effect-TS/effect/commit/1af94df6b74aeb4f6ebcbe80e074b4cb252e62e3) Thanks @tim-smart! - ensure pool calls finalizer for failed acquisitions
+
+- [#2808](https://github.com/Effect-TS/effect/pull/2808) [`e313a01`](https://github.com/Effect-TS/effect/commit/e313a01b7e80f6cb7704055a190e5623c9d22c6d) Thanks @gcanti! - Array: fix `flatMapNullable` implementation and add descriptions / examples
+
+## 3.2.3
+
+### Patch Changes
+
+- [#2805](https://github.com/Effect-TS/effect/pull/2805) [`45578e8`](https://github.com/Effect-TS/effect/commit/45578e8faa80ae33d23e08f6f19467f818b7788f) Thanks @tim-smart! - fix internal cutpoint name preservation
+
+## 3.2.2
+
+### Patch Changes
+
+- [#2787](https://github.com/Effect-TS/effect/pull/2787) [`5d9266e`](https://github.com/Effect-TS/effect/commit/5d9266e8c740746ac9e186c3df6090a1b57fbe2a) Thanks @mikearnaldi! - Prohibit name clashes in Effect.Tag
+
+  The following now correctly flags a type error given that the property `context` exists already in `Tag`:
+
+  ```ts
+  import { Effect } from "effect";
+
+  class LoaderArgs extends Effect.Tag("@services/LoaderContext")<
+    LoaderArgs,
+    { context: number }
+  >() {}
+  ```
+
+- [#2797](https://github.com/Effect-TS/effect/pull/2797) [`9f8122e`](https://github.com/Effect-TS/effect/commit/9f8122e78884ab47c5e5f364d86eee1d1543cc61) Thanks @mikearnaldi! - Improve internalization of functions to clean stack traces
+
+- [#2798](https://github.com/Effect-TS/effect/pull/2798) [`6a6f670`](https://github.com/Effect-TS/effect/commit/6a6f6706b8613c8c7c10971b8d81a0f9e440a6f2) Thanks @mikearnaldi! - Avoid eager read of the stack when captured by a span
+
+## 3.2.1
+
+### Patch Changes
+
+- [#2779](https://github.com/Effect-TS/effect/pull/2779) [`c1e991d`](https://github.com/Effect-TS/effect/commit/c1e991dd5ba87901cd0e05697a8b4a267e7e954a) Thanks [@tim-smart](https://github.com/tim-smart)! - fix Config.Wrap for optional properties
+
+## 3.2.0
+
+### Minor Changes
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`146cadd`](https://github.com/Effect-TS/effect/commit/146cadd9d004634a3ff85c480bf92cf975c853e2) Thanks [@tim-smart](https://github.com/tim-smart)! - Add Stream.toReadableStreamEffect / .toReadableStreamRuntime
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e) Thanks [@tim-smart](https://github.com/tim-smart)! - add Cause.prettyErrors api
+
+  You can use this to extract `Error` instances from a `Cause`, that have clean stack traces and have had span information added to them.
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`963b4e7`](https://github.com/Effect-TS/effect/commit/963b4e7ac87e2468feb6a344f7ab4ee4ad711198) Thanks [@tim-smart](https://github.com/tim-smart)! - add Chunk.difference & Chunk.differenceWith
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`64c9414`](https://github.com/Effect-TS/effect/commit/64c9414e960e82058ca09bbb3976d6fbef303a8e) Thanks [@tim-smart](https://github.com/tim-smart)! - Improve causal rendering in vitest by rethrowing pretty errors
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e) Thanks [@tim-smart](https://github.com/tim-smart)! - add Effect.functionWithSpan
+
+  Allows you to define an effectful function that is wrapped with a span.
+
+  ```ts
+  import { Effect } from "effect";
+
+  const getTodo = Effect.functionWithSpan({
+    body: (id: number) => Effect.succeed(`Got todo ${id}!`),
+    options: (id) => ({
+      name: `getTodo-${id}`,
+      attributes: { id },
+    }),
+  });
+  ```
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`2cbb76b`](https://github.com/Effect-TS/effect/commit/2cbb76bb52500a3f4bf27d1c91482518cbea56d7) Thanks [@tim-smart](https://github.com/tim-smart)! - Add do notation for Array
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`870c5fa`](https://github.com/Effect-TS/effect/commit/870c5fa52cd61e745e8e828d38c3f09f00737553) Thanks [@tim-smart](https://github.com/tim-smart)! - support $is & $match for Data.TaggedEnum with generics
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e) Thanks [@tim-smart](https://github.com/tim-smart)! - capture stack trace for tracing spans
+
+### Patch Changes
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e) Thanks [@tim-smart](https://github.com/tim-smart)! - add span stack trace to rendered causes
+
+- [#2778](https://github.com/Effect-TS/effect/pull/2778) [`64c9414`](https://github.com/Effect-TS/effect/commit/64c9414e960e82058ca09bbb3976d6fbef303a8e) Thanks [@tim-smart](https://github.com/tim-smart)! - Consider Generator.next a cutpoint
+
+## 3.1.6
+
+### Patch Changes
+
+- [#2761](https://github.com/Effect-TS/effect/pull/2761) [`17fc22e`](https://github.com/Effect-TS/effect/commit/17fc22e132593c5caa563705a4748ba0f04a853c) Thanks [@KhraksMamtsov](https://github.com/KhraksMamtsov)! - Add `{ once: true }` to all `"abort"` event listeners for `AbortController` to automatically remove handlers after execution
+
+- [#2762](https://github.com/Effect-TS/effect/pull/2762) [`810f222`](https://github.com/Effect-TS/effect/commit/810f222268792b13067c7a7bf317b93a9bb8917b) Thanks [@tim-smart](https://github.com/tim-smart)! - fix Config.Wrap incorrectly wrapping functions & arrays
+
+- [#2773](https://github.com/Effect-TS/effect/pull/2773) [`596aaea`](https://github.com/Effect-TS/effect/commit/596aaea022648b2e06fb1ec22f1652043d6fe64e) Thanks [@tim-smart](https://github.com/tim-smart)! - fix for Infinity delays in Schedule
+
+## 3.1.5
+
+### Patch Changes
+
+- [#2750](https://github.com/Effect-TS/effect/pull/2750) [`6ac4847`](https://github.com/Effect-TS/effect/commit/6ac48479447c01a4f35d655552af93e47e562610) Thanks [@tim-smart](https://github.com/tim-smart)! - ensure exponential schedules don't reach Infinity
+
 ## 3.1.4
 
 ### Patch Changes

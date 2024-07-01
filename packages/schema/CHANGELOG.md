@@ -1,5 +1,1357 @@
 # @effect/schema
 
+## 0.68.15
+
+### Patch Changes
+
+- [#3130](https://github.com/Effect-TS/effect/pull/3130) [`34faeb6`](https://github.com/Effect-TS/effect/commit/34faeb6305ba52af4d6f8bdd2e633bb6a5a7a35b) Thanks @gcanti! - Add `ReadonlyMapFromRecord` and `MapFromRecord`, closes #3119
+
+  - decoding
+    - `{ readonly [x: string]: VI }` -> `ReadonlyMap<KA, VA>`
+  - encoding
+    - `ReadonlyMap<KA, VA>` -> `{ readonly [x: string]: VI }`
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const schema = Schema.ReadonlyMapFromRecord({
+    key: Schema.BigInt,
+    value: Schema.NumberFromString,
+  });
+
+  const decode = Schema.decodeUnknownSync(schema);
+  const encode = Schema.encodeSync(schema);
+
+  console.log(
+    decode({
+      "1": "4",
+      "2": "5",
+      "3": "6",
+    }),
+  ); // Map(3) { 1n => 4, 2n => 5, 3n => 6 }
+  console.log(
+    encode(
+      new Map([
+        [1n, 4],
+        [2n, 5],
+        [3n, 6],
+      ]),
+    ),
+  ); // { '1': '4', '2': '5', '3': '6' }
+  ```
+
+- Updated dependencies [[`5c0ceb0`](https://github.com/Effect-TS/effect/commit/5c0ceb00826cce9e50bf9d41d83e191d5352c030), [`5c0ceb0`](https://github.com/Effect-TS/effect/commit/5c0ceb00826cce9e50bf9d41d83e191d5352c030), [`33735b1`](https://github.com/Effect-TS/effect/commit/33735b16b41bd26929d8f4754c190925db6323b7), [`5c0ceb0`](https://github.com/Effect-TS/effect/commit/5c0ceb00826cce9e50bf9d41d83e191d5352c030), [`139d4b3`](https://github.com/Effect-TS/effect/commit/139d4b39fb3bff2eeaa7c0c809c581da42425a83)]:
+  - effect@3.4.6
+
+## 0.68.14
+
+### Patch Changes
+
+- [#3125](https://github.com/Effect-TS/effect/pull/3125) [`61e5964`](https://github.com/Effect-TS/effect/commit/61e59640fd993216cca8ace0ac8abd9104e213ce) Thanks @gcanti! - Add support for Union, Suspend, and Refinement as the second argument of extend, closes #3124
+
+## 0.68.13
+
+### Patch Changes
+
+- [#3117](https://github.com/Effect-TS/effect/pull/3117) [`cb76bcb`](https://github.com/Effect-TS/effect/commit/cb76bcb2f8858a90db4f785efee262cea1b9844e) Thanks @gcanti! - Modified `JSONSchema.make` to selectively ignore the `title` and `description` fields in schema types such as `Schema.String`, `Schema.Number`, and `Schema.Boolean`, closes #3116
+
+  Before
+
+  ```ts
+  import { JSONSchema, Schema as S } from "@effect/schema";
+
+  const schema = S.Struct({
+    foo: S.String,
+    bar: S.Number,
+  });
+
+  console.log(JSONSchema.make(schema));
+  /*
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    required: [ 'foo', 'bar' ],
+    properties: {
+      foo: { type: 'string', description: 'a string', title: 'string' },
+      bar: { type: 'number', description: 'a number', title: 'number' }
+    },
+    additionalProperties: false
+  }
+  */
+  ```
+
+  Now
+
+  ```ts
+  import { JSONSchema, Schema as S } from "@effect/schema";
+
+  const schema = S.Struct({
+    foo: S.String,
+    bar: S.Number,
+  });
+
+  console.log(JSONSchema.make(schema));
+  /*
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    required: [ 'foo', 'bar' ],
+    properties: { foo: { type: 'string' }, bar: { type: 'number' } },
+    additionalProperties: false
+  }
+  */
+  ```
+
+## 0.68.12
+
+### Patch Changes
+
+- [#3101](https://github.com/Effect-TS/effect/pull/3101) [`d990544`](https://github.com/Effect-TS/effect/commit/d9905444b9e800850cb65899114ca0e502e68fe8) Thanks @gcanti! - Generate JSON Schemas correctly for a schema created by extending two refinements using the `extend` API, ensuring their JSON Schema annotations are preserved.
+
+  Example
+
+  ```ts
+  import { JSONSchema, Schema } from "@effect/schema";
+
+  const schema = Schema.Struct({
+    a: Schema.String,
+  })
+    .pipe(Schema.filter(() => true, { jsonSchema: { a: 1 } }))
+    .pipe(
+      Schema.extend(
+        Schema.Struct({
+          b: Schema.Number,
+        }).pipe(Schema.filter(() => true, { jsonSchema: { b: 2 } })),
+      ),
+    );
+
+  console.log(JSONSchema.make(schema));
+  /*
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    required: [ 'a', 'b' ],
+    properties: {
+      a: { type: 'string', description: 'a string', title: 'string' },
+      b: { type: 'number', description: 'a number', title: 'number' }
+    },
+    additionalProperties: false,
+    b: 2,
+    a: 1
+  }
+  */
+  ```
+
+- Updated dependencies [[`a047af9`](https://github.com/Effect-TS/effect/commit/a047af99447dfffc729e9c8ef0ca143537927e91)]:
+  - effect@3.4.5
+
+## 0.68.11
+
+### Patch Changes
+
+- [#3087](https://github.com/Effect-TS/effect/pull/3087) [`d71c192`](https://github.com/Effect-TS/effect/commit/d71c192b89fd1162423acddc5fd3d6270fbf2ef6) Thanks @gcanti! - Special case `S.parseJson` to generate JSON Schemas by targeting the "to" side of transformations, closes #3086
+
+  Resolved an issue where `JSONSchema.make` improperly generated JSON Schemas for schemas defined with `S.parseJson(<real schema>)`. Previously, invoking `JSONSchema.make` on these transformed schemas produced a JSON Schema corresponding to a string type rather than the underlying real schema.
+
+  Before
+
+  ```ts
+  import { JSONSchema, Schema } from "@effect/schema";
+
+  // Define a schema that parses a JSON string into a structured object
+  const schema = Schema.parseJson(
+    Schema.Struct({
+      a: Schema.parseJson(Schema.NumberFromString), // Nested parsing from JSON string to number
+    }),
+  );
+
+  console.log(JSONSchema.make(schema));
+  /*
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    '$ref': '#/$defs/JsonString',
+    '$defs': {
+      JsonString: {
+        type: 'string',
+        description: 'a JSON string',
+        title: 'JsonString'
+      }
+    }
+  }
+  */
+  ```
+
+  Now
+
+  ```ts
+  import { JSONSchema, Schema } from "@effect/schema";
+
+  // Define a schema that parses a JSON string into a structured object
+  const schema = Schema.parseJson(
+    Schema.Struct({
+      a: Schema.parseJson(Schema.NumberFromString), // Nested parsing from JSON string to number
+    }),
+  );
+
+  console.log(JSONSchema.make(schema));
+  /*
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    required: [ 'a' ],
+    properties: { a: { type: 'string', description: 'a string', title: 'string' } },
+    additionalProperties: false
+  }
+  */
+  ```
+
+- Updated dependencies [[`72638e3`](https://github.com/Effect-TS/effect/commit/72638e3d99f0e93a24febf6c225256ce92d4a20b), [`d7dde2b`](https://github.com/Effect-TS/effect/commit/d7dde2b4af08b37af859d4c327c1f5c6f00cf9d9), [`9b2fc3b`](https://github.com/Effect-TS/effect/commit/9b2fc3b9dfd304a2bd0508ef2313cfc54357be0c)]:
+  - effect@3.4.4
+
+## 0.68.10
+
+### Patch Changes
+
+- [#3079](https://github.com/Effect-TS/effect/pull/3079) [`bbdd365`](https://github.com/Effect-TS/effect/commit/bbdd36567706c94cdec45bacea825941c347b6cd) Thanks @tim-smart! - update dependencies
+
+- [#3079](https://github.com/Effect-TS/effect/pull/3079) [`bbdd365`](https://github.com/Effect-TS/effect/commit/bbdd36567706c94cdec45bacea825941c347b6cd) Thanks @tim-smart! - update to typescript 5.5
+
+- Updated dependencies [[`c342739`](https://github.com/Effect-TS/effect/commit/c3427396226e1ad7b95b40595a23f9bdff3e3365), [`8898e5e`](https://github.com/Effect-TS/effect/commit/8898e5e238622f6337583d91ee23609c1f5ccdf7), [`ff78636`](https://github.com/Effect-TS/effect/commit/ff786367c522975f40f0f179a0ecdfcfab7ecbdb), [`c86bd4e`](https://github.com/Effect-TS/effect/commit/c86bd4e134c23146c216f9ff97e03781d55991b6), [`bbdd365`](https://github.com/Effect-TS/effect/commit/bbdd36567706c94cdec45bacea825941c347b6cd)]:
+  - effect@3.4.3
+
+## 0.68.9
+
+### Patch Changes
+
+- [#3074](https://github.com/Effect-TS/effect/pull/3074) [`0b47fdf`](https://github.com/Effect-TS/effect/commit/0b47fdfe449f42de89e0e88b61ae5140f629e5c4) Thanks @gcanti! - Revert the 0.67.22 patch as it is causing issues with other array filters, closes #3073
+
+## 0.68.8
+
+### Patch Changes
+
+- [#3070](https://github.com/Effect-TS/effect/pull/3070) [`192261b`](https://github.com/Effect-TS/effect/commit/192261b2aec94e9913ceed83683fdcfbc9fca66f) Thanks @gcanti! - Add `refineTypeId` unique symbol to the `refine` interface to ensure correct inference of `Fields` in the Class APIs, closes #3063
+
+- Updated dependencies [[`3da1497`](https://github.com/Effect-TS/effect/commit/3da1497b5c9cc886d300258bc928fd68a4fefe6f)]:
+  - effect@3.4.2
+
+## 0.68.7
+
+### Patch Changes
+
+- Updated dependencies [[`66a1910`](https://github.com/Effect-TS/effect/commit/66a19109ff90c4252123b8809b8c8a74681dba6a)]:
+  - effect@3.4.1
+
+## 0.68.6
+
+### Patch Changes
+
+- [#3046](https://github.com/Effect-TS/effect/pull/3046) [`530fa9e`](https://github.com/Effect-TS/effect/commit/530fa9e36b8532589b948fc4faa37593f36b7f42) Thanks @gcanti! - Fix error message display for composite errors when `overwrite = false`
+
+  This commit resolves an issue where the custom message for a struct (or tuple or union) was displayed regardless of whether the validation error was related to the entire struct or just a specific part of it. Previously, users would see the custom error message even when the error only concerned a particular field within the struct and the flag `overwrite` was not set to `true`.
+
+  ```ts
+  import { Schema, TreeFormatter } from "@effect/schema";
+  import { Either } from "effect";
+
+  const schema = Schema.Struct({
+    a: Schema.String,
+  }).annotations({ message: () => "custom message" });
+
+  const res = Schema.decodeUnknownEither(schema)({ a: null });
+  if (Either.isLeft(res)) {
+    console.log(TreeFormatter.formatErrorSync(res.left));
+    // before: custom message
+    // now: { readonly a: string }
+    //      └─ ["a"]
+    //         └─ Expected string, actual null
+  }
+  ```
+
+## 0.68.5
+
+### Patch Changes
+
+- [#3043](https://github.com/Effect-TS/effect/pull/3043) [`1d62815`](https://github.com/Effect-TS/effect/commit/1d62815a50f34115606940ffa397442d75a20c81) Thanks @gcanti! - Add `make` constructor to `Class`-based APIs, closes #3042
+
+  Introduced a `make` constructor to class-based APIs to facilitate easier instantiation of classes. This method allows developers to create instances of a class without directly using the `new` keyword.
+
+  **Example**
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  class MyClass extends Schema.Class<MyClass>("MyClass")({
+    someField: Schema.String,
+  }) {
+    someMethod() {
+      return this.someField + "bar";
+    }
+  }
+
+  // Create an instance of MyClass using the make constructor
+  const instance = MyClass.make({ someField: "foo" }); // same as new MyClass({ someField: "foo" })
+
+  // Outputs to console to demonstrate that the instance is correctly created
+  console.log(instance instanceof MyClass); // true
+  console.log(instance.someField); // "foo"
+  console.log(instance.someMethod()); // "foobar"
+  ```
+
+## 0.68.4
+
+### Patch Changes
+
+- Updated dependencies [[`c0ce180`](https://github.com/Effect-TS/effect/commit/c0ce180861ad0938053c0e6145e813fa6404df3b), [`61707b6`](https://github.com/Effect-TS/effect/commit/61707b6ffc7397c2ba0dce22512b44955724f60f), [`9c1b5b3`](https://github.com/Effect-TS/effect/commit/9c1b5b39e6c19604ce834f072a114ad392c50a06), [`a35faf8`](https://github.com/Effect-TS/effect/commit/a35faf8d116f94899bfc03feab33b004c8ddfdf7), [`ff73c0c`](https://github.com/Effect-TS/effect/commit/ff73c0cacd66132bfad2e5211b3eae347729c667), [`984d516`](https://github.com/Effect-TS/effect/commit/984d516ccd9412dc41188f6a46b748dd20dd5848), [`8c3b8a2`](https://github.com/Effect-TS/effect/commit/8c3b8a2ce208eab753b6206a51605a424f104e98), [`017e2f9`](https://github.com/Effect-TS/effect/commit/017e2f9b371ce24ea4945e5d7390c934ad3c39cf), [`91bf8a2`](https://github.com/Effect-TS/effect/commit/91bf8a2e9d1959393b3cf7366cc1d584d3e666b7), [`c6a4a26`](https://github.com/Effect-TS/effect/commit/c6a4a266606575fd2c7165940c4072ad4c57d01f)]:
+  - effect@3.4.0
+
+## 0.68.3
+
+### Patch Changes
+
+- [#3028](https://github.com/Effect-TS/effect/pull/3028) [`d473800`](https://github.com/Effect-TS/effect/commit/d47380012c3241d7287b66968d33a2414275ce7b) Thanks @gcanti! - Introducing Customizable Parsing Behavior at the Schema Level, closes #3027
+
+  With this latest update, developers can now set specific parse options for each schema using the `parseOptions` annotation. This flexibility allows for precise parsing behaviors across different levels of your schema hierarchy, giving you the ability to override settings in parent schemas and propagate settings to nested schemas as needed.
+
+  Here's how you can leverage this new feature:
+
+  ```ts
+  import { Schema } from "@effect/schema";
+  import { Either } from "effect";
+
+  const schema = Schema.Struct({
+    a: Schema.Struct({
+      b: Schema.String,
+      c: Schema.String,
+    }).annotations({
+      title: "first error only",
+      parseOptions: { errors: "first" }, // Only the first error in this sub-schema is reported
+    }),
+    d: Schema.String,
+  }).annotations({
+    title: "all errors",
+    parseOptions: { errors: "all" }, // All errors in the main schema are reported
+  });
+
+  const result = Schema.decodeUnknownEither(schema)(
+    { a: {} },
+    { errors: "first" },
+  );
+  if (Either.isLeft(result)) {
+    console.log(result.left.message);
+  }
+  /*
+  all errors
+  ├─ ["d"]
+  │  └─ is missing
+  └─ ["a"]
+     └─ first error only
+        └─ ["b"]
+           └─ is missing
+  */
+  ```
+
+  **Detailed Output Explanation:**
+
+  In this example:
+
+  - The main schema is configured to display all errors. Hence, you will see errors related to both the `d` field (since it's missing) and any errors from the `a` subschema.
+  - The subschema (`a`) is set to display only the first error. Although both `b` and `c` fields are missing, only the first missing field (`b`) is reported.
+
+## 0.68.2
+
+### Patch Changes
+
+- [#3024](https://github.com/Effect-TS/effect/pull/3024) [`eb341b3`](https://github.com/Effect-TS/effect/commit/eb341b3eb34ad64499371bc08b7f59e429979d8a) Thanks @gcanti! - Replace `Types.Simplify` with a custom `Simplify` to restore nice types for `pick` and `omit`
+
+## 0.68.1
+
+### Patch Changes
+
+- [#3015](https://github.com/Effect-TS/effect/pull/3015) [`b51e266`](https://github.com/Effect-TS/effect/commit/b51e26662b879b55d2c5164b7c97742739aa9446) Thanks @gcanti! - - Fix handling of `exact` option overrides in `AST.ParseOptions`
+  This commit resolves a bug affecting the `exact` option within `AST.ParseOptions`. Previously, the implementation failed to correctly incorporate overrides for the `exact` setting, resulting in the parser not respecting the specified behavior in extended configurations.
+  - Improve error messaging in `Pretty.make` for unmatched union schemas
+- Updated dependencies [[`6c89408`](https://github.com/Effect-TS/effect/commit/6c89408cd7b9204ec4c5828a46cd5312d8afb5e7)]:
+  - effect@3.3.5
+
+## 0.68.0
+
+### Minor Changes
+
+- [#2906](https://github.com/Effect-TS/effect/pull/2906) [`f6c7977`](https://github.com/Effect-TS/effect/commit/f6c79772e632c440b7e5221bb75f0ef9d3c3b005) Thanks @gcanti! - ## Refactoring of the `ParseIssue` Model
+
+  The `ParseIssue` model in the `@effect/schema/ParseResult` module has undergone a comprehensive redesign and simplification that enhances its expressiveness without compromising functionality. This section explores the motivation and details of this refactoring.
+
+  ### Enhanced `Schema.filter` API
+
+  The `Schema.filter` API has been improved to support more complex filtering that can involve multiple properties of a struct. This is especially useful for validations that compare two fields, such as ensuring that a `password` field matches a `confirm_password` field, a common requirement in form validations.
+
+  **Previous Limitations:**
+
+  Previously, while it was possible to implement a filter that compared two fields, there was no straightforward way to attach validation messages to a specific field. This posed challenges, especially in form validations where precise error reporting is crucial.
+
+  **Example of Previous Implementation:**
+
+  ```ts
+  import { ArrayFormatter, Schema } from "@effect/schema";
+  import { Either } from "effect";
+
+  const Password = Schema.Trim.pipe(Schema.minLength(1));
+
+  const MyForm = Schema.Struct({
+    password: Password,
+    confirm_password: Password,
+  }).pipe(
+    Schema.filter((input) => {
+      if (input.password !== input.confirm_password) {
+        return "Passwords do not match";
+      }
+    }),
+  );
+
+  console.log(
+    "%o",
+    Schema.decodeUnknownEither(MyForm)({
+      password: "abc",
+      confirm_password: "d",
+    }).pipe(Either.mapLeft((error) => ArrayFormatter.formatErrorSync(error))),
+  );
+  /*
+  {
+    _id: 'Either',
+    _tag: 'Left',
+    left: [
+      {
+        _tag: 'Type',
+        path: [],
+        message: 'Passwords do not match'
+      }
+    ]
+  }
+  */
+  ```
+
+  In this scenario, while the filter functionally works, the lack of a specific error path (`path: []`) means errors are not as descriptive or helpful as they could be.
+
+  ### Specifying Error Paths
+
+  With the new improvements, it's now possible to specify an error path along with the message, which enhances error specificity and is particularly beneficial for integration with tools like `react-hook-form`.
+
+  **Updated Implementation Example:**
+
+  ```ts
+  import { ArrayFormatter, Schema } from "@effect/schema";
+  import { Either } from "effect";
+
+  const Password = Schema.Trim.pipe(Schema.minLength(1));
+
+  const MyForm = Schema.Struct({
+    password: Password,
+    confirm_password: Password,
+  }).pipe(
+    Schema.filter((input) => {
+      if (input.password !== input.confirm_password) {
+        return {
+          path: ["confirm_password"],
+          message: "Passwords do not match",
+        };
+      }
+    }),
+  );
+
+  console.log(
+    "%o",
+    Schema.decodeUnknownEither(MyForm)({
+      password: "abc",
+      confirm_password: "d",
+    }).pipe(Either.mapLeft((error) => ArrayFormatter.formatErrorSync(error))),
+  );
+  /*
+  {
+    _id: 'Either',
+    _tag: 'Left',
+    left: [
+      {
+        _tag: 'Type',
+        path: [ 'confirm_password' ],
+        message: 'Passwords do not match'
+      }
+    ]
+  }
+  */
+  ```
+
+  This modification allows the error to be directly associated with the `confirm_password` field, improving clarity for the end-user.
+
+  ### Multiple Error Reporting
+
+  The refactored API also supports reporting multiple issues at once, which is useful in forms where several validation checks might fail simultaneously.
+
+  **Example of Multiple Issues Reporting:**
+
+  ```ts
+  import { ArrayFormatter, Schema } from "@effect/schema";
+  import { Either } from "effect";
+
+  const Password = Schema.Trim.pipe(Schema.minLength(1));
+  const OptionalString = Schema.optional(Schema.String);
+
+  const MyForm = Schema.Struct({
+    password: Password,
+    confirm_password: Password,
+    name: OptionalString,
+    surname: OptionalString,
+  }).pipe(
+    Schema.filter((input) => {
+      const issues: Array<Schema.FilterIssue> = [];
+      // passwords must match
+      if (input.password !== input.confirm_password) {
+        issues.push({
+          path: ["confirm_password"],
+          message: "Passwords do not match",
+        });
+      }
+      // either name or surname must be present
+      if (!input.name && !input.surname) {
+        issues.push({
+          path: ["surname"],
+          message: "Surname must be present if name is not present",
+        });
+      }
+      return issues;
+    }),
+  );
+
+  console.log(
+    "%o",
+    Schema.decodeUnknownEither(MyForm)({
+      password: "abc",
+      confirm_password: "d",
+    }).pipe(Either.mapLeft((error) => ArrayFormatter.formatErrorSync(error))),
+  );
+  /*
+  {
+    _id: 'Either',
+    _tag: 'Left',
+    left: [
+      {
+        _tag: 'Type',
+        path: [ 'confirm_password' ],
+        message: 'Passwords do not match'
+      },
+      {
+        _tag: 'Type',
+        path: [ 'surname' ],
+        message: 'Surname must be present if name is not present'
+      }
+    ]
+  }
+  */
+  ```
+
+  ### The new `ParseIssue` Model
+
+  The `ParseIssue` type has undergone a significant restructuring to improve its expressiveness and simplicity. This new model categorizes issues into leaf and composite types, enhancing clarity and making error handling more systematic.
+
+  **Structure of `ParseIsssue` Type:**
+
+  ```ts
+  export type ParseIssue =
+    // leaf
+    | Type
+    | Missing
+    | Unexpected
+    | Forbidden
+    // composite
+    | Pointer
+    | Refinement
+    | Transformation
+    | Composite;
+  ```
+
+  **Key Changes in the Model:**
+
+  1. **New Members:**
+
+     - `Composite`: A new class that aggregates multiple `ParseIssue` instances.
+     - `Missing`: Identifies when a required element or value is absent.
+     - `Unexpected`: Flags unexpected elements or values in the input.
+     - `Pointer`: Points to the part of the data structure where an issue occurs.
+
+  2. **Removed Members:**
+     - Previous categories like `Declaration`, `TupleType`, `TypeLiteral`, `Union`, `Member`, `Key`, and `Index` have been consolidated under the `Composite` type for a more streamlined approach.
+
+  **Definition of `Composite`:**
+
+  ```ts
+  interface Composite {
+    readonly _tag: "Composite";
+    readonly ast: AST.Annotated;
+    readonly actual: unknown;
+    readonly issues: ParseIssue | NonEmptyReadonlyArray<ParseIssue>;
+    readonly output?: unknown;
+  }
+  ```
+
+  ## Refined Error Messaging System
+
+  We've updated our internal function `getErrorMessage` to enhance how error messages are formatted throughout our application. This function constructs an error message that includes the reason for the error, additional details, the path to where the error occurred, and the schema's AST representation if available.
+
+  **Example**
+
+  ```ts
+  import { JSONSchema, Schema } from "@effect/schema";
+
+  JSONSchema.make(Schema.Struct({ a: Schema.Void }));
+  /*
+  throws:
+  Error: Missing annotation
+  at path: ["a"]
+  details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+  schema (VoidKeyword): void
+  */
+  ```
+
+  ## Enhancing Tuples with Element Annotations
+
+  Annotations are used to add metadata to tuple elements, which can describe the purpose or requirements of each element more clearly. This can be particularly useful when generating documentation or JSON schemas from your schemas.
+
+  ```ts
+  import { JSONSchema, Schema } from "@effect/schema";
+
+  // Defining a tuple with annotations for each coordinate in a point
+  const Point = Schema.Tuple(
+    Schema.element(Schema.Number).annotations({
+      title: "X",
+      description: "X coordinate",
+    }),
+    Schema.optionalElement(Schema.Number).annotations({
+      title: "Y",
+      description: "optional Y coordinate",
+    }),
+  );
+
+  // Generating a JSON Schema from the tuple
+  console.log(JSONSchema.make(Point));
+  /*
+  Output:
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    type: 'array',
+    minItems: 1,
+    items: [
+      { type: 'number', description: 'X coordinate', title: 'X' },
+      {
+        type: 'number',
+        description: 'optional Y coordinate',
+        title: 'Y'
+      }
+    ],
+    additionalItems: false
+  }
+  */
+  ```
+
+  ## Missing messages
+
+  You can provide custom messages for missing fields or elements using the new `missingMessage` annotation.
+
+  Example (missing field)
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const Person = Schema.Struct({
+    name: Schema.propertySignature(Schema.String).annotations({
+      missingMessage: () => "Name is required",
+    }),
+  });
+
+  Schema.decodeUnknownSync(Person)({});
+  /*
+  Output:
+  Error: { readonly name: string }
+  └─ ["name"]
+     └─ Name is required
+  */
+  ```
+
+  Example (missing element)
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const Point = Schema.Tuple(
+    Schema.element(Schema.Number).annotations({
+      missingMessage: () => "X coordinate is required",
+    }),
+    Schema.element(Schema.Number).annotations({
+      missingMessage: () => "Y coordinate is required",
+    }),
+  );
+
+  Schema.decodeUnknownSync(Point)([], { errors: "all" });
+  /*
+  Output:
+  Error: readonly [number, number]
+  ├─ [0]
+  │  └─ X coordinate is required
+  └─ [1]
+     └─ Y coordinate is required
+  */
+  ```
+
+  ## Streamlining Annotations
+
+  The individual APIs that were previously used to add annotations to schemas have been removed. This change was made because these individual annotation APIs did not provide significant value and were burdensome to maintain. Instead, you can now use the `annotations` method directly or the `Schema.annotations` API for a `pipe`-able approach.
+
+  Before
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  // Example of adding an identifier using a dedicated API
+  const schema = Schema.String.pipe(Schema.identifier("myIdentitifer"));
+  ```
+
+  Now
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  // Directly using the annotations method
+  const schema = Schema.String.annotations({ identifier: "myIdentitifer" });
+  // or
+  const schema2 = Schema.String.pipe(
+    // Using the annotations function in a pipe-able format
+    Schema.annotations({ identifier: "myIdentitifer" }),
+  );
+  ```
+
+  ## Standardize Error Handling for `*Either`, `*Sync` and `asserts` APIs
+
+  Now the `*Sync` and `asserts` APIs throw a `ParseError` while before they was throwing a simple `Error` with a `cause` containing a `ParseIssue`
+
+  ```ts
+  import { ParseResult, Schema } from "@effect/schema";
+
+  try {
+    Schema.decodeUnknownSync(Schema.String)(null);
+  } catch (e) {
+    console.log(ParseResult.isParseError(e)); // true
+  }
+
+  const asserts: (u: unknown) => asserts u is string = Schema.asserts(
+    Schema.String,
+  );
+  try {
+    asserts(null);
+  } catch (e) {
+    console.log(ParseResult.isParseError(e)); // true
+  }
+  ```
+
+  ## List of Changes
+
+  AST
+
+  - add `MissingMessageAnnotation` annotations
+  - add `Type`
+  - remove `verbose` option from `toString()` methods
+
+  **Breaking**
+
+  - rename `Element` to `OptionalType` and add an `annotations` field
+  - change `TupleType` definition: from `rest: ReadonlyArray<AST>` to `rest: ReadonlyArray<Type>`
+  - remove `TemplateLiteral.make`
+
+  Schema
+
+  - add `missingMessage` annotation to `PropertySignature`
+  - add `FilterIssue` helper interface
+
+  **Breaking**
+
+  - remove `TupleType.Element` type
+  - replace `OptionalElement` API interface with `Element` API interface
+  - remove `PropertySignature.GetToken`
+  - remove duplicated annotation APIs
+    - `message`
+    - `identifier`
+    - `title`
+    - `description`
+    - `examples`
+    - `default`
+    - `documentation`
+    - `jsonSchema`
+    - `equivalence`
+    - `concurrency`
+    - `concurrency`
+    - `parseIssueTitle`
+  - remove `Secret` and `SecretFromSelf`
+
+  ParseResult
+
+  - add `isParseError` type guard
+
+  **Breaking**
+
+  - `ParseIssue` refactoring
+    - make `Missing` and `Unexpected` parse issues
+    - replace `Declaration` with `Composite`
+    - remove `Union` in favour of `Composite`
+    - remove `TypeLiteral` in favour of `Composite`
+    - remove `TupleType` in favour of `Composite`
+    - remove `Member` class
+    - merge `Key` and `Index` into `Pointer`
+    - `Type`
+      - change `message` field from `Option<string>` to `string | undefined`
+    - `Refinement`
+      - rename `error` field to `issue`
+    - `Transformation`
+      - rename `error` field to `issue`
+    - `Missing`
+      - add `ast: AST.Type` field
+      - add `message` field
+      - add `actual` field
+    - `Unexpected`
+      - replace `ast` field with a `message` field
+      - add `actual` field
+  - `ParseError`
+    - rename `error` property to `issue`
+  - remove `missing` export
+  - Standardize Error Handling for `*Either`, `*Sync` and `asserts` APIs, closes #2968
+
+### Patch Changes
+
+- Updated dependencies [[`a67b8fe`](https://github.com/Effect-TS/effect/commit/a67b8fe2ace08419424811b5f0d9a5378eaea352)]:
+  - effect@3.3.4
+
+## 0.67.24
+
+### Patch Changes
+
+- [#2997](https://github.com/Effect-TS/effect/pull/2997) [`3b15e1b`](https://github.com/Effect-TS/effect/commit/3b15e1b505c0b0e62a03b4a3605d42a9932cc99c) Thanks @gcanti! - Improve error handling (type-level) for improper usage of `optional`, closes #2995
+
+  This commit addresses concerns raised by users about the confusing behavior when 'optional' is misused in a schema definition. Previously, users experienced unexpected results, such as a schema returning 'Schema.All' when 'optional' was used incorrectly, without clear guidance on the correct usage or error messages.
+
+  Changes:
+
+  - Enhanced the 'optional' method to return a descriptive type-level error when used incorrectly, helping users identify and correct their schema definitions.
+  - Updated the `Schema.optional()` implementation to check its context within a pipeline and ensure it is being used correctly.
+  - Added unit tests to verify that the new error handling works as expected and to ensure that correct usage does not affect existing functionality.
+
+- [#2994](https://github.com/Effect-TS/effect/pull/2994) [`3a750b2`](https://github.com/Effect-TS/effect/commit/3a750b25b1ed92094a7f7ebc332a6bcfb212871b) Thanks @gcanti! - Expose `exact` option for strict decoding on missing properties, closes #2993
+
+  This commit addresses an issue where users encountered unexpected decoding behaviors, specifically regarding how undefined values and missing properties are handled. The default behavior of the `@effect/schema` library treats missing properties as `undefined` during decoding, which can lead to confusion when stricter validation is expected.
+
+  Changes:
+
+  - Exposed an internal configuration option `exțact` (default: `false`), which when set to `true`, enforces strict decoding that will error on missing properties instead of treating them as `undefined`.
+  - Updated documentation to clearly outline the default and strict decoding behaviors, providing users with guidance on how to enable strict validation.
+
+- Updated dependencies [[`06ede85`](https://github.com/Effect-TS/effect/commit/06ede85d6e84710e6622463be95ff3927fb30dad), [`7204ca5`](https://github.com/Effect-TS/effect/commit/7204ca5761c2b1d27999a624db23aa10b6e0504d)]:
+  - effect@3.3.3
+
+## 0.67.23
+
+### Patch Changes
+
+- [#2991](https://github.com/Effect-TS/effect/pull/2991) [`2ee4f2b`](https://github.com/Effect-TS/effect/commit/2ee4f2be7fd63074a9cbac6dcdfb533b6683533a) Thanks @gcanti! - Remove `Simplify` from `extend`, `pick`, `omit`, `pluck` APIs, closes #2989, #2990
+
+- [#2971](https://github.com/Effect-TS/effect/pull/2971) [`9b3b4ac`](https://github.com/Effect-TS/effect/commit/9b3b4ac639d98aae33883926bece1e31fa280d22) Thanks @gcanti! - Add `Schema.NonEmptyChunkFromSelf` and `Schema.NonEmptyChunk`, closes #2961
+
+- Updated dependencies [[`3572646`](https://github.com/Effect-TS/effect/commit/3572646d5e0804f85bc7f64633fb95722533f9dd), [`1aed347`](https://github.com/Effect-TS/effect/commit/1aed347a125ed3847ec90863424810d6759cbc85), [`df4bf4b`](https://github.com/Effect-TS/effect/commit/df4bf4b62e7b316c6647da0271fc5544a84e7ba2), [`f085f92`](https://github.com/Effect-TS/effect/commit/f085f92dfa204afb41823ffc27d437225137643d)]:
+  - effect@3.3.2
+
+## 0.67.22
+
+### Patch Changes
+
+- [#2955](https://github.com/Effect-TS/effect/pull/2955) [`d79ca17`](https://github.com/Effect-TS/effect/commit/d79ca17d9fa432571c69714776cab5cf8fef9c34) Thanks @gcanti! - The `minItems` filter now checks for an invalid argument (`n < 1`) and, when valid, refines the type to `NonEmptyReadonlyArray<A>`.
+
+- Updated dependencies [[`eb98c5b`](https://github.com/Effect-TS/effect/commit/eb98c5b79ab50aa0cde239bd4e660dd19dbab612), [`184fed8`](https://github.com/Effect-TS/effect/commit/184fed83ac36cba05a75a5a8013f740f9f696e3b), [`6068e07`](https://github.com/Effect-TS/effect/commit/6068e073d4cc8b3c8583583fd5eb3efe43f7d5ba), [`3a77e20`](https://github.com/Effect-TS/effect/commit/3a77e209783933bac3aaddba1b05ff6a9ac72b36)]:
+  - effect@3.3.1
+
+## 0.67.21
+
+### Patch Changes
+
+- [#2837](https://github.com/Effect-TS/effect/pull/2837) [`67f160a`](https://github.com/Effect-TS/effect/commit/67f160a213de0219a565d4bf653b3cbf24f58e8f) Thanks @KhraksMamtsov! - Added two related schemas `Redacted` and `RedactedFromSelf`
+  `Secret` and `SecretFromSelf` marked as deprecated
+- Updated dependencies [[`1f4ac00`](https://github.com/Effect-TS/effect/commit/1f4ac00a91c336c9c9c9b8c3ed9ceb9920ebc9bd), [`9305b76`](https://github.com/Effect-TS/effect/commit/9305b764cceeae4f16564435ae7172f79c2bf822), [`0f40d98`](https://github.com/Effect-TS/effect/commit/0f40d989da10f68df3ecd72b36849401ad679bfb), [`b761ef0`](https://github.com/Effect-TS/effect/commit/b761ef00eaf6c67b7ffe34798b98aae5347ab376), [`b53f69b`](https://github.com/Effect-TS/effect/commit/b53f69bff1452a487b21198cd83961f844e02d36), [`0f40d98`](https://github.com/Effect-TS/effect/commit/0f40d989da10f68df3ecd72b36849401ad679bfb), [`5bd549e`](https://github.com/Effect-TS/effect/commit/5bd549e4bd7144727db438ecca6b8dc9b3ef7e22), [`67f160a`](https://github.com/Effect-TS/effect/commit/67f160a213de0219a565d4bf653b3cbf24f58e8f)]:
+  - effect@3.3.0
+
+## 0.67.20
+
+### Patch Changes
+
+- [#2926](https://github.com/Effect-TS/effect/pull/2926) [`4c6bc7f`](https://github.com/Effect-TS/effect/commit/4c6bc7f190c142dc9db70b365a2bf30715a98e62) Thanks @gcanti! - Add `propertyOrder` option to `ParseOptions` to control the order of keys in the output, closes #2925.
+
+  The `propertyOrder` option provides control over the order of object fields in the output. This feature is particularly useful when the sequence of keys is important for the consuming processes or when maintaining the input order enhances readability and usability.
+
+  By default, the `propertyOrder` option is set to `"none"`. This means that the internal system decides the order of keys to optimize parsing speed. The order of keys in this mode should not be considered stable, and it's recommended not to rely on key ordering as it may change in future updates without notice.
+
+  Setting `propertyOrder` to `"input"` ensures that the keys are ordered as they appear in the input during the decoding/encoding process.
+
+  **Example** (Synchronous Decoding)
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const schema = Schema.Struct({
+    a: Schema.Number,
+    b: Schema.Literal("b"),
+    c: Schema.Number,
+  });
+
+  // Decoding an object synchronously without specifying the property order
+  console.log(Schema.decodeUnknownSync(schema)({ b: "b", c: 2, a: 1 }));
+  // Output decided internally: { b: 'b', a: 1, c: 2 }
+
+  // Decoding an object synchronously while preserving the order of properties as in the input
+  console.log(
+    Schema.decodeUnknownSync(schema)(
+      { b: "b", c: 2, a: 1 },
+      { propertyOrder: "original" },
+    ),
+  );
+  // Output preserving input order: { b: 'b', c: 2, a: 1 }
+  ```
+
+  **Example** (Asynchronous Decoding)
+
+  ```ts
+  import { ParseResult, Schema } from "@effect/schema";
+  import type { Duration } from "effect";
+  import { Effect } from "effect";
+
+  // Function to simulate an asynchronous process within the schema
+  const effectify = (duration: Duration.DurationInput) =>
+    Schema.Number.pipe(
+      Schema.transformOrFail(Schema.Number, {
+        decode: (x) =>
+          Effect.sleep(duration).pipe(Effect.andThen(ParseResult.succeed(x))),
+        encode: ParseResult.succeed,
+      }),
+    );
+
+  // Define a structure with asynchronous behavior in each field
+  const schema = Schema.Struct({
+    a: effectify("200 millis"),
+    b: effectify("300 millis"),
+    c: effectify("100 millis"),
+  }).annotations({ concurrency: 3 });
+
+  // Decoding data asynchronously without preserving order
+  Schema.decode(schema)({ a: 1, b: 2, c: 3 })
+    .pipe(Effect.runPromise)
+    .then(console.log);
+  // Output decided internally: { c: 3, a: 1, b: 2 }
+
+  // Decoding data asynchronously while preserving the original input order
+  Schema.decode(schema)({ a: 1, b: 2, c: 3 }, { propertyOrder: "original" })
+    .pipe(Effect.runPromise)
+    .then(console.log);
+  // Output preserving input order: { a: 1, b: 2, c: 3 }
+  ```
+
+## 0.67.19
+
+### Patch Changes
+
+- [#2916](https://github.com/Effect-TS/effect/pull/2916) [`cd7496b`](https://github.com/Effect-TS/effect/commit/cd7496ba214eabac2e3c297f513fcbd5b11f0e91) Thanks @gcanti! - Add support for `AST.Literal` in `Schema.TemplateLiteral`, closes #2913
+
+- [#2915](https://github.com/Effect-TS/effect/pull/2915) [`349a036`](https://github.com/Effect-TS/effect/commit/349a036ffb08351481c060655660a6ccf26473de) Thanks @gcanti! - Align constructors arguments:
+
+  - Refactor `Class` interface to accept options for disabling validation
+  - Refactor `TypeLiteral` interface to accept options for disabling validation
+  - Refactor `refine` interface to accept options for disabling validation
+  - Refactor `BrandSchema` interface to accept options for disabling validation
+
+  Example
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const BrandedNumberSchema = Schema.Number.pipe(
+    Schema.between(1, 10),
+    Schema.brand("MyNumber"),
+  );
+
+  BrandedNumberSchema.make(20, { disableValidation: true }); // Bypasses validation and creates the instance without errors
+  ```
+
+- Updated dependencies [[`8c5d280`](https://github.com/Effect-TS/effect/commit/8c5d280c0402284a4e58372867a15a431cb99461), [`6ba6d26`](https://github.com/Effect-TS/effect/commit/6ba6d269f5891e6b11aa35c5281dde4bf3273004), [`3f28bf2`](https://github.com/Effect-TS/effect/commit/3f28bf274333611906175446b772243f34f1b6d5), [`5817820`](https://github.com/Effect-TS/effect/commit/58178204a770d1a78c06945ef438f9fffbb50afa)]:
+  - effect@3.2.9
+
+## 0.67.18
+
+### Patch Changes
+
+- [#2908](https://github.com/Effect-TS/effect/pull/2908) [`a0dd1c1`](https://github.com/Effect-TS/effect/commit/a0dd1c1ede2a1e856ecb0e67826ec992016fef97) Thanks @gcanti! - TemplateLiteral: fix bug related to ${number} span, closes #2907
+
+## 0.67.17
+
+### Patch Changes
+
+- [#2892](https://github.com/Effect-TS/effect/pull/2892) [`d9d22e7`](https://github.com/Effect-TS/effect/commit/d9d22e7c4d5e31d5b46644c729b027796e467c16) Thanks @gcanti! - Schema
+
+  - add `propertySignature` API interface (with a `from` property)
+  - extend `optional` API interface with a `from` property
+  - extend `optionalWithOptions` API interface with a `from` property
+
+- [#2901](https://github.com/Effect-TS/effect/pull/2901) [`3c080f7`](https://github.com/Effect-TS/effect/commit/3c080f74b2e2290edb6143c3aa01026e57f87a2a) Thanks @gcanti! - make the `AST.TemplateLiteral` constructor public
+
+- [#2901](https://github.com/Effect-TS/effect/pull/2901) [`3c080f7`](https://github.com/Effect-TS/effect/commit/3c080f74b2e2290edb6143c3aa01026e57f87a2a) Thanks @gcanti! - add support for string literals to `Schema.TemplateLiteral` and `TemplateLiteral` API interface.
+
+  Before
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  // `https://${string}.com` | `https://${string}.net`
+  const MyUrl = Schema.TemplateLiteral(
+    Schema.Literal("https://"),
+    Schema.String,
+    Schema.Literal("."),
+    Schema.Literal("com", "net"),
+  );
+  ```
+
+  Now
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  // `https://${string}.com` | `https://${string}.net`
+  const MyUrl = Schema.TemplateLiteral(
+    "https://",
+    Schema.String,
+    ".",
+    Schema.Literal("com", "net"),
+  );
+  ```
+
+- [#2905](https://github.com/Effect-TS/effect/pull/2905) [`7d6d875`](https://github.com/Effect-TS/effect/commit/7d6d8750077d9c8379f37240745240d7f3b7a4f8) Thanks @gcanti! - add support for unions to `rename`, closes #2904
+
+- [#2897](https://github.com/Effect-TS/effect/pull/2897) [`70cda70`](https://github.com/Effect-TS/effect/commit/70cda704e8e31c80737b95121c8199e726ea132f) Thanks @gcanti! - Add `encodedBoundSchema` API.
+
+  The `encodedBoundSchema` function is similar to `encodedSchema` but preserves the refinements up to the first transformation point in the
+  original schema.
+
+  **Function Signature:**
+
+  ```ts
+  export const encodedBoundSchema = <A, I, R>(schema: Schema<A, I, R>): Schema<I>
+  ```
+
+  The term "bound" in this context refers to the boundary up to which refinements are preserved when extracting the encoded form of a schema. It essentially marks the limit to which initial validations and structure are maintained before any transformations are applied.
+
+  **Example Usage:**
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const schema = Schema.Struct({
+    foo: Schema.String.pipe(Schema.minLength(3), Schema.compose(Schema.Trim)),
+  });
+
+  // The resultingEncodedBoundSchema preserves the minLength(3) refinement,
+  // ensuring the string length condition is enforced but omits the Trim transformation.
+  const resultingEncodedBoundSchema = Schema.encodedBoundSchema(schema);
+
+  // resultingEncodedBoundSchema is the same as:
+  Schema.Struct({
+    foo: Schema.String.pipe(Schema.minLength(3)),
+  });
+  ```
+
+  In the provided example:
+
+  - **Initial Schema**: The schema for `foo` includes a refinement to ensure strings have a minimum length of three characters and a transformation to trim the string.
+  - **Resulting Schema**: `resultingEncodedBoundSchema` maintains the `minLength(3)` condition, ensuring that this validation persists. However, it excludes the trimming transformation, focusing solely on the length requirement without altering the string's formatting.
+
+- Updated dependencies [[`fb91f17`](https://github.com/Effect-TS/effect/commit/fb91f17098b48497feca9ec976feb87e4a82451b)]:
+  - effect@3.2.8
+
+## 0.67.16
+
+### Patch Changes
+
+- [#2890](https://github.com/Effect-TS/effect/pull/2890) [`5745886`](https://github.com/Effect-TS/effect/commit/57458869859943410221ccc87f8cecfba7c79d92) Thanks @gcanti! - Fix constructor type inference for classes with all optional fields, closes #2888
+
+  This fix addresses an issue where TypeScript incorrectly inferred the constructor parameter type as an empty object {} when all class fields were optional. Now, the constructor properly recognizes arguments as objects with optional fields (e.g., { abc?: number, xyz?: number }).
+
+- Updated dependencies [[`6801fca`](https://github.com/Effect-TS/effect/commit/6801fca44366be3ee1b6b99f54bd4f38a1b5e4f4)]:
+  - effect@3.2.7
+
+## 0.67.15
+
+### Patch Changes
+
+- [#2882](https://github.com/Effect-TS/effect/pull/2882) [`e2740fc`](https://github.com/Effect-TS/effect/commit/e2740fc4e212ba85a90541e8c8d85b0bcd5c2e7c) Thanks @gcanti! - add `requiredToOptional` function to `Schema` module, closes #2881
+
+- [#2880](https://github.com/Effect-TS/effect/pull/2880) [`60fe3d5`](https://github.com/Effect-TS/effect/commit/60fe3d5fb2be168dd35c6d0cb8ac8f55deb30fc0) Thanks @gcanti! - add missing `makePropertySignature` constructor
+
+- Updated dependencies [[`cc8ac50`](https://github.com/Effect-TS/effect/commit/cc8ac5080daba8622ca2ff5dab5c37ddfab732ba)]:
+  - effect@3.2.6
+
+## 0.67.14
+
+### Patch Changes
+
+- [#2851](https://github.com/Effect-TS/effect/pull/2851) [`c5846e9`](https://github.com/Effect-TS/effect/commit/c5846e99137e9eb02efd31865e26f49f0d2c7c03) Thanks @gcanti! - Add `tag` and `TaggedStruct` constructors.
+
+  In TypeScript tags help to enhance type discrimination and pattern matching by providing a simple yet powerful way to define and recognize different data types.
+
+  **What is a Tag?**
+
+  A tag is a literal value added to data structures, commonly used in structs, to distinguish between various object types or variants within tagged unions. This literal acts as a discriminator, making it easier to handle and process different types of data correctly and efficiently.
+
+  **Using the `tag` Constructor**
+
+  The `tag` constructor is specifically designed to create a property signature that holds a specific literal value, serving as the discriminator for object types. Here's how you can define a schema with a tag:
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const User = Schema.Struct({
+    _tag: Schema.tag("User"),
+    name: Schema.String,
+    age: Schema.Number,
+  });
+
+  assert.deepStrictEqual(User.make({ name: "John", age: 44 }), {
+    _tag: "User",
+    name: "John",
+    age: 44,
+  });
+  ```
+
+  In the example above, `Schema.tag("User")` attaches a `_tag` property to the `User` struct schema, effectively labeling objects of this struct type as "User". This label is automatically applied when using the `make` method to create new instances, simplifying object creation and ensuring consistent tagging.
+
+  **Simplifying Tagged Structs with `TaggedStruct`**
+
+  The `TaggedStruct` constructor streamlines the process of creating tagged structs by directly integrating the tag into the struct definition. This method provides a clearer and more declarative approach to building data structures with embedded discriminators.
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const User = Schema.TaggedStruct("User", {
+    name: Schema.String,
+    age: Schema.Number,
+  });
+
+  // `_tag` is optional
+  const userInstance = User.make({ name: "John", age: 44 });
+
+  assert.deepStrictEqual(userInstance, {
+    _tag: "User",
+    name: "John",
+    age: 44,
+  });
+  ```
+
+  **Multiple Tags**
+
+  While a primary tag is often sufficient, TypeScript allows you to define multiple tags for more complex data structuring needs. Here's an example demonstrating the use of multiple tags within a single struct:
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const Product = Schema.TaggedStruct("Product", {
+    category: Schema.tag("Electronics"),
+    name: Schema.String,
+    price: Schema.Number,
+  });
+
+  // `_tag` and `category` are optional
+  const productInstance = Product.make({ name: "Smartphone", price: 999 });
+
+  assert.deepStrictEqual(productInstance, {
+    _tag: "Product",
+    category: "Electronics",
+    name: "Smartphone",
+    price: 999,
+  });
+  ```
+
+  This example showcases a product schema that not only categorizes each product under a general tag (`"Product"`) but also specifies a category tag (`"Electronics"`), enhancing the clarity and specificity of the data model.
+
+## 0.67.13
+
+### Patch Changes
+
+- Updated dependencies [[`608b01f`](https://github.com/Effect-TS/effect/commit/608b01fc342dbae2a642b308a67b84ead530ecea), [`031c712`](https://github.com/Effect-TS/effect/commit/031c7122a24ac42e48d6a434646b4f5d279d7442), [`a44e532`](https://github.com/Effect-TS/effect/commit/a44e532cf3a6a498b12a5aacf8124aa267e24ba0)]:
+  - effect@3.2.5
+
+## 0.67.12
+
+### Patch Changes
+
+- [#2814](https://github.com/Effect-TS/effect/pull/2814) [`f8038ca`](https://github.com/Effect-TS/effect/commit/f8038cadd5f50d397469e5fdbc70dd8f69671f50) Thanks @gcanti! - Add support for Enums in Record, closes #2811
+
+- [#2816](https://github.com/Effect-TS/effect/pull/2816) [`e376641`](https://github.com/Effect-TS/effect/commit/e3766411b60ebb45d31e9c9d94efa099121d4d58) Thanks @gcanti! - Add support for `Config` module, closes #2346
+
+- Updated dependencies [[`1af94df`](https://github.com/Effect-TS/effect/commit/1af94df6b74aeb4f6ebcbe80e074b4cb252e62e3), [`e313a01`](https://github.com/Effect-TS/effect/commit/e313a01b7e80f6cb7704055a190e5623c9d22c6d)]:
+  - effect@3.2.4
+
+## 0.67.11
+
+### Patch Changes
+
+- [#2803](https://github.com/Effect-TS/effect/pull/2803) [`5af633e`](https://github.com/Effect-TS/effect/commit/5af633eb5ff6560a64d87263d1692bb9c75f7b3c) Thanks @tim-smart! - update dependencies
+
+- Updated dependencies [[`45578e8`](https://github.com/Effect-TS/effect/commit/45578e8faa80ae33d23e08f6f19467f818b7788f)]:
+  - effect@3.2.3
+
+## 0.67.10
+
+### Patch Changes
+
+- [#2794](https://github.com/Effect-TS/effect/pull/2794) [`78ffc27`](https://github.com/Effect-TS/effect/commit/78ffc27ee3fa708433c25fa118c53d38d90d08bc) Thanks @gcanti! - add `optional` and `optionalWithOptions` API interfaces
+
+- Updated dependencies [[`5d9266e`](https://github.com/Effect-TS/effect/commit/5d9266e8c740746ac9e186c3df6090a1b57fbe2a), [`9f8122e`](https://github.com/Effect-TS/effect/commit/9f8122e78884ab47c5e5f364d86eee1d1543cc61), [`6a6f670`](https://github.com/Effect-TS/effect/commit/6a6f6706b8613c8c7c10971b8d81a0f9e440a6f2)]:
+  - effect@3.2.2
+
+## 0.67.9
+
+### Patch Changes
+
+- [#2775](https://github.com/Effect-TS/effect/pull/2775) [`5432fff`](https://github.com/Effect-TS/effect/commit/5432fff7c9a69d43910426c1053ebfc3b73ebed6) Thanks [@KhraksMamtsov](https://github.com/KhraksMamtsov)! - fix `pattern` in JSONSchemaAnnotation of `Trimmed` schema
+
+## 0.67.8
+
+### Patch Changes
+
+- Updated dependencies [[`c1e991d`](https://github.com/Effect-TS/effect/commit/c1e991dd5ba87901cd0e05697a8b4a267e7e954a)]:
+  - effect@3.2.1
+
+## 0.67.7
+
+### Patch Changes
+
+- Updated dependencies [[`146cadd`](https://github.com/Effect-TS/effect/commit/146cadd9d004634a3ff85c480bf92cf975c853e2), [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e), [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e), [`963b4e7`](https://github.com/Effect-TS/effect/commit/963b4e7ac87e2468feb6a344f7ab4ee4ad711198), [`64c9414`](https://github.com/Effect-TS/effect/commit/64c9414e960e82058ca09bbb3976d6fbef303a8e), [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e), [`2cbb76b`](https://github.com/Effect-TS/effect/commit/2cbb76bb52500a3f4bf27d1c91482518cbea56d7), [`870c5fa`](https://github.com/Effect-TS/effect/commit/870c5fa52cd61e745e8e828d38c3f09f00737553), [`7135748`](https://github.com/Effect-TS/effect/commit/713574813a0f64085db0b5240ba39e7a0a7c137e), [`64c9414`](https://github.com/Effect-TS/effect/commit/64c9414e960e82058ca09bbb3976d6fbef303a8e)]:
+  - effect@3.2.0
+
+## 0.67.6
+
+### Patch Changes
+
+- [#2772](https://github.com/Effect-TS/effect/pull/2772) [`17da864`](https://github.com/Effect-TS/effect/commit/17da864e4a6f80becdb82db7dece2ba583bfdda3) Thanks [@vinassefranche](https://github.com/vinassefranche)! - Add onNoneEncoding for Schema.optional used with {as: "Option"}
+
+- [#2769](https://github.com/Effect-TS/effect/pull/2769) [`ff0efa0`](https://github.com/Effect-TS/effect/commit/ff0efa0a1415a41d4a4312a16cf7a63def86db3f) Thanks [@TylorS](https://github.com/TylorS)! - Point-free usage of Schema.make constructors
+
+- Updated dependencies [[`17fc22e`](https://github.com/Effect-TS/effect/commit/17fc22e132593c5caa563705a4748ba0f04a853c), [`810f222`](https://github.com/Effect-TS/effect/commit/810f222268792b13067c7a7bf317b93a9bb8917b), [`596aaea`](https://github.com/Effect-TS/effect/commit/596aaea022648b2e06fb1ec22f1652043d6fe64e)]:
+  - effect@3.1.6
+
+## 0.67.5
+
+### Patch Changes
+
+- [#2757](https://github.com/Effect-TS/effect/pull/2757) [`9c514de`](https://github.com/Effect-TS/effect/commit/9c514de28152696edff008324d2d7e67d55afd56) Thanks [@fubhy](https://github.com/fubhy)! - Re-publishing due to empty root entrypoint
+
+## 0.67.4
+
+### Patch Changes
+
+- [#2756](https://github.com/Effect-TS/effect/pull/2756) [`ee08593`](https://github.com/Effect-TS/effect/commit/ee0859398ecc2589cab0d017bef6a17e00c34dfd) Thanks [@gcanti](https://github.com/gcanti)! - Improving Predicate Usability of `Schema.is`
+
+  Before this update, the `Schema.is(mySchema)` function couldn't be easily used as a predicate or refinement in common array methods like `filter` or `find`. This was because the function's signature was:
+
+  ```ts
+  (value: unknown, overrideOptions?: AST.ParseOptions) => value is A
+  ```
+
+  Meanwhile, the function expected by methods like `filter` has the following signature:
+
+  ```ts
+  (value: unknown, index: number) => value is A
+  ```
+
+  To make `Schema.is` compatible with these array methods, we've adjusted the function's signature to accept `number` as a possible value for the second parameter, in which case it is ignored:
+
+  ```diff
+  -(value: unknown, overrideOptions?: AST.ParseOptions) => value is A
+  +(value: unknown, overrideOptions?: AST.ParseOptions | number) => value is A
+  ```
+
+  Here's a practical example comparing the behavior before and after the change:
+
+  **Before:**
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  declare const array: Array<string | number>;
+
+  /*
+  Throws an error:
+  No overload matches this call.
+  ...
+  Types of parameters 'overrideOptions' and 'index' are incompatible.
+  */
+  const strings = array.filter(Schema.is(Schema.String));
+  ```
+
+  **Now:**
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  declare const array: Array<string | number>;
+
+  // const strings: string[]
+  const strings = array.filter(Schema.is(Schema.String));
+  ```
+
+  Note that the result has been correctly narrowed to `string[]`.
+
+- [#2746](https://github.com/Effect-TS/effect/pull/2746) [`da6d7d8`](https://github.com/Effect-TS/effect/commit/da6d7d845246e9d04631d64fa7694944b6010d09) Thanks [@gcanti](https://github.com/gcanti)! - `pick`: do not return a `ComposeTransformation` if none of the picked keys are related to a property signature transformation, closes #2743
+
+## 0.67.3
+
+### Patch Changes
+
+- Updated dependencies [[`6ac4847`](https://github.com/Effect-TS/effect/commit/6ac48479447c01a4f35d655552af93e47e562610)]:
+  - effect@3.1.5
+
+## 0.67.2
+
+### Patch Changes
+
+- [#2738](https://github.com/Effect-TS/effect/pull/2738) [`89a3afb`](https://github.com/Effect-TS/effect/commit/89a3afbe191c83b84b17bfaa95519aff0749afbe) Thanks [@gcanti](https://github.com/gcanti)! - add `cause` in errors thrown by `asserts`, closes #2729
+
+- [#2741](https://github.com/Effect-TS/effect/pull/2741) [`992c8e2`](https://github.com/Effect-TS/effect/commit/992c8e21535db9f0c66e81d32fee8af56a96274f) Thanks [@gcanti](https://github.com/gcanti)! - `Schema.optional`: the `default` option now allows setting a default value for **both** the decoding phase and the default constructor. Previously, it only set the decoding default. Closes #2740.
+
+  **Example**
+
+  ```ts
+  import { Schema } from "@effect/schema";
+
+  const Product = Schema.Struct({
+    name: Schema.String,
+    price: Schema.NumberFromString,
+    quantity: Schema.optional(Schema.NumberFromString, { default: () => 1 }),
+  });
+
+  // Applying defaults in the decoding phase
+  console.log(
+    Schema.decodeUnknownSync(Product)({ name: "Laptop", price: "999" }),
+  ); // { name: 'Laptop', price: 999, quantity: 1 }
+  console.log(
+    Schema.decodeUnknownSync(Product)({
+      name: "Laptop",
+      price: "999",
+      quantity: "2",
+    }),
+  ); // { name: 'Laptop', price: 999, quantity: 2 }
+
+  // Applying defaults in the constructor
+  console.log(Product.make({ name: "Laptop", price: 999 })); // { name: 'Laptop', price: 999, quantity: 1 }
+  console.log(Product.make({ name: "Laptop", price: 999, quantity: 2 })); // { name: 'Laptop', price: 999, quantity: 2 }
+  ```
+
 ## 0.67.1
 
 ### Patch Changes

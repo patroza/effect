@@ -1,9 +1,9 @@
-import { assertType } from "effect-test/utils/types"
 import * as E from "effect/Either"
 import { pipe } from "effect/Function"
 import * as M from "effect/Match"
 import * as O from "effect/Option"
 import * as Predicate from "effect/Predicate"
+import { assertType } from "effect/test/utils/types"
 import { describe, expect, it } from "vitest"
 
 describe("Match", () => {
@@ -817,6 +817,27 @@ describe("Match", () => {
       M.withReturnType<string>(),
       // @ts-expect-error
       M.orElse(() => "else")
+    )
+  })
+
+  it("withReturnType union", () => {
+    const match = pipe(
+      M.type<string>(),
+      M.withReturnType<"a" | "b">(),
+      M.when("A", (_) => "a"),
+      M.orElse((_) => "b")
+    )
+    expect(match("A")).toEqual("a")
+    expect(match("a")).toEqual("b")
+  })
+
+  it("withReturnType union mismatch", () => {
+    pipe(
+      M.type<string>(),
+      M.withReturnType<"a" | "b">(),
+      M.when("A", (_) => "a"),
+      // @ts-expect-error
+      M.orElse((_) => "c")
     )
   })
 })

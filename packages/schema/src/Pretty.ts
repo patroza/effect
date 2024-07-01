@@ -1,5 +1,5 @@
 /**
- * @since 1.0.0
+ * @since 0.67.0
  */
 import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
@@ -11,7 +11,7 @@ import type * as Schema from "./Schema.js"
 
 /**
  * @category model
- * @since 1.0.0
+ * @since 0.67.0
  */
 export interface Pretty<To> {
   (a: To): string
@@ -19,19 +19,19 @@ export interface Pretty<To> {
 
 /**
  * @category hooks
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const PrettyHookId: unique symbol = Symbol.for("@effect/schema/PrettyHookId")
 
 /**
  * @category hooks
- * @since 1.0.0
+ * @since 0.67.0
  */
 export type PrettyHookId = typeof PrettyHookId
 
 /**
  * @category annotations
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const pretty =
   <A>(handler: (...args: ReadonlyArray<Pretty<any>>) => Pretty<A>) =>
@@ -39,7 +39,7 @@ export const pretty =
 
 /**
  * @category prettify
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const make = <A, I, R>(schema: Schema.Schema<A, I, R>): (a: A) => string => compile(schema.ast, [])
 
@@ -59,11 +59,8 @@ const stringify = getMatcher((a) => JSON.stringify(a))
 
 const formatUnknown = getMatcher(util_.formatUnknown)
 
-const getPrettyErrorMessage = (message: string, path: ReadonlyArray<PropertyKey>) =>
-  errors_.getErrorMessageWithPath(`cannot build a Pretty for ${message}`, path)
-
 /**
- * @since 1.0.0
+ * @since 0.67.0
  */
 export const match: AST.Match<Pretty<any>> = {
   "Declaration": (ast, go, path) => {
@@ -71,11 +68,11 @@ export const match: AST.Match<Pretty<any>> = {
     if (Option.isSome(hook)) {
       return hook.value(...ast.typeParameters.map((tp) => go(tp, path)))
     }
-    throw new Error(getPrettyErrorMessage(`a declaration without annotations (${ast})`, path))
+    throw new Error(errors_.getPrettyMissingAnnotationErrorMessage(path, ast))
   },
   "VoidKeyword": getMatcher(() => "void(0)"),
   "NeverKeyword": getMatcher(() => {
-    throw new Error("cannot pretty print a `never` value")
+    throw new Error(errors_.getPrettyNeverErrorMessage)
   }),
   "Literal": getMatcher((literal: AST.LiteralValue): string =>
     typeof literal === "bigint" ?
@@ -100,7 +97,7 @@ export const match: AST.Match<Pretty<any>> = {
       return hook.value()
     }
     const elements = ast.elements.map((e, i) => go(e.type, path.concat(i)))
-    const rest = ast.rest.map((ast) => go(ast, path))
+    const rest = ast.rest.map((annotatedAST) => go(annotatedAST.type, path))
     return (input: ReadonlyArray<unknown>) => {
       const output: Array<string> = []
       let i = 0
@@ -189,6 +186,9 @@ export const match: AST.Match<Pretty<any>> = {
     const types = ast.types.map((ast) => [ParseResult.is({ ast } as any), go(ast, path)] as const)
     return (a) => {
       const index = types.findIndex(([is]) => is(a))
+      if (index === -1) {
+        throw new Error(errors_.getPrettyNoMatchingSchemaErrorMessage(a, path, ast))
+      }
       return types[index][1](a)
     }
   },

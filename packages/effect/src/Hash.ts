@@ -4,17 +4,12 @@
 import { pipe } from "./Function.js"
 import { globalValue } from "./GlobalValue.js"
 import { hasProperty } from "./Predicate.js"
-import { PCGRandom, structuralRegionState } from "./Utils.js"
+import { structuralRegionState } from "./Utils.js"
 
 /** @internal */
 const randomHashCache = globalValue(
   Symbol.for("effect/Hash/randomHashCache"),
   () => new WeakMap<object, number>()
-)
-/** @internal */
-const pcgr = globalValue(
-  Symbol.for("effect/Hash/pcgr"),
-  () => new PCGRandom()
 )
 
 /**
@@ -57,8 +52,9 @@ export const hash: <A>(self: A) => number = <A>(self: A) => {
     case "object": {
       if (self === null) {
         return string("null")
-      }
-      if (isHash(self)) {
+      } else if (self instanceof Date) {
+        return hash(self.toISOString())
+      } else if (isHash(self)) {
         return self[symbol]()
       } else {
         return random(self)
@@ -77,7 +73,7 @@ export const hash: <A>(self: A) => number = <A>(self: A) => {
  */
 export const random: <A extends object>(self: A) => number = (self) => {
   if (!randomHashCache.has(self)) {
-    randomHashCache.set(self, number(pcgr.integer(Number.MAX_SAFE_INTEGER)))
+    randomHashCache.set(self, number(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)))
   }
   return randomHashCache.get(self)!
 }

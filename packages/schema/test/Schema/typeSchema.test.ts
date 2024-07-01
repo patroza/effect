@@ -7,7 +7,7 @@ describe("typeSchema", () => {
     const schema = S.String.pipe(
       S.transform(
         S.Tuple(S.NumberFromString, S.NumberFromString),
-        { decode: (s) => [s, s] as const, encode: ([s]) => s }
+        { strict: true, decode: (s) => [s, s] as const, encode: ([s]) => s }
       ),
       S.typeSchema
     )
@@ -47,7 +47,7 @@ describe("typeSchema", () => {
   it("decoding", async () => {
     const schema = S.typeSchema(S.NumberFromString)
     await Util.expectDecodeUnknownSuccess(schema, 1)
-    await Util.expectDecodeUnknownFailure(schema, null, "Expected a number, actual null")
-    await Util.expectDecodeUnknownFailure(schema, "a", `Expected a number, actual "a"`)
+    await Util.expectDecodeUnknownFailure(schema, null, "Expected number, actual null")
+    await Util.expectDecodeUnknownFailure(schema, "a", `Expected number, actual "a"`)
   })
 })

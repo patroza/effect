@@ -1,6 +1,6 @@
-import { deepStrictEqual } from "effect-test/util"
 import { constFalse, constTrue, pipe } from "effect/Function"
 import * as _ from "effect/Predicate"
+import { deepStrictEqual } from "effect/test/util"
 import { assert, describe, expect, it } from "vitest"
 
 const isPositive: _.Predicate<number> = (n) => n > 0
@@ -321,5 +321,17 @@ describe("Predicate", () => {
     assert.deepStrictEqual(_.isReadonlyRecord([1, 2, 3]), false)
     assert.deepStrictEqual(_.isReadonlyRecord(null), false)
     assert.deepStrictEqual(_.isReadonlyRecord(undefined), false)
+  })
+
+  it("isTupleOf", () => {
+    assert.deepStrictEqual(_.isTupleOf([1, 2, 3], 3), true)
+    assert.deepStrictEqual(_.isTupleOf([1, 2, 3], 4), false)
+    assert.deepStrictEqual(_.isTupleOf([1, 2, 3], 2), false)
+  })
+
+  it("isTupleOfAtLeast", () => {
+    assert.deepStrictEqual(_.isTupleOfAtLeast([1, 2, 3], 3), true)
+    assert.deepStrictEqual(_.isTupleOfAtLeast([1, 2, 3], 2), true)
+    assert.deepStrictEqual(_.isTupleOfAtLeast([1, 2, 3], 4), false)
   })
 })

@@ -77,55 +77,92 @@ describe("JSONSchema", () => {
     it("a declaration should raise an error", () => {
       expectError(
         Schema.ChunkFromSelf(JsonNumber),
-        "cannot build a JSON Schema for a declaration without a JSON Schema annotation"
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (Declaration): Chunk<{ number | filter }>`
       )
     })
 
     it("a bigint should raise an error", () => {
-      expectError(Schema.BigIntFromSelf, "cannot build a JSON Schema for `bigint` without a JSON Schema annotation")
+      expectError(
+        Schema.BigIntFromSelf,
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (BigIntKeyword): bigint`
+      )
     })
 
     it("a symbol should raise an error", () => {
-      expectError(Schema.SymbolFromSelf, "cannot build a JSON Schema for `symbol` without a JSON Schema annotation")
+      expectError(
+        Schema.SymbolFromSelf,
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (SymbolKeyword): symbol`
+      )
     })
 
     it("a unique symbol should raise an error", () => {
       expectError(
         Schema.UniqueSymbolFromSelf(Symbol.for("@effect/schema/test/a")),
-        "cannot build a JSON Schema for a unique symbol without a JSON Schema annotation"
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (UniqueSymbol): Symbol(@effect/schema/test/a)`
       )
     })
 
     it("Undefined should raise an error", () => {
-      expectError(Schema.Undefined, "cannot build a JSON Schema for `undefined` without a JSON Schema annotation")
+      expectError(
+        Schema.Undefined,
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (UndefinedKeyword): undefined`
+      )
     })
 
     it("Void should raise an error", () => {
-      expectError(Schema.Void, "cannot build a JSON Schema for `void` without a JSON Schema annotation")
+      expectError(
+        Schema.Void,
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (VoidKeyword): void`
+      )
     })
 
     it("Never should raise an error", () => {
-      expectError(Schema.Never, "cannot build a JSON Schema for `never` without a JSON Schema annotation")
+      expectError(
+        Schema.Never,
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (NeverKeyword): never`
+      )
     })
 
     it("bigint literals should raise an error", () => {
       expectError(
         Schema.Literal(1n),
-        "cannot build a JSON Schema for a bigint literal without a JSON Schema annotation"
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (Literal): 1n`
       )
     })
 
     it("Tuple", () => {
       expectError(
         Schema.Tuple(Schema.Void),
-        "cannot build a JSON Schema for `void` without a JSON Schema annotation (path [0])"
+        `Missing annotation
+at path: [0]
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (VoidKeyword): void`
       )
     })
 
     it("Struct", () => {
       expectError(
         Schema.Struct({ a: Schema.Void }),
-        `cannot build a JSON Schema for \`void\` without a JSON Schema annotation (path ["a"])`
+        `Missing annotation
+at path: ["a"]
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (VoidKeyword): void`
       )
     })
   })
@@ -172,6 +209,10 @@ describe("JSONSchema", () => {
   it("String", () => {
     expectJSONSchema(Schema.String, {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      type: "string"
+    })
+    expectJSONSchema(Schema.String.annotations({}), {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       type: "string",
       description: "a string",
       title: "string"
@@ -181,6 +222,10 @@ describe("JSONSchema", () => {
   it("Number", () => {
     expectJSONSchema(Schema.Number, {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      type: "number"
+    })
+    expectJSONSchema(Schema.Number.annotations({}), {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       type: "number",
       description: "a number",
       title: "number"
@@ -189,6 +234,10 @@ describe("JSONSchema", () => {
 
   it("Boolean", () => {
     expectJSONSchema(Schema.Boolean, {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      type: "boolean"
+    })
+    expectJSONSchema(Schema.Boolean.annotations({}), {
       "$schema": "http://json-schema.org/draft-07/schema#",
       type: "boolean",
       description: "a boolean",
@@ -333,14 +382,10 @@ describe("JSONSchema", () => {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "anyOf": [
           {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           },
           {
-            "type": "number",
-            "description": "a number",
-            "title": "number"
+            "type": "number"
           }
         ]
       })
@@ -359,9 +404,7 @@ describe("JSONSchema", () => {
         "anyOf": [
           { "enum": [1, true] },
           {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           }
         ]
       })
@@ -379,9 +422,7 @@ describe("JSONSchema", () => {
           "anyOf": [
             { "const": true, "description": "description" },
             {
-              "type": "string",
-              "description": "a string",
-              "title": "string"
+              "type": "string"
             },
             { "const": 1 }
           ]
@@ -402,9 +443,7 @@ describe("JSONSchema", () => {
             { "enum": [1, 2] },
             { "const": true, "description": "description" },
             {
-              "type": "string",
-              "description": "a string",
-              "title": "string"
+              "type": "string"
             }
           ]
         }
@@ -479,9 +518,7 @@ describe("JSONSchema", () => {
         "minItems": 0,
         "items": [
           {
-            "type": "number",
-            "title": "number",
-            "description": "a number"
+            "type": "number"
           }
         ],
         "additionalItems": false
@@ -495,8 +532,11 @@ describe("JSONSchema", () => {
       propertyType(schema)
     })
 
-    it("e + e?", () => {
-      const schema = Schema.Tuple(Schema.String, Schema.optionalElement(JsonNumber))
+    it("e e?", () => {
+      const schema = Schema.Tuple(
+        Schema.element(Schema.String.annotations({ description: "inner-e" })).annotations({ description: "e" }),
+        Schema.optionalElement(JsonNumber.annotations({ description: "inner-e?" })).annotations({ description: "e?" })
+      )
       const jsonSchema: JSONSchema.JsonSchema7Root = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "array",
@@ -505,12 +545,11 @@ describe("JSONSchema", () => {
           {
             "type": "string",
             "title": "string",
-            "description": "a string"
+            "description": "e"
           },
           {
             "type": "number",
-            "title": "number",
-            "description": "a number"
+            "description": "e?"
           }
         ],
         "additionalItems": false
@@ -525,23 +564,23 @@ describe("JSONSchema", () => {
       propertyType(schema)
     })
 
-    it("e? + r", () => {
-      const schema = Schema.Tuple([Schema.optionalElement(Schema.String)], JsonNumber)
+    it("e? r", () => {
+      const schema = Schema.Tuple(
+        [Schema.optionalElement(Schema.String)],
+        Schema.element(JsonNumber.annotations({ description: "inner-r" })).annotations({ description: "r" })
+      )
       const jsonSchema: JSONSchema.JsonSchema7Root = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "array",
         "minItems": 0,
         "items": [
           {
-            "type": "string",
-            "title": "string",
-            "description": "a string"
+            "type": "string"
           }
         ],
         "additionalItems": {
           "type": "number",
-          "title": "number",
-          "description": "a number"
+          "description": "r"
         }
       }
       expectJSONSchema(schema, jsonSchema)
@@ -555,10 +594,10 @@ describe("JSONSchema", () => {
       propertyType(schema)
     })
 
-    it("r + e should raise an error", () => {
+    it("r e should raise an error", () => {
       expectError(
         Schema.Tuple([], JsonNumber, Schema.String),
-        "Generating a JSON Schema for post-rest elements is not currently supported. You're welcome to contribute by submitting a Pull Request."
+        "Generating a JSON Schema for post-rest elements is not currently supported. You're welcome to contribute by submitting a Pull Request"
       )
     })
 
@@ -581,9 +620,7 @@ describe("JSONSchema", () => {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "array",
         "items": [{
-          "type": "number",
-          "title": "number",
-          "description": "a number"
+          "type": "number"
         }],
         "minItems": 1,
         "additionalItems": false
@@ -597,21 +634,17 @@ describe("JSONSchema", () => {
       propertyType(schema)
     })
 
-    it("e + r", () => {
+    it("e r", () => {
       const schema = Schema.Tuple([Schema.String], JsonNumber)
       const jsonSchema: JSONSchema.JsonSchema7Root = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "array",
         "items": [{
-          "type": "string",
-          "title": "string",
-          "description": "a string"
+          "type": "string"
         }],
         "minItems": 1,
         "additionalItems": {
-          "type": "number",
-          "title": "number",
-          "description": "a number"
+          "type": "number"
         }
       }
       expectJSONSchema(schema, jsonSchema)
@@ -620,16 +653,12 @@ describe("JSONSchema", () => {
         "type": "array",
         "items": [
           {
-            "type": "string",
-            "title": "string",
-            "description": "a string"
+            "type": "string"
           }
         ],
         "minItems": 1,
         "additionalItems": {
-          "type": "number",
-          "title": "number",
-          "description": "a number"
+          "type": "number"
         }
       })
       expect(validate(["a"])).toEqual(true)
@@ -648,9 +677,7 @@ describe("JSONSchema", () => {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "array",
         "items": {
-          "type": "number",
-          "title": "number",
-          "description": "a number"
+          "type": "number"
         }
       }
       expectJSONSchema(schema, jsonSchema)
@@ -695,14 +722,10 @@ describe("JSONSchema", () => {
         "type": "object",
         "properties": {
           "a": {
-            "type": "string",
-            "title": "string",
-            "description": "a string"
+            "type": "string"
           },
           "b": {
-            "type": "number",
-            "title": "number",
-            "description": "a number"
+            "type": "number"
           }
         },
         "required": ["a", "b"],
@@ -728,14 +751,10 @@ describe("JSONSchema", () => {
         "type": "object",
         "properties": {
           "a": {
-            "type": "string",
-            "title": "string",
-            "description": "a string"
+            "type": "string"
           },
           "b": {
-            "type": "number",
-            "title": "number",
-            "description": "a number"
+            "type": "number"
           }
         },
         "required": ["a"],
@@ -763,8 +782,7 @@ describe("JSONSchema", () => {
           properties: {
             a: {
               type: "string",
-              "description": "an optional string",
-              title: "string"
+              "description": "an optional string"
             }
           },
           additionalProperties: false
@@ -776,7 +794,8 @@ describe("JSONSchema", () => {
       const a = Symbol.for("@effect/schema/test/a")
       expectError(
         Schema.Struct({ [a]: Schema.String }),
-        "cannot encode Symbol(@effect/schema/test/a) key to JSON Schema"
+        `Unsupported key
+details: Cannot encode Symbol(@effect/schema/test/a) key to JSON Schema`
       )
     })
 
@@ -790,9 +809,7 @@ describe("JSONSchema", () => {
           "type": "object",
           "properties": {
             "a": {
-              "type": "string",
-              "title": "string",
-              "description": "a string"
+              "type": "string"
             }
           },
           "required": [],
@@ -806,20 +823,28 @@ describe("JSONSchema", () => {
         Schema.Struct({
           a: Schema.UndefinedOr(Schema.String)
         }),
-        `cannot build a JSON Schema for \`undefined\` without a JSON Schema annotation (path ["a"])`
+        `Missing annotation
+at path: ["a"]
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (UndefinedKeyword): undefined`
       )
     })
   })
 
   describe("Record", () => {
     it("Record(symbol, number)", () => {
-      expectError(Schema.Record(Schema.SymbolFromSelf, JsonNumber), "unsupported index signature parameter (symbol)")
+      expectError(
+        Schema.Record(Schema.SymbolFromSelf, JsonNumber),
+        `Unsupported index signature parameter
+schema (SymbolKeyword): symbol`
+      )
     })
 
     it("record(refinement, number)", () => {
       expectError(
         Schema.Record(Schema.String.pipe(Schema.minLength(1)), JsonNumber),
-        "unsupported index signature parameter (a string at least 1 character(s) long)"
+        `Unsupported index signature parameter
+schema (Refinement): a string at least 1 character(s) long`
       )
     })
 
@@ -830,9 +855,7 @@ describe("JSONSchema", () => {
         "properties": {},
         "required": [],
         "additionalProperties": {
-          "type": "number",
-          "title": "number",
-          "description": "a number"
+          "type": "number"
         }
       })
     })
@@ -848,14 +871,10 @@ describe("JSONSchema", () => {
           "type": "object",
           "properties": {
             "a": {
-              "type": "number",
-              "title": "number",
-              "description": "a number"
+              "type": "number"
             },
             "b": {
-              "type": "number",
-              "title": "number",
-              "description": "a number"
+              "type": "number"
             }
           },
           "required": ["a", "b"],
@@ -877,9 +896,7 @@ describe("JSONSchema", () => {
         "additionalProperties": false,
         "patternProperties": {
           "^.*-.*$": {
-            "type": "number",
-            "description": "a number",
-            "title": "number"
+            "type": "number"
           }
         }
       }
@@ -908,9 +925,7 @@ describe("JSONSchema", () => {
         "additionalProperties": false,
         "patternProperties": {
           "^.*-.*$": {
-            "type": "number",
-            "description": "a number",
-            "title": "number"
+            "type": "number"
           }
         }
       }
@@ -927,7 +942,7 @@ describe("JSONSchema", () => {
     })
   })
 
-  it("Struct + Record", () => {
+  it("Struct Record", () => {
     const schema = Schema.Struct({ a: Schema.String }, Schema.Record(Schema.String, Schema.String))
     const jsonSchema: JSONSchema.JsonSchema7Root = {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -937,15 +952,11 @@ describe("JSONSchema", () => {
       ],
       "properties": {
         "a": {
-          "type": "string",
-          "title": "string",
-          "description": "a string"
+          "type": "string"
         }
       },
       "additionalProperties": {
-        "type": "string",
-        "title": "string",
-        "description": "a string"
+        "type": "string"
       }
     }
     expect(jsonSchema).toStrictEqual(jsonSchema)
@@ -963,7 +974,9 @@ describe("JSONSchema", () => {
     it("should raise an error when an annotation doesn't exist", () => {
       expectError(
         Schema.String.pipe(Schema.filter(() => true)),
-        "cannot build a JSON Schema for a refinement without a JSON Schema annotation"
+        `Missing annotation
+details: Generating a JSON Schema for this schema requires a "jsonSchema" annotation
+schema (Refinement): { string | filter }`
       )
     })
 
@@ -971,7 +984,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(Schema.String.pipe(Schema.minLength(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "string",
-        "title": "string",
         "description": "a string at least 1 character(s) long",
         "minLength": 1
       })
@@ -981,7 +993,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(Schema.String.pipe(Schema.maxLength(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "string",
-        "title": "string",
         "description": "a string at most 1 character(s) long",
         "maxLength": 1
       })
@@ -991,7 +1002,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(Schema.String.pipe(Schema.length(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "string",
-        "title": "string",
         "description": "a single character",
         "maxLength": 1,
         "minLength": 1
@@ -1002,7 +1012,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(Schema.String.pipe(Schema.length({ min: 2, max: 4 })), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "string",
-        "title": "string",
         "description": "a string at least 2 character(s) and at most 4 character(s) long",
         "maxLength": 4,
         "minLength": 2
@@ -1013,7 +1022,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(JsonNumber.pipe(Schema.greaterThan(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "number",
-        "title": "number",
         "description": "a number greater than 1",
         "exclusiveMinimum": 1
       })
@@ -1023,7 +1031,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(JsonNumber.pipe(Schema.greaterThanOrEqualTo(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "number",
-        "title": "number",
         "description": "a number greater than or equal to 1",
         "minimum": 1
       })
@@ -1033,7 +1040,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(JsonNumber.pipe(Schema.lessThan(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "number",
-        "title": "number",
         "description": "a number less than 1",
         "exclusiveMaximum": 1
       })
@@ -1043,7 +1049,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(JsonNumber.pipe(Schema.lessThanOrEqualTo(1)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "number",
-        "title": "number",
         "description": "a number less than or equal to 1",
         "maximum": 1
       })
@@ -1053,7 +1058,6 @@ describe("JSONSchema", () => {
       expectJSONSchema(Schema.String.pipe(Schema.pattern(/^abb+$/)), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "string",
-        "title": "string",
         "description": "a string matching the pattern ^abb+$",
         "pattern": "^abb+$"
       })
@@ -1066,6 +1070,18 @@ describe("JSONSchema", () => {
         "title": "integer",
         "description": "an integer"
       })
+    })
+
+    it("Trimmed", () => {
+      const schema = Schema.Trimmed
+      expectJSONSchema(schema, {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "description": "a string with no leading or trailing whitespace",
+        "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+        "title": "Trimmed",
+        "type": "string"
+      })
+      propertyType(schema)
     })
   })
 
@@ -1097,7 +1113,10 @@ describe("JSONSchema", () => {
       })
       expectError(
         schema,
-        `Generating a JSON Schema for suspended schemas requires an identifier annotation (path ["as"])`
+        `Missing annotation
+at path: ["as"]
+details: Generating a JSON Schema for this schema requires an "identifier" annotation
+schema (Suspend): <suspended schema>`
       )
     })
 
@@ -1125,9 +1144,7 @@ describe("JSONSchema", () => {
             ],
             "properties": {
               "a": {
-                "type": "string",
-                "description": "a string",
-                "title": "string"
+                "type": "string"
               },
               "as": {
                 "type": "array",
@@ -1172,9 +1189,7 @@ describe("JSONSchema", () => {
         ],
         "properties": {
           "a": {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           },
           "as": {
             "type": "array",
@@ -1193,9 +1208,7 @@ describe("JSONSchema", () => {
             ],
             "properties": {
               "a": {
-                "type": "string",
-                "description": "a string",
-                "title": "string"
+                "type": "string"
               },
               "as": {
                 "type": "array",
@@ -1243,9 +1256,7 @@ describe("JSONSchema", () => {
             ],
             "properties": {
               "name": {
-                "type": "string",
-                "description": "a string",
-                "title": "string"
+                "type": "string"
               },
               "categories": {
                 "type": "array",
@@ -1351,9 +1362,7 @@ describe("JSONSchema", () => {
               "value": {
                 "anyOf": [
                   {
-                    "type": "number",
-                    "description": "a number",
-                    "title": "number"
+                    "type": "number"
                   },
                   {
                     "$ref": "#/$defs/Operation"
@@ -1469,9 +1478,7 @@ describe("JSONSchema", () => {
         ],
         "properties": {
           "a": {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -1488,9 +1495,7 @@ describe("JSONSchema", () => {
         ],
         "properties": {
           "a": {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -1517,9 +1522,7 @@ describe("JSONSchema", () => {
         ],
         "properties": {
           "a": {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           }
         },
         "additionalProperties": false,
@@ -1606,9 +1609,7 @@ describe("JSONSchema", () => {
         ],
         "properties": {
           "name": {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           },
           "categories": {
             "type": "array",
@@ -1627,9 +1628,7 @@ describe("JSONSchema", () => {
             ],
             "properties": {
               "name": {
-                "type": "string",
-                "description": "a string",
-                "title": "string"
+                "type": "string"
               },
               "categories": {
                 "type": "array",
@@ -1824,9 +1823,7 @@ describe("JSONSchema", () => {
         ],
         "properties": {
           "a": {
-            "type": "string",
-            "description": "a string",
-            "title": "string"
+            "type": "string"
           },
           "as": {
             "type": "array",
@@ -1856,7 +1853,7 @@ describe("JSONSchema", () => {
     })
 
     it("refinement of a transformation", () => {
-      expectJSONSchema(Schema.Date.pipe(Schema.jsonSchema({ type: "string", format: "date-time" })), {
+      expectJSONSchema(Schema.Date.annotations({ jsonSchema: { type: "string", format: "date-time" } }), {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "format": "date-time",
         "type": "string"
@@ -1878,9 +1875,7 @@ describe("JSONSchema", () => {
           ],
           "properties": {
             "a": {
-              "type": "string",
-              "description": "a string",
-              "title": "string"
+              "type": "string"
             }
           },
           "additionalProperties": false
@@ -1956,9 +1951,7 @@ describe("JSONSchema", () => {
           "required": [],
           "properties": {
             "a": {
-              "type": "string",
-              "description": "a string",
-              "title": "string"
+              "type": "string"
             }
           },
           "additionalProperties": false
@@ -2073,6 +2066,80 @@ describe("JSONSchema", () => {
       })
     })
   })
+
+  it(`should correctly generate JSON Schemas by targeting the "to" side of transformations from S.parseJson`, () => {
+    expectJSONSchema(
+      // Define a schema that parses a JSON string into a structured object
+      Schema.parseJson(Schema.Struct({
+        a: Schema.parseJson(Schema.NumberFromString) // Nested parsing from JSON string to number
+      })),
+      {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        required: ["a"],
+        properties: { a: { type: "string" } },
+        additionalProperties: false
+      }
+    )
+  })
+
+  it("should correctly generate JSON Schemas for a schema created by extending two refinements using the `extend` API", () => {
+    expectJSONSchema(
+      Schema.Struct({
+        a: Schema.String
+      }).pipe(Schema.filter(() => true, { jsonSchema: { a: 1 } })).pipe(Schema.extend(
+        Schema.Struct({
+          b: Schema.Number
+        }).pipe(Schema.filter(() => true, { jsonSchema: { b: 2 } }))
+      )),
+      {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        required: ["a", "b"],
+        properties: {
+          a: { type: "string" },
+          b: { type: "number" }
+        },
+        additionalProperties: false,
+        b: 2,
+        a: 1
+      }
+    )
+  })
+
+  it("ReadonlyMapFromRecord", () => {
+    expectJSONSchema(
+      Schema.ReadonlyMapFromRecord({
+        key: Schema.String.pipe(Schema.minLength(2, { jsonSchema: { pattern: ".{2,}" } })),
+        value: Schema.NumberFromString
+      }),
+      {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        required: [],
+        properties: {},
+        additionalProperties: false,
+        patternProperties: { ".{2,}": { type: "string" } }
+      }
+    )
+  })
+
+  it("MapFromRecord", () => {
+    expectJSONSchema(
+      Schema.MapFromRecord({
+        key: Schema.String.pipe(Schema.minLength(2, { jsonSchema: { pattern: ".{2,}" } })),
+        value: Schema.NumberFromString
+      }),
+      {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        required: [],
+        properties: {},
+        additionalProperties: false,
+        patternProperties: { ".{2,}": { type: "string" } }
+      }
+    )
+  })
 })
 
 export const decode = <A>(schema: JSONSchema.JsonSchema7Root): Schema.Schema<A> =>
@@ -2112,15 +2179,15 @@ const decodeAST = (
         if (Array.isArray(schema.items)) {
           const minItems = schema.minItems ?? -1
           const rest: AST.TupleType["rest"] = schema.additionalItems && !Predicate.isBoolean(schema.additionalItems)
-            ? [decodeAST(schema.additionalItems, $defs)]
+            ? [new AST.Type(decodeAST(schema.additionalItems, $defs))]
             : []
           return new AST.TupleType(
-            schema.items.map((item, i) => new AST.Element(decodeAST(item, $defs), i >= minItems)),
+            schema.items.map((item, i) => new AST.OptionalType(decodeAST(item, $defs), i >= minItems)),
             rest,
             true
           )
         } else {
-          return new AST.TupleType([], [decodeAST(schema.items, $defs)], true)
+          return new AST.TupleType([], [new AST.Type(decodeAST(schema.items, $defs))], true)
         }
       } else {
         return new AST.TupleType([], [], true)

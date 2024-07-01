@@ -1,4 +1,5 @@
 import * as AST from "@effect/schema/AST"
+import * as ParseResult from "@effect/schema/ParseResult"
 import * as S from "@effect/schema/Schema"
 import * as Util from "@effect/schema/test/TestUtils"
 import * as Either from "effect/Either"
@@ -23,22 +24,22 @@ describe("record", () => {
     const schema = S.Record(S.String, S.Number)
     const all = S.decodeUnknownEither(schema)({ a: 1, b: "b", c: 2, d: "d" }, { errors: "all" })
     if (Either.isLeft(all)) {
-      const issue = all.left.error
-      if (issue._tag === "TypeLiteral") {
+      const issue = all.left.issue
+      if (ParseResult.isComposite(issue)) {
         expect(issue.output).toStrictEqual({ a: 1, c: 2 })
       } else {
-        assert.fail("expected a TypeLiteral")
+        assert.fail("expected an And")
       }
     } else {
       assert.fail("expected a Left")
     }
     const first = S.decodeUnknownEither(schema)({ a: 1, b: "b", c: 2, d: "d" }, { errors: "first" })
     if (Either.isLeft(first)) {
-      const issue = first.left.error
-      if (issue._tag === "TypeLiteral") {
+      const issue = first.left.issue
+      if (ParseResult.isComposite(issue)) {
         expect(issue.output).toStrictEqual({ a: 1 })
       } else {
-        assert.fail("expected a TypeLiteral")
+        assert.fail("expected an And")
       }
     } else {
       assert.fail("expected a Left")
@@ -46,13 +47,48 @@ describe("record", () => {
   })
 
   describe("decoding", () => {
-    it("record(never, number)", async () => {
+    it("Record(enum, number)", async () => {
+      enum Abc {
+        A = 1,
+        B = "b",
+        C = "c"
+      }
+      const AbcSchema = S.Enums(Abc)
+      const schema = S.Record(AbcSchema, S.String)
+      await Util.expectDecodeUnknownSuccess(schema, { [Abc.A]: "A", [Abc.B]: "B", [Abc.C]: "C" })
+      await Util.expectDecodeUnknownSuccess(schema, { [1]: "A", b: "B", c: "C" })
+      await Util.expectDecodeUnknownSuccess(schema, { "1": "A", b: "B", c: "C" })
+
+      await Util.expectDecodeUnknownFailure(
+        schema,
+        { [Abc.B]: "B", [Abc.C]: "C" },
+        `{ readonly 1: string; readonly b: string; readonly c: string }
+└─ [1]
+   └─ is missing`
+      )
+      await Util.expectDecodeUnknownFailure(
+        schema,
+        { [Abc.A]: "A", [Abc.B]: "B" },
+        `{ readonly 1: string; readonly b: string; readonly c: string }
+└─ ["c"]
+   └─ is missing`
+      )
+      await Util.expectDecodeUnknownFailure(
+        schema,
+        { [Abc.A]: null, [Abc.B]: "B", [Abc.C]: "C" },
+        `{ readonly 1: string; readonly b: string; readonly c: string }
+└─ [1]
+   └─ Expected string, actual null`
+      )
+    })
+
+    it("Record(never, number)", async () => {
       const schema = S.Record(S.Never, S.Number)
       await Util.expectDecodeUnknownSuccess(schema, {})
       await Util.expectDecodeUnknownSuccess(schema, { a: 1 })
     })
 
-    it("record(string, number)", async () => {
+    it("Record(string, number)", async () => {
       const schema = S.Record(S.String, S.Number)
       await Util.expectDecodeUnknownSuccess(schema, {})
       await Util.expectDecodeUnknownSuccess(schema, { a: 1 })
@@ -67,7 +103,7 @@ describe("record", () => {
         { a: "a" },
         `{ readonly [x: string]: number }
 └─ ["a"]
-   └─ Expected a number, actual "a"`
+   └─ Expected number, actual "a"`
       )
       const b = Symbol.for("@effect/schema/test/b")
       await Util.expectDecodeUnknownSuccess(schema, { a: 1, [b]: "b" }, { a: 1 })
@@ -76,12 +112,12 @@ describe("record", () => {
         { a: 1, [b]: "b" },
         `{ readonly [x: string]: number }
 └─ [Symbol(@effect/schema/test/b)]
-   └─ is unexpected, expected a string`,
+   └─ is unexpected, expected: string`,
         Util.onExcessPropertyError
       )
     })
 
-    it("record(symbol, number)", async () => {
+    it("Record(symbol, number)", async () => {
       const a = Symbol.for("@effect/schema/test/a")
       const schema = S.Record(S.SymbolFromSelf, S.Number)
       await Util.expectDecodeUnknownSuccess(schema, {})
@@ -97,7 +133,7 @@ describe("record", () => {
         { [a]: "a" },
         `{ readonly [x: symbol]: number }
 └─ [Symbol(@effect/schema/test/a)]
-   └─ Expected a number, actual "a"`
+   └─ Expected number, actual "a"`
       )
       await Util.expectDecodeUnknownSuccess(
         schema,
@@ -109,12 +145,12 @@ describe("record", () => {
         { [a]: 1, b: "b" },
         `{ readonly [x: symbol]: number }
 └─ ["b"]
-   └─ is unexpected, expected a symbol`,
+   └─ is unexpected, expected: symbol`,
         Util.onExcessPropertyError
       )
     })
 
-    it("record('a' | 'b', number)", async () => {
+    it("Record('a' | 'b', number)", async () => {
       const schema = S.Record(S.Union(S.Literal("a"), S.Literal("b")), S.Number)
       await Util.expectDecodeUnknownSuccess(schema, { a: 1, b: 2 })
 
@@ -141,7 +177,7 @@ describe("record", () => {
       )
     })
 
-    it("record('a' | `prefix-${string}`, number)", async () => {
+    it("Record('a' | `prefix-${string}`, number)", async () => {
       const schema = S.Record(
         S.Union(S.Literal("a"), S.TemplateLiteral(S.Literal("prefix-"), S.String)),
         S.Number
@@ -161,11 +197,11 @@ describe("record", () => {
         { a: 1, "prefix-b": "b" },
         `{ readonly a: number; readonly [x: \`prefix-\${string}\`]: number }
 └─ ["prefix-b"]
-   └─ Expected a number, actual "b"`
+   └─ Expected number, actual "b"`
       )
     })
 
-    it("record(keyof struct({ a, b }), number)", async () => {
+    it("Record(keyof struct({ a, b }), number)", async () => {
       const schema = S.Record(S.keyof(S.Struct({ a: S.String, b: S.String })), S.Number)
       await Util.expectDecodeUnknownSuccess(schema, { a: 1, b: 2 })
 
@@ -195,11 +231,11 @@ describe("record", () => {
         { a: "a" },
         `{ readonly a: number; readonly b: number }
 └─ ["a"]
-   └─ Expected a number, actual "a"`
+   └─ Expected number, actual "a"`
       )
     })
 
-    it("record(Symbol('a') | Symbol('b'), number)", async () => {
+    it("Record(Symbol('a') | Symbol('b'), number)", async () => {
       const a = Symbol.for("@effect/schema/test/a")
       const b = Symbol.for("@effect/schema/test/b")
       const schema = S.Record(S.Union(S.UniqueSymbolFromSelf(a), S.UniqueSymbolFromSelf(b)), S.Number)
@@ -228,7 +264,7 @@ describe("record", () => {
       )
     })
 
-    it("record(${string}-${string}, number)", async () => {
+    it("Record(${string}-${string}, number)", async () => {
       const schema = S.Record(S.TemplateLiteral(S.String, S.Literal("-"), S.String), S.Number)
       await Util.expectDecodeUnknownSuccess(schema, {})
       await Util.expectDecodeUnknownSuccess(schema, { "-": 1 })
@@ -244,28 +280,28 @@ describe("record", () => {
         { "-": "a" },
         `{ readonly [x: \`\${string}-\${string}\`]: number }
 └─ ["-"]
-   └─ Expected a number, actual "a"`
+   └─ Expected number, actual "a"`
       )
       await Util.expectDecodeUnknownFailure(
         schema,
         { "a-": "a" },
         `{ readonly [x: \`\${string}-\${string}\`]: number }
 └─ ["a-"]
-   └─ Expected a number, actual "a"`
+   └─ Expected number, actual "a"`
       )
       await Util.expectDecodeUnknownFailure(
         schema,
         { "-b": "b" },
         `{ readonly [x: \`\${string}-\${string}\`]: number }
 └─ ["-b"]
-   └─ Expected a number, actual "b"`
+   └─ Expected number, actual "b"`
       )
       await Util.expectDecodeUnknownFailure(
         schema,
         { "a-b": "ab" },
         `{ readonly [x: \`\${string}-\${string}\`]: number }
 └─ ["a-b"]
-   └─ Expected a number, actual "ab"`
+   └─ Expected number, actual "ab"`
       )
 
       await Util.expectDecodeUnknownFailure(
@@ -273,12 +309,12 @@ describe("record", () => {
         { "a": 1 },
         `{ readonly [x: \`\${string}-\${string}\`]: number }
 └─ ["a"]
-   └─ is unexpected, expected \`\${string}-\${string}\``,
+   └─ is unexpected, expected: \`\${string}-\${string}\``,
         Util.onExcessPropertyError
       )
     })
 
-    it("record(minLength(2), number)", async () => {
+    it("Record(minLength(2), number)", async () => {
       const schema = S.Record(S.String.pipe(S.minLength(2)), S.Number)
       await Util.expectDecodeUnknownSuccess(schema, {})
       await Util.expectDecodeUnknownSuccess(schema, { "a": 1 }, {})
@@ -291,19 +327,19 @@ describe("record", () => {
         { "aa": "aa" },
         `{ readonly [x: string]: number }
 └─ ["aa"]
-   └─ Expected a number, actual "aa"`
+   └─ Expected number, actual "aa"`
       )
       await Util.expectDecodeUnknownFailure(
         schema,
         { "a": 1 },
         `{ readonly [x: string]: number }
 └─ ["a"]
-   └─ is unexpected, expected a string at least 2 character(s) long`,
+   └─ is unexpected, expected: a string at least 2 character(s) long`,
         Util.onExcessPropertyError
       )
     })
 
-    it("record(${string}-${string}, number) & record(string, string | number)", async () => {
+    it("Record(${string}-${string}, number) & record(string, string | number)", async () => {
       const schema = S.Struct(
         {},
         S.Record(S.TemplateLiteral(S.String, S.Literal("-"), S.String), S.Number),
@@ -318,7 +354,7 @@ describe("record", () => {
         { "a-": "a" },
         `{ readonly [x: \`\${string}-\${string}\`]: number; readonly [x: string]: string | number }
 └─ ["a-"]
-   └─ Expected a number, actual "a"`
+   └─ Expected number, actual "a"`
       )
       await Util.expectDecodeUnknownFailure(
         schema,
@@ -326,10 +362,8 @@ describe("record", () => {
         `{ readonly [x: \`\${string}-\${string}\`]: number; readonly [x: string]: string | number }
 └─ ["a"]
    └─ string | number
-      ├─ Union member
-      │  └─ Expected a string, actual true
-      └─ Union member
-         └─ Expected a number, actual true`
+      ├─ Expected string, actual true
+      └─ Expected number, actual true`
       )
     })
 
@@ -345,7 +379,7 @@ describe("record", () => {
         { "": 1 },
         `{ readonly [x: string]: number }
 └─ [""]
-   └─ is unexpected, expected NonEmpty (a non empty string)`,
+   └─ is unexpected, expected: NonEmpty`,
         Util.onExcessPropertyError
       )
     })
@@ -359,7 +393,7 @@ describe("record", () => {
         { aa: "a" },
         `{ readonly [x: string]: string }
 └─ ["aa"]
-   └─ is unexpected, expected Char (a single character)`,
+   └─ is unexpected, expected: Char`,
         Util.onExcessPropertyError
       )
     })
@@ -373,7 +407,7 @@ describe("record", () => {
 └─ ["a"]
    └─ Char
       └─ Predicate refinement failure
-         └─ Expected Char (a single character), actual "aa"`
+         └─ Expected Char, actual "aa"`
       )
     })
   })

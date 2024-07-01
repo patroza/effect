@@ -1,8 +1,8 @@
-import * as it from "effect-test/utils/extend"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import { pipe } from "effect/Function"
 import * as Layer from "effect/Layer"
+import * as it from "effect/test/utils/extend"
 import { assert, describe, expect } from "vitest"
 
 interface NumberService {
@@ -45,6 +45,15 @@ class NumberTag extends Effect.Tag("NumberTag")<NumberTag, number>() {
 }
 
 describe("Effect", () => {
+  it.effect("provide runtime is additive", () =>
+    Effect.gen(function*() {
+      const runtime = yield* Effect.runtime<never>()
+      const env = yield* NumberService.pipe(
+        Effect.provide(runtime),
+        Effect.provideService(NumberService, { n: 1 })
+      )
+      expect(env).toStrictEqual({ n: 1 })
+    }))
   describe("and Then", () => {
     it.effect("effect tag", () =>
       Effect.gen(function*($) {

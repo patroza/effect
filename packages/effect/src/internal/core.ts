@@ -1,3 +1,4 @@
+import { internalCall } from "effect/Utils"
 import * as Arr from "../Array.js"
 import type * as Cause from "../Cause.js"
 import * as Chunk from "../Chunk.js"
@@ -148,7 +149,6 @@ export class RevertFlags {
   }
 }
 
-/** @internal */
 class EffectPrimitive {
   public effect_instruction_i0 = undefined
   public effect_instruction_i1 = undefined
@@ -504,6 +504,24 @@ export const custom: {
 }
 
 /* @internal */
+export const unsafeAsync = <A, E = never, R = never>(
+  register: (
+    callback: (_: Effect.Effect<A, E, R>) => void
+  ) => void | Effect.Effect<void, never, R>,
+  blockingOn: FiberId.FiberId = FiberId.none
+): Effect.Effect<A, E, R> => {
+  const effect = new EffectPrimitive(OpCodes.OP_ASYNC) as any
+  let cancelerRef: Effect.Effect<void, never, R> | void = undefined
+  effect.effect_instruction_i0 = (resume: (_: Effect.Effect<A, E, R>) => void) => {
+    cancelerRef = register(resume)
+  }
+  effect.effect_instruction_i1 = blockingOn
+  return cancelerRef !== undefined ?
+    onInterrupt(effect, (_) => cancelerRef!) :
+    effect
+}
+
+/* @internal */
 export const async = <A, E = never, R = never>(
   register: (
     callback: (_: Effect.Effect<A, E, R>) => void,
@@ -533,9 +551,9 @@ export const async = <A, E = never, R = never>(
     let controllerRef: AbortController | void = undefined
     if (this.effect_instruction_i0.length !== 1) {
       controllerRef = new AbortController()
-      cancelerRef = this.effect_instruction_i0(proxyResume, controllerRef.signal)
+      cancelerRef = internalCall(() => this.effect_instruction_i0(proxyResume, controllerRef!.signal))
     } else {
-      cancelerRef = (this.effect_instruction_i0 as any)(proxyResume)
+      cancelerRef = internalCall(() => (this.effect_instruction_i0 as any)(proxyResume))
     }
     return (cancelerRef || controllerRef) ?
       onInterrupt(effect, (_) => {
@@ -1006,8 +1024,8 @@ export const interruptibleMask = <A, E, R>(
     effect.effect_instruction_i0 = RuntimeFlagsPatch.enable(_runtimeFlags.Interruption)
     effect.effect_instruction_i1 = (oldFlags: RuntimeFlags.RuntimeFlags) =>
       _runtimeFlags.interruption(oldFlags)
-        ? this.effect_instruction_i0(interruptible)
-        : this.effect_instruction_i0(uninterruptible)
+        ? internalCall(() => this.effect_instruction_i0(interruptible))
+        : internalCall(() => this.effect_instruction_i0(uninterruptible))
     return effect
   })
 
@@ -1322,8 +1340,8 @@ export const uninterruptibleMask = <A, E, R>(
     effect.effect_instruction_i0 = RuntimeFlagsPatch.disable(_runtimeFlags.Interruption)
     effect.effect_instruction_i1 = (oldFlags: RuntimeFlags.RuntimeFlags) =>
       _runtimeFlags.interruption(oldFlags)
-        ? this.effect_instruction_i0(interruptible)
-        : this.effect_instruction_i0(uninterruptible)
+        ? internalCall(() => this.effect_instruction_i0(interruptible))
+        : internalCall(() => this.effect_instruction_i0(uninterruptible))
     return effect
   })
 
@@ -1780,7 +1798,6 @@ export class RequestResolverImpl<in A, out R> implements RequestResolver.Request
     ) => Effect.Effect<void, never, R>,
     readonly target?: unknown
   ) {
-    this.runAll = runAll as any
   }
   [Hash.symbol](): number {
     return Hash.cached(this, this.target ? Hash.hash(this.target) : Hash.random(this))

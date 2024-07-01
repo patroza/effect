@@ -1,4 +1,3 @@
-import * as it from "effect-test/utils/extend"
 import * as Cause from "effect/Cause"
 import * as Chunk from "effect/Chunk"
 import * as Context from "effect/Context"
@@ -11,6 +10,7 @@ import { constFalse, constTrue, constVoid, pipe } from "effect/Function"
 import * as Option from "effect/Option"
 import * as STM from "effect/STM"
 import * as TDeferred from "effect/TDeferred"
+import * as it from "effect/test/utils/extend"
 import * as TQueue from "effect/TQueue"
 import * as TRef from "effect/TRef"
 import * as fc from "fast-check"
@@ -955,6 +955,12 @@ describe("STM", () => {
     Effect.gen(function*($) {
       const result = yield* $(STM.commit(STM.succeed("test")))
       assert.strictEqual(result, "test")
+    }))
+
+  it.effect("gen with context", () =>
+    STM.gen({ context: "Context" as const }, function*() {
+      const result = yield* STM.succeed(this.context)
+      assert.strictEqual(result, "Context")
     }))
 
   it.effect("summarized - returns summary and value", () =>

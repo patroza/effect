@@ -28,8 +28,8 @@ const effectifyAST = (ast: AST.AST): AST.AST => {
   switch (ast._tag) {
     case "TupleType":
       return new AST.TupleType(
-        ast.elements.map((e) => new AST.Element(effectifyAST(e.type), e.isOptional)),
-        ast.rest.map((ast) => effectifyAST(ast)),
+        ast.elements.map((e) => new AST.OptionalType(effectifyAST(e.type), e.isOptional, e.annotations)),
+        ast.rest.map((annotatedAST) => new AST.Type(effectifyAST(annotatedAST.type), annotatedAST.annotations)),
         ast.isReadonly,
         ast.annotations
       )
@@ -71,8 +71,8 @@ const effectifyAST = (ast: AST.AST): AST.AST => {
     AST.encodedAST(ast),
     AST.typeAST(ast),
     new AST.FinalTransformation(
-      (a, options) => Effect.flatMap(sleep, () => ParseResult.mapError(decode(a, options), (e) => e.error)),
-      (a, options) => Effect.flatMap(sleep, () => ParseResult.mapError(encode(a, options), (e) => e.error))
+      (a, options) => Effect.flatMap(sleep, () => ParseResult.mapError(decode(a, options), (e) => e.issue)),
+      (a, options) => Effect.flatMap(sleep, () => ParseResult.mapError(encode(a, options), (e) => e.issue))
     )
   )
 }
@@ -81,20 +81,26 @@ export const effectify = <A, I>(schema: S.Schema<A, I, never>): S.Schema<A, I, n
   S.make(effectifyAST(schema.ast))
 
 export const expectConstructorSuccess = <A, B>(
-  schema: { readonly make: (a: A) => B },
+  // Destructure to verify that "this" type is bound
+  { make }: { readonly make: (a: A) => B },
   input: A,
   expected: A = input
 ) => {
   try {
-    expect(schema.make(input)).toStrictEqual(expected)
+    expect(make(input)).toStrictEqual(expected)
   } catch (e: any) {
     assert.fail(e.message)
   }
 }
 
-export const expectConstructorFailure = <A, B>(schema: { readonly make: (a: A) => B }, input: A, message: string) => {
+export const expectConstructorFailure = <A, B>(
+  // Destructure to verify that "this" type is bound
+  { make }: { readonly make: (a: A) => B },
+  input: A,
+  message: string
+) => {
   try {
-    schema.make(input)
+    make(input)
     assert.fail("expected to throw an error")
   } catch (e: any) {
     expect(e.message).toStrictEqual(message)
@@ -199,13 +205,13 @@ export const identityTransform = <A>(schema: S.Schema<A>): S.Schema<A> => schema
 export const X2 = S.transform(
   S.String,
   S.String,
-  { decode: (s) => s + s, encode: (s) => s.substring(0, s.length / 2) }
+  { strict: true, decode: (s) => s + s, encode: (s) => s.substring(0, s.length / 2) }
 )
 
 export const X3 = S.transform(
   S.String,
   S.String,
-  { decode: (s) => s + s + s, encode: (s) => s.substring(0, s.length / 3) }
+  { strict: true, decode: (s) => s + s + s, encode: (s) => s.substring(0, s.length / 3) }
 )
 
 const doProperty = true
@@ -334,7 +340,7 @@ const Name = Context.GenericTag<"Name", string>("Name")
 export const DependencyString = S.transformOrFail(
   S.String,
   S.String,
-  { decode: (s) => Effect.andThen(Name, s), encode: (s) => Effect.andThen(Name, s) }
+  { strict: true, decode: (s) => Effect.andThen(Name, s), encode: (s) => Effect.andThen(Name, s) }
 ).annotations({ identifier: "DependencyString" })
 
 export const expectFields = (f1: S.Struct.Fields, f2: S.Struct.Fields) => {
@@ -342,3 +348,22 @@ export const expectFields = (f1: S.Struct.Fields, f2: S.Struct.Fields) => {
   const ks2 = Reflect.ownKeys(f2).sort().map((k) => [k, f2[k].ast.toString()])
   expect(ks1).toStrictEqual(ks2)
 }
+
+export const expectAssertsSuccess = <A, I>(schema: S.Schema<A, I>, input: unknown, options?: ParseOptions) => {
+  expect(S.asserts(schema, options)(input)).toEqual(undefined)
+}
+
+export const expectAssertsFailure = <A, I>(
+  schema: S.Schema<A, I>,
+  input: unknown,
+  message: string,
+  options?: ParseOptions
+) => {
+  expect(() => S.asserts(schema, options)(input)).toThrow(new Error(message))
+}
+
+export const BooleanFromLiteral = S.transform(S.Literal("true", "false"), S.Boolean, {
+  strict: true,
+  decode: (l) => l === "true",
+  encode: (b) => b ? "true" : "false"
+})

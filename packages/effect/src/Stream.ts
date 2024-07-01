@@ -22,6 +22,7 @@ import type { Pipeable } from "./Pipeable.js"
 import type { Predicate, Refinement } from "./Predicate.js"
 import type * as PubSub from "./PubSub.js"
 import type * as Queue from "./Queue.js"
+import type { Runtime } from "./Runtime.js"
 import type * as Schedule from "./Schedule.js"
 import type * as Scope from "./Scope.js"
 import type * as Sink from "./Sink.js"
@@ -92,9 +93,6 @@ export interface StreamUnifyIgnore extends Effect.EffectUnifyIgnore {
  */
 declare module "./Effect.js" {
   interface Effect<A, E, R> extends Stream<A, E, R> {}
-  interface EffectUnifyIgnore {
-    Stream?: true
-  }
 }
 
 /**
@@ -114,12 +112,36 @@ export declare namespace Stream {
    * @category models
    */
   export interface Variance<out A, out E, out R> {
-    readonly [StreamTypeId]: {
-      _A: Covariant<A>
-      _E: Covariant<E>
-      _R: Covariant<R>
-    }
+    readonly [StreamTypeId]: VarianceStruct<A, E, R>
   }
+
+  /**
+   * @since 3.4.0
+   * @category models
+   */
+  export interface VarianceStruct<out A, out E, out R> {
+    readonly _A: Covariant<A>
+    readonly _E: Covariant<E>
+    readonly _R: Covariant<R>
+  }
+
+  /**
+   * @since 3.4.0
+   * @category type-level
+   */
+  export type Success<T extends Stream<any, any, any>> = [T] extends [Stream<infer _A, infer _E, infer _R>] ? _A : never
+
+  /**
+   * @since 3.4.0
+   * @category type-level
+   */
+  export type Error<T extends Stream<any, any, any>> = [T] extends [Stream<infer _A, infer _E, infer _R>] ? _E : never
+
+  /**
+   * @since 3.4.0
+   * @category type-level
+   */
+  export type Context<T extends Stream<any, any, any>> = [T] extends [Stream<infer _A, infer _E, infer _R>] ? _R : never
 
   /**
    * @since 2.0.0
@@ -3859,7 +3881,57 @@ export const toQueueOfElements: {
  * @since 2.0.0
  * @category destructors
  */
-export const toReadableStream: <A, E>(source: Stream<A, E>) => ReadableStream<A> = internal.toReadableStream
+export const toReadableStream: {
+  <A>(
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): <E>(
+    self: Stream<A, E>
+  ) => ReadableStream<A>
+  <A, E>(
+    self: Stream<A, E>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): ReadableStream<A>
+} = internal.toReadableStream
+
+/**
+ * Converts the stream to a `Effect<ReadableStream>`.
+ *
+ * See https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream.
+ *
+ * @since 2.0.0
+ * @category destructors
+ */
+export const toReadableStreamEffect: {
+  <A>(
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): <E, R>(
+    self: Stream<A, E, R>
+  ) => Effect.Effect<ReadableStream<A>, never, R>
+  <A, E, R>(
+    self: Stream<A, E, R>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): Effect.Effect<ReadableStream<A>, never, R>
+} = internal.toReadableStreamEffect
+
+/**
+ * Converts the stream to a `ReadableStream` using the provided runtime.
+ *
+ * See https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream.
+ *
+ * @since 2.0.0
+ * @category destructors
+ */
+export const toReadableStreamRuntime: {
+  <A, XR>(
+    runtime: Runtime<XR>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): <E, R extends XR>(self: Stream<A, E, R>) => ReadableStream<A>
+  <A, E, XR, R extends XR>(
+    self: Stream<A, E, R>,
+    runtime: Runtime<XR>,
+    options?: { readonly strategy?: QueuingStrategy<A> | undefined }
+  ): ReadableStream<A>
+} = internal.toReadableStreamRuntime
 
 /**
  * Applies the transducer to the stream and emits its outputs.
@@ -4300,6 +4372,45 @@ export const zipLatest: {
 } = internal.zipLatest
 
 /**
+ * Zips multiple streams so that when a value is emitted by any of the streams,
+ * it is combined with the latest values from the other streams to produce a result.
+ *
+ * Note: tracking the latest value is done on a per-chunk basis. That means
+ * that emitted elements that are not the last value in chunks will never be
+ * used for zipping.
+ *
+ * @example
+ * import { Stream, Schedule, Console, Effect } from "effect"
+ *
+ * const stream = Stream.zipLatestAll(
+ *     Stream.fromSchedule(Schedule.spaced('1 millis')),
+ *     Stream.fromSchedule(Schedule.spaced('2 millis')),
+ *     Stream.fromSchedule(Schedule.spaced('4 millis')),
+ * ).pipe(Stream.take(6), Stream.tap(Console.log))
+ *
+ * Effect.runPromise(Stream.runDrain(stream))
+ * // Output:
+ * // [ 0, 0, 0 ]
+ * // [ 1, 0, 0 ]
+ * // [ 1, 1, 0 ]
+ * // [ 2, 1, 0 ]
+ * // [ 3, 1, 0 ]
+ * // [ 3, 1, 1 ]
+ * // .....
+ *
+ * @since 3.3.0
+ * @category zipping
+ */
+export const zipLatestAll: <T extends ReadonlyArray<Stream<any, any, any>>>(
+  ...streams: T
+) => Stream<
+  [T[number]] extends [never] ? never
+    : { [K in keyof T]: T[K] extends Stream<infer A, infer _E, infer _R> ? A : never },
+  [T[number]] extends [never] ? never : T[number] extends Stream<infer _A, infer _E, infer _R> ? _E : never,
+  [T[number]] extends [never] ? never : T[number] extends Stream<infer _A, infer _E, infer _R> ? _R : never
+> = internal.zipLatestAll
+
+/**
  * Zips the two streams so that when a value is emitted by either of the two
  * streams, it is combined with the latest value from the other stream to
  * produce a result.
@@ -4649,11 +4760,39 @@ export const decodeText: {
 export const encodeText: <E, R>(self: Stream<string, E, R>) => Stream<Uint8Array, E, R> = internal.encodeText
 
 /**
+ * @since 3.4.0
+ * @category models
+ */
+export interface EventListener<A> {
+  addEventListener(
+    event: string,
+    f: (event: A) => void,
+    options?: {
+      readonly capture?: boolean
+      readonly passive?: boolean
+      readonly once?: boolean
+      readonly signal?: AbortSignal
+    } | boolean
+  ): void
+  removeEventListener(
+    event: string,
+    f: (event: A) => void,
+    options?: {
+      readonly capture?: boolean
+    } | boolean
+  ): void
+}
+
+/**
  * Creates a `Stream` using addEventListener.
  * @since 3.1.0
  */
-export const fromEventListener: <A = Event>(
-  target: EventTarget,
+export const fromEventListener: <A = unknown>(
+  target: EventListener<A>,
   type: string,
-  options?: boolean | Omit<AddEventListenerOptions, "signal">
+  options?: boolean | {
+    readonly capture?: boolean
+    readonly passive?: boolean
+    readonly once?: boolean
+  } | undefined
 ) => Stream<A> = internal.fromEventListener

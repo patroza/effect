@@ -11,6 +11,7 @@ import * as Either from "effect/Either"
 import { dual, pipe } from "effect/Function"
 import * as Option from "effect/Option"
 import { pipeArguments } from "effect/Pipeable"
+import type * as Redacted from "effect/Redacted"
 import * as Ref from "effect/Ref"
 import type * as Secret from "effect/Secret"
 import type * as Args from "../Args.js"
@@ -267,6 +268,11 @@ export const path = (config?: Args.Args.PathArgsConfig): Args.Args<string> =>
   )
 
 /** @internal */
+export const redacted = (
+  config?: Args.Args.BaseArgsConfig
+): Args.Args<Redacted.Redacted> => makeSingle(Option.fromNullable(config?.name), InternalPrimitive.redacted)
+
+/** @internal */
 export const secret = (
   config?: Args.Args.BaseArgsConfig
 ): Args.Args<Secret.Secret> => makeSingle(Option.fromNullable(config?.name), InternalPrimitive.secret)
@@ -434,7 +440,7 @@ export const withSchema = dual<
   return mapEffect(self, (_) =>
     Effect.mapError(
       decode(_ as any),
-      (error) => InternalHelpDoc.p(TreeFormatter.formatIssueSync(error.error))
+      (error) => InternalHelpDoc.p(TreeFormatter.formatErrorSync(error))
     ))
 })
 

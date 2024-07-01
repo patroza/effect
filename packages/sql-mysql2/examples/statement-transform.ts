@@ -1,11 +1,11 @@
 import * as DevTools from "@effect/experimental/DevTools"
-import * as Sql from "@effect/sql"
-import * as Mysql from "@effect/sql-mysql2"
-import { Config, Effect, FiberRef, FiberRefs, Layer, Option, Secret, String } from "effect"
+import { SqlClient, Statement } from "@effect/sql"
+import { MysqlClient } from "@effect/sql-mysql2"
+import { Config, Effect, FiberRef, FiberRefs, Layer, Option, pipe, Redacted, String } from "effect"
 
 const currentResourceName = FiberRef.unsafeMake("")
 
-const SqlTracingLive = Sql.statement.setTransformer((prev, sql, refs, span) => {
+const SqlTracingLive = Statement.setTransformer((prev, sql, refs, span) => {
   const [query, params] = prev.compile()
   return sql.unsafe(
     `/* ${
@@ -19,10 +19,10 @@ const SqlTracingLive = Sql.statement.setTransformer((prev, sql, refs, span) => {
   )
 })
 
-const EnvLive = Mysql.client.layer({
+const EnvLive = MysqlClient.layer({
   database: Config.succeed("effect_dev"),
   username: Config.succeed("effect"),
-  password: Config.succeed(Secret.fromString("password")),
+  password: Config.succeed(Redacted.make("password")),
   transformQueryNames: Config.succeed(String.camelToSnake),
   transformResultNames: Config.succeed(String.snakeToCamel)
 }).pipe(
@@ -30,9 +30,9 @@ const EnvLive = Mysql.client.layer({
   Layer.provide(DevTools.layer())
 )
 
-const program = Effect.gen(function*(_) {
-  const sql = yield* _(Sql.client.Client)
-  yield* _(
+const program = Effect.gen(function*() {
+  const sql = yield* SqlClient.SqlClient
+  yield* pipe(
     sql`SELECT * FROM people`,
     Effect.replicateEffect(50),
     sql.withTransaction,
