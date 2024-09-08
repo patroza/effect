@@ -8518,7 +8518,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    * }
    * ```
    */
-  extend<Extended = never>(identifier: string): <NewFields extends Struct.Fields>(
+  extend<Extended = never>(identifier?: string | undefined): <NewFields extends Struct.Fields>(
     fields: NewFields | HasFields<NewFields>,
     annotations?: ClassAnnotations<Extended, Simplify<Struct.Type<Fields & NewFields>>>
   ) => [Extended] extends [never] ? MissingSelfGeneric<"Base.extend">
@@ -8561,7 +8561,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    * }
    * ```
    */
-  transformOrFail<Transformed = never>(identifier: string): <
+  transformOrFail<Transformed = never>(identifier?: string | undefined): <
     NewFields extends Struct.Fields,
     R2,
     R3
@@ -8620,7 +8620,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    * }
    * ```
    */
-  transformOrFailFrom<Transformed = never>(identifier: string): <
+  transformOrFailFrom<Transformed = never>(identifier?: string | undefined): <
     NewFields extends Struct.Fields,
     R2,
     R3
@@ -8686,7 +8686,7 @@ const getFieldsFromFieldsOr = <Fields extends Struct.Fields>(fieldsOr: Fields | 
  * @category classes
  * @since 3.10.0
  */
-export const Class = <Self = never>(identifier: string) =>
+export const Class = <Self = never>(identifier?: string | undefined) =>
 <Fields extends Struct.Fields>(
   fieldsOr: Fields | HasFields<Fields>,
   annotations?: ClassAnnotations<Self, Simplify<Struct.Type<Fields>>>
@@ -8884,7 +8884,7 @@ const getClassAnnotations = <Self, A>(
 const makeClass = <Fields extends Struct.Fields>(
   { Base, annotations, disableToString, fields, identifier, kind, schema }: {
     kind: "Class" | "TaggedClass" | "TaggedError" | "TaggedRequest"
-    identifier: string
+    identifier?: string | undefined
     schema: Schema.Any
     fields: Fields
     Base: new(...args: ReadonlyArray<any>) => any
@@ -8892,40 +8892,15 @@ const makeClass = <Fields extends Struct.Fields>(
     disableToString?: boolean | undefined
   }
 ): any => {
-  const classSymbol = Symbol.for(`effect/Schema/${kind}/${identifier}`)
-
   const [typeAnnotations, transformationAnnotations, encodedAnnotations] = getClassAnnotations(annotations)
 
   const typeSchema_ = typeSchema(schema)
 
-  const declarationSurrogate = typeSchema_.annotations({
-    identifier,
-    ...typeAnnotations
-  })
-
-  const typeSide = typeSchema_.annotations({
-    [AST.AutoTitleAnnotationId]: `${identifier} (Type side)`,
-    ...typeAnnotations
-  })
-
-  const constructorSchema = schema.annotations({
-    [AST.AutoTitleAnnotationId]: `${identifier} (Constructor)`,
-    ...typeAnnotations
-  })
-
-  const encodedSide = schema.annotations({
-    [AST.AutoTitleAnnotationId]: `${identifier} (Encoded side)`,
-    ...encodedAnnotations
-  })
-
-  const transformationSurrogate = schema.annotations({
-    [AST.JSONIdentifierAnnotationId]: identifier,
-    ...encodedAnnotations,
-    ...typeAnnotations,
-    ...transformationAnnotations
-  })
-
-  const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, classSymbol) && ParseResult.is(typeSide)(u)
+  let symbolCache: symbol | undefined = undefined
+  let constructorSchemaCache: Schema.Any | undefined = undefined
+  let encodedSideCache: Schema.Any | undefined = undefined
+  let typeSideCache: Schema.Any | undefined = undefined
+  let identifierCache: string | undefined = undefined
 
   const klass = class extends Base {
     constructor(
@@ -8938,7 +8913,7 @@ const makeClass = <Fields extends Struct.Fields>(
       }
       props = lazilyMergeDefaults(fields, props)
       if (!getDisableValidationMakeOption(options)) {
-        props = ParseResult.validateSync(constructorSchema)(props)
+        props = ParseResult.validateSync(klass.constructorSchema)(props)
       }
       super(props, true)
     }
@@ -8949,11 +8924,50 @@ const makeClass = <Fields extends Struct.Fields>(
 
     static [TypeId] = variance
 
+    static get constructorSchema(): Schema.Any {
+      return constructorSchemaCache ??= schema.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Constructor)`,
+        ...typeAnnotations
+      })
+    }
+
+    static get encodedSide(): Schema.Any {
+      return encodedSideCache ??= schema.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Encoded side)`,
+        ...encodedAnnotations
+      })
+    }
+
+    static get typeSide(): Schema.Any {
+      return typeSideCache ??= typeSchema_.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Type side)`,
+        ...typeAnnotations
+      })
+    }
+
     static get ast(): AST.AST {
       let out = astCache.get(this)
       if (out) {
         return out
       }
+
+      const identifier = this.identifier
+      const typeSide = this.typeSide
+
+      const declarationSurrogate = typeSchema_.annotations({
+        identifier,
+        ...typeAnnotations
+      })
+
+      const transformationSurrogate = schema.annotations({
+        [AST.JSONIdentifierAnnotationId]: identifier,
+        ...encodedAnnotations,
+        ...typeAnnotations,
+        ...transformationAnnotations
+      })
+
+      const fallbackInstanceOf = (u: unknown) =>
+        Predicate.hasProperty(u, this.classSymbol) && ParseResult.is(typeSide)(u)
 
       const declaration: Schema.Any = declare(
         [schema],
@@ -8968,7 +8982,7 @@ const makeClass = <Fields extends Struct.Fields>(
               : ParseResult.map(
                 ParseResult.encodeUnknown(typeSide)(input, options),
                 (props) => new this(props, true)
-              )
+              ) as any
         },
         {
           identifier,
@@ -8982,7 +8996,7 @@ const makeClass = <Fields extends Struct.Fields>(
       )
 
       out = transform(
-        encodedSide,
+        this.encodedSide,
         declaration,
         {
           strict: true,
@@ -9008,7 +9022,7 @@ const makeClass = <Fields extends Struct.Fields>(
     }
 
     static toString() {
-      return `(${String(encodedSide)} <-> ${identifier})`
+      return `(${String(this.encodedSide)} <-> ${this.identifier})`
     }
 
     // ----------------
@@ -9021,9 +9035,9 @@ const makeClass = <Fields extends Struct.Fields>(
 
     static fields = { ...fields }
 
-    static identifier = identifier
+    static customIdentifier?: string
 
-    static extend<Extended, NewFields extends Struct.Fields>(identifier: string) {
+    static extend<Extended, NewFields extends Struct.Fields>(identifier?: string | undefined) {
       return (
         newFieldsOr: NewFields | HasFields<NewFields>,
         annotations?: ClassAnnotations<Extended, Simplify<Struct.Type<Fields & NewFields>>>
@@ -9042,7 +9056,7 @@ const makeClass = <Fields extends Struct.Fields>(
       }
     }
 
-    static transformOrFail<Transformed, NewFields extends Struct.Fields>(identifier: string) {
+    static transformOrFail<Transformed, NewFields extends Struct.Fields>(identifier?: string | undefined) {
       return (
         newFieldsOr: NewFields,
         options: any,
@@ -9064,7 +9078,7 @@ const makeClass = <Fields extends Struct.Fields>(
       }
     }
 
-    static transformOrFailFrom<Transformed, NewFields extends Struct.Fields>(identifier: string) {
+    static transformOrFailFrom<Transformed, NewFields extends Struct.Fields>(identifier?: string | undefined) {
       return (
         newFields: NewFields,
         options: any,
@@ -9090,14 +9104,18 @@ const makeClass = <Fields extends Struct.Fields>(
     // other
     // ----------------
 
-    get [classSymbol]() {
-      return classSymbol
+    static get identifier() {
+      return identifierCache ??= identifier || this.customIdentifier || this.name
+    }
+
+    static get classSymbol() {
+      return symbolCache ??= Symbol.for(`effect/schema/${kind}/${this.identifier}`)
     }
   }
   if (disableToString !== true) {
     Object.defineProperty(klass.prototype, "toString", {
       value() {
-        return `${identifier}({ ${
+        return `${this.constructor.identifier}({ ${
           util_.ownKeys(fields).map((p: any) => `${util_.formatPropertyKey(p)}: ${util_.formatUnknown(this[p])}`)
             .join(", ")
         } })`
