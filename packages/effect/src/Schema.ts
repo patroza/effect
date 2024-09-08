@@ -7881,7 +7881,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    * }
    * ```
    */
-  extend<Extended = never>(identifier: string): <newFields extends Struct.Fields>(
+  extend<Extended = never>(identifier?: string | undefined): <newFields extends Struct.Fields>(
     fields: newFields | HasFields<newFields>,
     annotations?: Annotations.Schema<Extended>
   ) => [Extended] extends [never] ? MissingSelfGeneric<"Base.extend">
@@ -7924,7 +7924,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    * }
    * ```
    */
-  transformOrFail<Transformed = never>(identifier: string): <
+  transformOrFail<Transformed = never>(identifier?: string | undefined): <
     newFields extends Struct.Fields,
     R2,
     R3
@@ -7983,7 +7983,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    * }
    * ```
    */
-  transformOrFailFrom<Transformed = never>(identifier: string): <
+  transformOrFailFrom<Transformed = never>(identifier?: string | undefined): <
     newFields extends Struct.Fields,
     R2,
     R3
@@ -8049,7 +8049,7 @@ const getFieldsFromFieldsOr = <Fields extends Struct.Fields>(fieldsOr: Fields | 
  * @category classes
  * @since 3.10.0
  */
-export const Class = <Self = never>(identifier: string) =>
+export const Class = <Self = never>(identifier?: string | undefined) =>
 <Fields extends Struct.Fields>(
   fieldsOr: Fields | HasFields<Fields>,
   annotations?: Annotations.Schema<Self>
@@ -8229,18 +8229,18 @@ const astCache = globalValue("effect/Schema/astCache", () => new WeakMap<any, AS
 
 const makeClass = ({ Base, annotations, disableToString, fields, identifier, kind, schema }: {
   kind: "Class" | "TaggedClass" | "TaggedError" | "TaggedRequest"
-  identifier: string
+  identifier: string | undefined
   schema: Schema.Any
   fields: Struct.Fields
   Base: new(...args: ReadonlyArray<any>) => any
   annotations?: Annotations.Schema<any> | undefined
   disableToString?: boolean | undefined
 }): any => {
-  const classSymbol = Symbol.for(`effect/Schema/${kind}/${identifier}`)
-  const validateSchema = schema.annotations({ [AST.AutoTitleAnnotationId]: `${identifier} (Constructor)` })
-  const encodedSide: Schema.Any = schema.annotations({ [AST.AutoTitleAnnotationId]: `${identifier} (Encoded side)` })
-  const typeSide = typeSchema(schema).annotations({ [AST.AutoTitleAnnotationId]: `${identifier} (Type side)` })
-  const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, classSymbol) && ParseResult.is(typeSide)(u)
+  let symbolCache: symbol | undefined = undefined
+  let validateSchemaCache: Schema.Any | undefined = undefined
+  let encodedSideCache: Schema.Any | undefined = undefined
+  let typeSideCache: Schema.Any | undefined = undefined
+  let identifierCache: string | undefined = undefined
   const klass = class extends Base {
     constructor(
       props: { [x: string | symbol]: unknown } = {},
@@ -8252,7 +8252,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       }
       props = lazilyMergeDefaults(fields, props)
       if (!getDisableValidationMakeOption(options)) {
-        props = ParseResult.validateSync(validateSchema)(props)
+        props = ParseResult.validateSync(klass.validateSchema)(props)
       }
       super(props, true)
     }
@@ -8263,10 +8263,32 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
 
     static [TypeId] = variance
 
+    static get validateSchema(): Schema.Any {
+      return validateSchemaCache ??= schema.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Constructor)`
+      })
+    }
+
+    static get encodedSide(): Schema.Any {
+      return encodedSideCache ??= schema.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Encoded side)`
+      })
+    }
+
+    static get typeSide(): Schema.Any {
+      return typeSideCache ??= typeSchema(schema).annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Type side)`
+      })
+    }
+
     static get ast(): AST.AST {
       if (astCache.has(this)) {
         return astCache.get(this)!
       }
+      const identifier = this.identifier
+      const typeSide = this.typeSide
+      const guard = ParseResult.is(typeSide)
+      const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, this.classSymbol) && guard(u)
       const declaration: Schema.Any = declare(
         [typeSide],
         {
@@ -8280,7 +8302,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
               : ParseResult.map(
                 ParseResult.encodeUnknown(typeSide)(input, options),
                 (props) => new this(props, true)
-              )
+              ) as any
         },
         {
           identifier,
@@ -8295,7 +8317,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
         }
       )
       const transformation = transform(
-        encodedSide,
+        this.encodedSide,
         declaration,
         { strict: true, decode: (input) => new this(input, true), encode: identity }
       ).annotations({ [AST.SurrogateAnnotationId]: schema.ast })
@@ -8312,7 +8334,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
     }
 
     static toString() {
-      return `(${String(encodedSide)} <-> ${identifier})`
+      return `(${String(this.encodedSide)} <-> ${this.identifier})`
     }
 
     // ----------------
@@ -8325,9 +8347,9 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
 
     static fields = { ...fields }
 
-    static identifier = identifier
+    static customIdentifier?: string
 
-    static extend<Extended>(identifier: string) {
+    static extend<Extended>(identifier?: string | undefined) {
       return (newFieldsOr: Struct.Fields | HasFields<Struct.Fields>, annotations?: Annotations.Schema<Extended>) => {
         const newFields = getFieldsFromFieldsOr(newFieldsOr)
         const newSchema = getSchemaFromFieldsOr(newFieldsOr)
@@ -8343,7 +8365,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       }
     }
 
-    static transformOrFail<Transformed>(identifier: string) {
+    static transformOrFail<Transformed>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, options: any, annotations?: Annotations.Schema<Transformed>) => {
         const transformedFields: Struct.Fields = extendFields(fields, newFields)
         return makeClass({
@@ -8361,7 +8383,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       }
     }
 
-    static transformOrFailFrom<Transformed>(identifier: string) {
+    static transformOrFailFrom<Transformed>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, options: any, annotations?: Annotations.Schema<Transformed>) => {
         const transformedFields: Struct.Fields = extendFields(fields, newFields)
         return makeClass({
@@ -8383,14 +8405,18 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
     // other
     // ----------------
 
-    get [classSymbol]() {
-      return classSymbol
+    static get identifier() {
+      return identifierCache ??= identifier || this.customIdentifier || this.name
+    }
+
+    static get classSymbol() {
+      return symbolCache ??= Symbol.for(`effect/schema/${kind}/${this.identifier}`)
     }
   }
   if (disableToString !== true) {
     Object.defineProperty(klass.prototype, "toString", {
       value() {
-        return `${identifier}({ ${
+        return `${this.constructor.identifier}({ ${
           util_.ownKeys(fields).map((p: any) => `${util_.formatPropertyKey(p)}: ${util_.formatUnknown(this[p])}`)
             .join(", ")
         } })`
