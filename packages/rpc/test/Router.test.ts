@@ -10,78 +10,10 @@ import { flow, pipe } from "effect/Function"
 import * as Stream from "effect/Stream"
 import { assert, describe, expect, it, test } from "vitest"
 
-import { Headers } from "@effect/platform"
-import { Console, Layer, Option } from "effect"
-import type * as EffectRequest from "effect/Request"
-
 interface Name {
   readonly _: unique symbol
 }
 const Name = Context.GenericTag<Name, string>("Name")
-
-/**
- * Middleware is inactivate by default, the Key is optional in route context, and the service is optionally provided as Effect Context.
- * Unless configured as `true`
- */
-export type ContextMap<Key, Service, E> = [Key, Service, E, true]
-
-/**
- * Middleware is active by default, and provides the Service at Key in route context, and the Service is provided as Effect Context.
- * Unless omitted
- */
-export type ContextMapInverted<Key, Service, E> = [Key, Service, E, false]
-
-export class UserProfile extends Effect.Tag("UserProfile")<UserProfile, {
-  sub: string
-  displayName: string
-}>() {
-}
-
-// export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession, {
-//   sessionKey: string
-// }>() {
-// }
-
-export class Unauthenticated extends Schema.TaggedError<Unauthenticated>("Unauthenticated")("Unauthenticated", {}) {}
-
-export type CTXMap = {
-  allowAnonymous: ContextMapInverted<"userProfile", UserProfile, Unauthenticated>
-  // magentoSession: ContextMapInverted<"magentoSession", MagentoSession, Unauthenticated>
-}
-export const makeRpc = () => {
-  return {
-    // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
-    // taggedRequest,
-    effect: <T extends { config?: { allowAnonymous?: true } }, Req extends Schema.TaggedRequest.All, R>(
-      schema: T & Schema.Schema<Req, any, never>,
-      handler: (
-        request: Req
-      ) => Effect.Effect<
-        EffectRequest.Request.Success<Req>,
-        EffectRequest.Request.Error<Req>,
-        R
-      >
-    ) =>
-      Rpc.effect<Req, Exclude<R, T["config"] extends { allowAnonymous: true } ? never : UserProfile>>(
-        schema,
-        (req) =>
-          Effect.gen(function*() {
-            const headers = yield* Rpc.currentHeaders
-            let ctx = Context.empty()
-            const authorization = Headers.get("authorization")(headers)
-            if (Option.isSome(authorization)) {
-              ctx = ctx.pipe(Context.add(UserProfile, { sub: "sub", displayName: "displayName" }))
-            } else if ("config" in schema && !schema.config.allowAnonymous) {
-              return yield* new Unauthenticated()
-            }
-
-            return yield* handler(req).pipe(Effect.provide(ctx))
-          }) as any
-      )
-  }
-}
-
-const RPC = makeRpc()
 
 class SomeError extends S.TaggedError<SomeError>()("SomeError", {
   message: S.String
@@ -101,11 +33,7 @@ class CreatePost extends S.TaggedRequest<CreatePost>()("CreatePost", {
 }) {}
 
 const posts = RpcRouter.make(
-  RPC.effect(
-    CreatePost,
-    ({ body }) =>
-      UserProfile.pipe(Effect.andThen(Console.log), Effect.andThen(Effect.succeed(new Post({ id: 1, body }))))
-  )
+  Rpc.effect(CreatePost, ({ body }) => Effect.succeed(new Post({ id: 1, body })))
 )
 
 class Greet extends S.TaggedRequest<Greet>()("Greet", {
@@ -174,30 +102,30 @@ class FailStream extends Rpc.StreamRequest<FailStream>()(
 
 const router = RpcRouter.make(
   posts,
-  RPC.effect(Greet, ({ name }) => Effect.succeed(`Hello, ${name}!`)),
-  RPC.effect(Fail, () =>
+  Rpc.effect(Greet, ({ name }) => Effect.succeed(`Hello, ${name}!`)),
+  Rpc.effect(Fail, () =>
     new SomeError({
       message: "fail"
     })),
-  RPC.effect(FailNoInput, () => new SomeError({ message: "fail" })),
-  RPC.effect(EncodeInput, ({ date }) => Effect.succeed(date)),
-  RPC.effect(EncodeDate, ({ date }) =>
+  Rpc.effect(FailNoInput, () => new SomeError({ message: "fail" })),
+  Rpc.effect(EncodeInput, ({ date }) => Effect.succeed(date)),
+  Rpc.effect(EncodeDate, ({ date }) =>
     Effect.try({
       try: () => new Date(date),
       catch: () => new SomeError({ message: "fail" })
     })),
-  RPC.effect(Refined, ({ number }) => Effect.succeed(number)),
-  RPC.effect(SpanName, () =>
+  Rpc.effect(Refined, ({ number }) => Effect.succeed(number)),
+  Rpc.effect(SpanName, () =>
     Effect.currentSpan.pipe(
       Effect.map((span) => span.name),
       Effect.orDie
     )),
-  RPC.effect(GetName, () => Name),
+  Rpc.effect(GetName, () => Name),
   Rpc.stream(Counts, () =>
     Stream.make(1, 2, 3, 4, 5).pipe(
       Stream.tap((_) => Effect.sleep(10))
     )),
-  RPC.effect(EchoHeaders, () =>
+  Rpc.effect(EchoHeaders, () =>
     Rpc.schemaHeaders(S.Struct({
       foo: Schema.String,
       baz: Schema.optional(Schema.String)
@@ -219,7 +147,7 @@ const handlerArray = (u: ReadonlyArray<unknown>) =>
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus" }
+    headers: {}
   }))).pipe(
     Stream.runCollect,
     Effect.map(flow(
@@ -234,7 +162,7 @@ const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus" }
+    headers: {}
   }))).pipe(
     Effect.map(Array.filter((_): _ is S.ExitEncoded<any, any, unknown> => Array.isArray(_) === false))
   )
