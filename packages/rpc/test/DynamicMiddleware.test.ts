@@ -37,21 +37,21 @@ export class UserProfile extends Effect.Tag("UserProfile")<UserProfile, {
 }>() {
 }
 
-// export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession, {
-//   sessionKey: string
-// }>() {
-// }
+export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession, {
+  sessionKey: string
+}>() {
+}
 
 export class Unauthenticated extends Schema.TaggedError<Unauthenticated>("Unauthenticated")("Unauthenticated", {}) {}
 
 export type CTXMap = {
   allowAnonymous: ContextMapInverted<"userProfile", UserProfile, Unauthenticated>
-  // magentoSession: ContextMapInverted<"magentoSession", MagentoSession, Unauthenticated>
+  requireMagentoSession: ContextMap<"magentoSession", MagentoSession, Unauthenticated>
 }
 
 type Values<T extends Record<any, any>> = T[keyof T]
 
-type GetEffectContext<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
+export type GetEffectContext<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
   // inverted
   & {
     [
@@ -71,7 +71,7 @@ type GetEffectContext<CTXMap extends Record<string, [string, any, any, boolean]>
       CTXMap[key][1]
   }
 >
-type GetEffectError<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
+export type GetEffectError<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
   // inverted
   & {
     [
@@ -97,8 +97,8 @@ type GetEffectError<CTXMap extends Record<string, [string, any, any, boolean]>, 
 export const makeRpc = <CTXMap extends Record<string, [string, any, any, boolean]>>() => {
   return {
     // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
-    // taggedRequest,
-    effect: <T extends { config?: { allowAnonymous?: true } }, Req extends Schema.TaggedRequest.All, R>(
+    TaggedRequest: S.TaggedRequest,
+    effect: <T extends { config?: { [K in keyof CTXMap]?: boolean } }, Req extends Schema.TaggedRequest.All, R>(
       schema: T & Schema.Schema<Req, any, never>,
       handler: (
         request: Req
@@ -114,10 +114,19 @@ export const makeRpc = <CTXMap extends Record<string, [string, any, any, boolean
           Effect.gen(function*() {
             const headers = yield* Rpc.currentHeaders
             let ctx = Context.empty()
+
             const authorization = Headers.get("authorization")(headers)
             if (Option.isSome(authorization) && authorization.value === "bogus") {
               ctx = ctx.pipe(Context.add(UserProfile, { sub: "id", displayName: "Jan" }))
             } else if ("config" in schema && !schema.config.allowAnonymous) {
+              return yield* new Unauthenticated()
+            }
+
+            // actually comes from cookie in http
+            const phpsessid = Headers.get("x-magento-id")(headers)
+            if (Option.isSome(phpsessid)) {
+              ctx = ctx.pipe(Context.add(MagentoSession, { sessionKey: phpsessid.value }))
+            } else if ("config" in schema && schema.config.requireMagentoSession) {
               return yield* new Unauthenticated()
             }
 
@@ -138,7 +147,7 @@ class Post extends S.Class<Post>("Post")({
   body: S.String
 }) {}
 
-class CreatePost extends S.TaggedRequest<CreatePost>()("CreatePost", {
+class CreatePost extends RPC.TaggedRequest<CreatePost>()("CreatePost", {
   failure: S.Never,
   success: Post,
   payload: {
@@ -155,7 +164,7 @@ const posts = RpcRouter.make(
   )
 )
 
-class Greet extends S.TaggedRequest<Greet>()("Greet", {
+class Greet extends RPC.TaggedRequest<Greet>()("Greet", {
   failure: S.Never,
   success: S.String,
   payload: {
@@ -165,19 +174,21 @@ class Greet extends S.TaggedRequest<Greet>()("Greet", {
   static config = { allowAnonymous: true } as const
 }
 
-class Fail extends S.TaggedRequest<Fail>()("Fail", {
+class Fail extends RPC.TaggedRequest<Fail>()("Fail", {
   failure: SomeError,
   success: S.Void,
   payload: {
     name: S.String
   }
-}) {}
+}) {
+  static config = { requireMagentoSession: true }
+}
 
 class FailNoInput
-  extends S.TaggedRequest<FailNoInput>()("FailNoInput", { failure: SomeError, success: S.Void, payload: {} })
+  extends RPC.TaggedRequest<FailNoInput>()("FailNoInput", { failure: SomeError, success: S.Void, payload: {} })
 {}
 
-class EncodeInput extends S.TaggedRequest<EncodeInput>()("EncodeInput", {
+class EncodeInput extends RPC.TaggedRequest<EncodeInput>()("EncodeInput", {
   failure: S.Never,
   success: S.Date,
   payload: {
@@ -185,7 +196,7 @@ class EncodeInput extends S.TaggedRequest<EncodeInput>()("EncodeInput", {
   }
 }) {}
 
-class EncodeDate extends S.TaggedRequest<EncodeDate>()("EncodeDate", {
+class EncodeDate extends RPC.TaggedRequest<EncodeDate>()("EncodeDate", {
   failure: SomeError,
   success: S.Date,
   payload: {
@@ -193,7 +204,7 @@ class EncodeDate extends S.TaggedRequest<EncodeDate>()("EncodeDate", {
   }
 }) {}
 
-class Refined extends S.TaggedRequest<Refined>()("Refined", {
+class Refined extends RPC.TaggedRequest<Refined>()("Refined", {
   failure: S.Never,
   success: S.Number,
   payload: {
@@ -201,11 +212,13 @@ class Refined extends S.TaggedRequest<Refined>()("Refined", {
   }
 }) {}
 
-class SpanName extends S.TaggedRequest<SpanName>()("SpanName", { failure: S.Never, success: S.String, payload: {} }) {}
+class SpanName
+  extends RPC.TaggedRequest<SpanName>()("SpanName", { failure: S.Never, success: S.String, payload: {} })
+{}
 
-class GetName extends S.TaggedRequest<GetName>()("GetName", { failure: S.Never, success: S.String, payload: {} }) {}
+class GetName extends RPC.TaggedRequest<GetName>()("GetName", { failure: S.Never, success: S.String, payload: {} }) {}
 
-class EchoHeaders extends S.TaggedRequest<EchoHeaders>()("EchoHeaders", {
+class EchoHeaders extends RPC.TaggedRequest<EchoHeaders>()("EchoHeaders", {
   failure: S.Never,
   success: S.Record({ key: S.String, value: S.Union(S.String, S.Undefined) }),
   payload: {}
@@ -223,14 +236,19 @@ class FailStream extends Rpc.StreamRequest<FailStream>()(
 
 const router = RpcRouter.make(
   posts,
-  RPC.effect(Greet, ({ name }) =>
-    Effect.serviceOption(UserProfile).pipe(
-      Effect.andThen((up) =>
-        Effect.succeed(
-          `Hello, ${name} (${Option.map(up, (u) => u.displayName).pipe(Option.getOrElse(() => "not logged in"))})!`
+  RPC.effect(
+    Greet,
+    ({ name }) =>
+      Effect.all({ up: Effect.serviceOption(UserProfile), ms: Effect.serviceOption(MagentoSession) }).pipe(
+        Effect.andThen(({ ms, up }) =>
+          Effect.succeed(
+            `Hello, ${name} (${Option.map(up, (u) => u.displayName).pipe(Option.getOrElse(() => "not logged in"))}, ${
+              Option.map(ms, (u) => u.sessionKey).pipe(Option.getOrElse(() => "no magento session"))
+            })!`
+          )
         )
       )
-    )),
+  ),
   RPC.effect(Fail, () =>
     new SomeError({
       message: "fail"
@@ -275,7 +293,7 @@ const handlerArray = (u: ReadonlyArray<unknown>) =>
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus" }
+    headers: { authorization: "bogus" } // , "x-magento-id": "some-magento-id"
   }))).pipe(
     Stream.runCollect,
     Effect.map(flow(
@@ -290,7 +308,7 @@ const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus" }
+    headers: { authorization: "bogus", "x-magento-id": "some-magento-id" }
   }))).pipe(
     Effect.map(Array.filter((_): _ is S.ExitEncoded<any, any, unknown> => Array.isArray(_) === false))
   )
@@ -323,7 +341,7 @@ describe("Router", () => {
 
     assert.deepStrictEqual(result, [{
       _tag: "Success",
-      value: "Hello, John (Jan)!"
+      value: "Hello, John (Jan, some-magento-id)!"
     }, {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
@@ -372,7 +390,7 @@ describe("Router", () => {
 
     assert.deepStrictEqual(result, [{
       _tag: "Success",
-      value: "Hello, John (Jan)!"
+      value: "Hello, John (Jan, some-magento-id)!"
     }, {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
