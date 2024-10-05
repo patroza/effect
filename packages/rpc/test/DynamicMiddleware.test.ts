@@ -1,4 +1,4 @@
-import { RpcResolver, RpcResolverNoStream, RpcRouter } from "@effect/rpc"
+import { RpcRouter } from "@effect/rpc"
 import * as Rpc from "@effect/rpc/Rpc"
 import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream"
 import { assert, describe, expect, it, test } from "vitest"
 
 import { Headers } from "@effect/platform"
-import { Console, Layer, Option } from "effect"
+import { Console, Option } from "effect"
 import type * as EffectRequest from "effect/Request"
 
 interface Name {
@@ -69,7 +69,7 @@ export const makeRpc = () => {
             const headers = yield* Rpc.currentHeaders
             let ctx = Context.empty()
             const authorization = Headers.get("authorization")(headers)
-            if (Option.isSome(authorization)) {
+            if (Option.isSome(authorization) && authorization.value === "bogus") {
               ctx = ctx.pipe(Context.add(UserProfile, { sub: "sub", displayName: "displayName" }))
             } else if ("config" in schema && !schema.config.allowAnonymous) {
               return yield* new Unauthenticated()
@@ -238,15 +238,15 @@ const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
   }))).pipe(
     Effect.map(Array.filter((_): _ is S.ExitEncoded<any, any, unknown> => Array.isArray(_) === false))
   )
-const resolver = RpcResolver.make(handler)<typeof router>()
-const resolverEffect = RpcResolverNoStream.make(handlerEffect)<typeof router>()
-const resolverWithHeaders = RpcResolver.annotateHeadersEffect(
-  resolver,
-  Effect.succeed({
-    BAZ: "qux"
-  })
-)
-const client = RpcResolver.toClient(resolver)
+// const resolver = RpcResolver.make(handler)<typeof router>()
+// const resolverEffect = RpcResolverNoStream.make(handlerEffect)<typeof router>()
+// const resolverWithHeaders = RpcResolver.annotateHeadersEffect(
+//   resolver,
+//   Effect.succeed({
+//     BAZ: "qux"
+//   })
+// )
+// const client = RpcResolver.toClient(resolver)
 
 describe("Router", () => {
   it("handler/", async () => {
