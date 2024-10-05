@@ -48,7 +48,53 @@ export type CTXMap = {
   allowAnonymous: ContextMapInverted<"userProfile", UserProfile, Unauthenticated>
   // magentoSession: ContextMapInverted<"magentoSession", MagentoSession, Unauthenticated>
 }
-export const makeRpc = () => {
+
+type Values<T extends Record<any, any>> = T[keyof T]
+
+type GetEffectContext<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
+  // inverted
+  & {
+    [
+      key in keyof CTXMap as CTXMap[key][3] extends true ? never
+        : key extends keyof T ? T[key] extends true ? never : CTXMap[key][0]
+        : CTXMap[key][0]
+    ]: // TODO: or as an Optional available?
+      CTXMap[key][1]
+  }
+  // normal
+  & {
+    [
+      key in keyof CTXMap as CTXMap[key][3] extends false ? never
+        : key extends keyof T ? T[key] extends true ? CTXMap[key][0] : never
+        : never
+    ]: // TODO: or as an Optional available?
+      CTXMap[key][1]
+  }
+>
+type GetEffectError<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
+  // inverted
+  & {
+    [
+      key in keyof CTXMap as CTXMap[key][3] extends true ? never
+        : key extends keyof T ? T[key] extends true ? never : CTXMap[key][0]
+        : CTXMap[key][0]
+    ]: // TODO: or as an Optional available?
+      CTXMap[key][2]
+  }
+  // normal
+  & {
+    [
+      key in keyof CTXMap as CTXMap[key][3] extends false ? never
+        : key extends keyof T ? T[key] extends true ? CTXMap[key][0] : never
+        : never
+    ]: // TODO: or as an Optional available?
+      CTXMap[key][2]
+  }
+>
+
+// TODO: default succeed = S.Void, default failure = S.Never
+// TODO, 3rd arg: error type
+export const makeRpc = <CTXMap extends Record<string, [string, any, any, boolean]>>() => {
   return {
     // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
     // taggedRequest,
@@ -62,7 +108,7 @@ export const makeRpc = () => {
         R
       >
     ) =>
-      Rpc.effect<Req, Exclude<R, T["config"] extends { allowAnonymous: true } ? never : UserProfile>>(
+      Rpc.effect<Req, Exclude<R, GetEffectContext<CTXMap, T["config"]>>>(
         schema,
         (req) =>
           Effect.gen(function*() {
@@ -70,7 +116,7 @@ export const makeRpc = () => {
             let ctx = Context.empty()
             const authorization = Headers.get("authorization")(headers)
             if (Option.isSome(authorization) && authorization.value === "bogus") {
-              ctx = ctx.pipe(Context.add(UserProfile, { sub: "sub", displayName: "displayName" }))
+              ctx = ctx.pipe(Context.add(UserProfile, { sub: "id", displayName: "Jan" }))
             } else if ("config" in schema && !schema.config.allowAnonymous) {
               return yield* new Unauthenticated()
             }
@@ -81,7 +127,7 @@ export const makeRpc = () => {
   }
 }
 
-const RPC = makeRpc()
+const RPC = makeRpc<CTXMap>()
 
 class SomeError extends S.TaggedError<SomeError>()("SomeError", {
   message: S.String
@@ -104,7 +150,8 @@ const posts = RpcRouter.make(
   RPC.effect(
     CreatePost,
     ({ body }) =>
-      UserProfile.pipe(Effect.andThen(Console.log), Effect.andThen(Effect.succeed(new Post({ id: 1, body }))))
+      UserProfile.use(Console.log)
+        .pipe(Effect.andThen(Effect.succeed(new Post({ id: 1, body }))))
   )
 )
 
@@ -114,7 +161,9 @@ class Greet extends S.TaggedRequest<Greet>()("Greet", {
   payload: {
     name: S.String
   }
-}) {}
+}) {
+  static config = { allowAnonymous: true } as const
+}
 
 class Fail extends S.TaggedRequest<Fail>()("Fail", {
   failure: SomeError,
@@ -174,7 +223,14 @@ class FailStream extends Rpc.StreamRequest<FailStream>()(
 
 const router = RpcRouter.make(
   posts,
-  RPC.effect(Greet, ({ name }) => Effect.succeed(`Hello, ${name}!`)),
+  RPC.effect(Greet, ({ name }) =>
+    Effect.serviceOption(UserProfile).pipe(
+      Effect.andThen((up) =>
+        Effect.succeed(
+          `Hello, ${name} (${Option.map(up, (u) => u.displayName).pipe(Option.getOrElse(() => "not logged in"))})!`
+        )
+      )
+    )),
   RPC.effect(Fail, () =>
     new SomeError({
       message: "fail"
@@ -267,7 +323,7 @@ describe("Router", () => {
 
     assert.deepStrictEqual(result, [{
       _tag: "Success",
-      value: "Hello, John!"
+      value: "Hello, John (Jan)!"
     }, {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
@@ -316,7 +372,7 @@ describe("Router", () => {
 
     assert.deepStrictEqual(result, [{
       _tag: "Success",
-      value: "Hello, John!"
+      value: "Hello, John (Jan)!"
     }, {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
