@@ -56,6 +56,7 @@ class LoggerIncomplete extends Effect.Service<LoggerIncomplete>()("LoggerIncompl
   effect: Effect.gen(function*() {
     const { prefix } = yield* Prefix
     const { postfix } = yield* Postfix
+    const logger = yield* Logger
     return {
       info: (message: string) =>
         Effect.sync(() => {
@@ -63,8 +64,22 @@ class LoggerIncomplete extends Effect.Service<LoggerIncomplete>()("LoggerIncompl
         })
     }
   }),
-  // @ts-expect-error
-  dependencies: [Postfix.Default, LoggerNoDeps.Default]
+  dependencies: [
+    Prefix.Default,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    Layer.empty,
+    LoggerIncomplete2.Default
+  ]
 }) {
 }
 

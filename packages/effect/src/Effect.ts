@@ -6332,6 +6332,8 @@ export const Tag: <const Id extends string>(id: Id) => <
 
 declare const phantom: unique symbol
 
+type WrappedTuple<T extends ReadonlyArray<any>> = { [K in keyof T]: Layer.Layer.Any }
+
 /**
  * @since 3.9.0
  * @category context
@@ -6447,7 +6449,7 @@ export const Service: <Self>() => {
         readonly effect?: Effect<Service.AllowedType<Key, Make>, any, any>
         readonly scoped: Effect<Service.AllowedType<Key, Make>, any, any>
         readonly dependencies: [
-          ...Make["dependencies"],
+          ...WrappedTuple<Make["dependencies"]>,
           Layer.Layer<Exclude<Service.MakeContext<Make>, Service.MakeDepsOut<Make>>, any, any>
         ]
         readonly accessors?: boolean
@@ -6456,7 +6458,7 @@ export const Service: <Self>() => {
         readonly effect: Effect<Service.AllowedType<Key, Make>, any, any>
         readonly scoped?: Effect<Service.AllowedType<Key, Make>, any, any>
         readonly dependencies: [
-          ...Make["dependencies"],
+          ...WrappedTuple<Make["dependencies"]>,
           Layer.Layer<Exclude<Service.MakeContext<Make>, Service.MakeDepsOut<Make>>, any, any>
         ]
         readonly accessors?: boolean
