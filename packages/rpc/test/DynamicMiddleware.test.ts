@@ -25,6 +25,8 @@ const Name = Context.GenericTag<Name, string>("Name")
  */
 export type ContextMap<Key, Service, E> = [Key, Service, E, true]
 
+export type ContextMapCustom<Key, Service, E, Custom> = [Key, Service, E, Custom]
+
 /**
  * Middleware is active by default, and provides the Service at Key in route context, and the Service is provided as Effect Context.
  * Unless omitted
@@ -34,6 +36,7 @@ export type ContextMapInverted<Key, Service, E> = [Key, Service, E, false]
 export class UserProfile extends Effect.Tag("UserProfile")<UserProfile, {
   sub: string
   displayName: string
+  roles: ReadonlyArray<string>
 }>() {
 }
 
@@ -42,18 +45,20 @@ export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession,
 }>() {
 }
 
-export class Unauthenticated
-  extends Schema.TaggedError<Unauthenticated>("Unauthenticated")("Unauthenticated", { message: S.String })
-{}
+export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()("Unauthenticated", { message: S.String }) {}
+
+export class Unauthorized extends Schema.TaggedError<Unauthenticated>()("Unauthorized", {}) {}
 
 export type CTXMap = {
   allowAnonymous: ContextMapInverted<"userProfile", UserProfile, typeof Unauthenticated>
   requireMagentoSession: ContextMap<"magentoSession", MagentoSession, typeof Unauthenticated>
+  // TODO: not boolean but `string[]`
+  requireRoles: ContextMapCustom<"", void, typeof Unauthorized, Array<string>>
 }
 
 type Values<T extends Record<any, any>> = T[keyof T]
 
-export type GetEffectContext<CTXMap extends Record<string, [string, any, S.Schema.All, boolean]>, T> = Values<
+export type GetEffectContext<CTXMap extends Record<string, [string, any, S.Schema.All, any]>, T> = Values<
   // inverted
   & {
     [
@@ -74,7 +79,7 @@ export type GetEffectContext<CTXMap extends Record<string, [string, any, S.Schem
   }
 >
 export type ValuesOrNeverSchema<T extends Record<any, any>> = Values<T> extends never ? typeof S.Never : Values<T>
-export type GetEffectError<CTXMap extends Record<string, [string, any, S.Schema.All, boolean]>, T> = Values<
+export type GetEffectError<CTXMap extends Record<string, [string, any, S.Schema.All, any]>, T> = Values<
   // inverted
   & {
     [
@@ -99,7 +104,7 @@ export type RequestConfig = {
   /** Disable authentication requirement */
   allowAnonymous?: true
   /// ** Control the roles that are required to access the resource */
-  // allowRoles?: readonly Role[]
+  requireRoles?: ReadonlyArray<string>
 
   /** Enable Magento shop authentication requirement */
   requireMagentoSession?: true
@@ -110,7 +115,7 @@ type GetFailure<F1, F2> = F1 extends S.Schema.Any ? F2 extends S.Schema.Any ? S.
 
 export const makeRpcClient = <
   RequestConfig extends object,
-  CTXMap extends Record<string, [string, any, S.Schema.All, boolean]>
+  CTXMap extends Record<string, [string, any, S.Schema.All, any]>
 >(
   errors: { [K in keyof CTXMap]: S.Schema.Any }
 ) => {
@@ -208,15 +213,16 @@ const merge = (a: any, b: Array<any>) =>
 
 const RPClient = makeRpcClient<RequestConfig, CTXMap>({
   allowAnonymous: Unauthenticated,
+  requireRoles: Unauthorized,
   requireMagentoSession: Unauthenticated
 })
 
-export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any, boolean]>>() => {
+export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any, any]>>() => {
   return {
     // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
     /** @deprecated use RPClient.TaggedRequest */
     TaggedRequest: S.TaggedRequest,
-    effect: <T extends { config?: { [K in keyof CTXMap]?: boolean } }, Req extends Schema.TaggedRequest.All, R>(
+    effect: <T extends { config?: { [K in keyof CTXMap]?: any } }, Req extends Schema.TaggedRequest.All, R>(
       schema: T & Schema.Schema<Req, any, never>,
       handler: (
         request: Req
@@ -233,10 +239,15 @@ export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any
             const headers = yield* Rpc.currentHeaders
             let ctx = Context.empty()
 
+            const config = "config" in schema ? schema.config : undefined
+
+            let userProfile: Context.Tag.Service<UserProfile> | undefined
             const authorization = Headers.get("authorization")(headers)
             if (Option.isSome(authorization) && authorization.value === "bogus") {
-              ctx = ctx.pipe(Context.add(UserProfile, { sub: "id", displayName: "Jan" }))
-            } else if ("config" in schema && !schema.config.allowAnonymous) {
+              const up = { sub: "id", displayName: "Jan", roles: ["user"] }
+              userProfile = up
+              ctx = ctx.pipe(Context.add(UserProfile, up))
+            } else if (config && !config.allowAnonymous) {
               return yield* new Unauthenticated({ message: "no auth" })
             }
 
@@ -244,8 +255,17 @@ export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any
             const phpsessid = Headers.get("x-magento-id")(headers)
             if (Option.isSome(phpsessid)) {
               ctx = ctx.pipe(Context.add(MagentoSession, { sessionKey: phpsessid.value }))
-            } else if ("config" in schema && schema.config.requireMagentoSession) {
+            } else if (config && config.requireMagentoSession) {
               return yield* new Unauthenticated({ message: "no phpid" })
+            }
+
+            if (config?.requireRoles) {
+              // TODO
+              if (
+                !userProfile || !(config.requireRoles as any).every((role: any) => userProfile.roles.includes(role))
+              ) {
+                return yield* new Unauthorized({})
+              }
             }
 
             return yield* handler(req).pipe(Effect.provide(ctx))
