@@ -217,6 +217,7 @@ const RPClient = makeRpcClient<RequestConfig, CTXMap>({
   requireMagentoSession: Unauthenticated
 })
 
+// TODO: parameterise the Middleware..
 export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any, any]>>() => {
   return {
     // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
