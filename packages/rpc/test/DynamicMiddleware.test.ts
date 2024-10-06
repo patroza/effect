@@ -45,13 +45,13 @@ export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession,
 export class Unauthenticated extends Schema.TaggedError<Unauthenticated>("Unauthenticated")("Unauthenticated", {}) {}
 
 export type CTXMap = {
-  allowAnonymous: ContextMapInverted<"userProfile", UserProfile, Unauthenticated>
-  requireMagentoSession: ContextMap<"magentoSession", MagentoSession, Unauthenticated>
+  allowAnonymous: ContextMapInverted<"userProfile", UserProfile, typeof Unauthenticated>
+  requireMagentoSession: ContextMap<"magentoSession", MagentoSession, typeof Unauthenticated>
 }
 
 type Values<T extends Record<any, any>> = T[keyof T]
 
-export type GetEffectContext<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
+export type GetEffectContext<CTXMap extends Record<string, [string, any, S.Schema.All, boolean]>, T> = Values<
   // inverted
   & {
     [
@@ -71,7 +71,8 @@ export type GetEffectContext<CTXMap extends Record<string, [string, any, any, bo
       CTXMap[key][1]
   }
 >
-export type GetEffectError<CTXMap extends Record<string, [string, any, any, boolean]>, T> = Values<
+export type ValuesOrNeverSchema<T extends Record<any, any>> = Values<T> extends never ? typeof S.Never : Values<T>
+export type GetEffectError<CTXMap extends Record<string, [string, any, S.Schema.All, boolean]>, T> = Values<
   // inverted
   & {
     [
@@ -102,7 +103,15 @@ export type RequestConfig = {
   requireMagentoSession?: true
 }
 
-export const makeRpcClient = <RequestConfig extends object>() => {
+type GetFailure1<F1> = F1 extends S.Schema.Any ? F1 : typeof S.Never
+type GetFailure<F1, F2> = F1 extends S.Schema.Any ? F2 extends S.Schema.Any ? S.Union<[F1, F2]> : F1 : F2
+
+export const makeRpcClient = <
+  RequestConfig extends object,
+  CTXMap extends Record<string, [string, any, S.Schema.All, boolean]>
+>(
+  errors: { [K in keyof CTXMap]: S.Schema.Any }
+) => {
   // Long way around Context/C extends etc to support actual jsdoc from passed in RequestConfig etc...
   type Context = { success: S.Schema.Any; failure: S.Schema.Any }
   function TaggedRequest<Self>(): {
@@ -116,8 +125,9 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         Tag,
         { readonly _tag: S.tag<Tag> } & Payload,
         typeof config["success"],
-        typeof config["failure"]
-      >
+        GetEffectError<CTXMap, C> extends never ? typeof config["failure"] :
+          GetFailure<typeof config["failure"], GetEffectError<CTXMap, C>>
+      > // typeof config["failure"]
       & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields, C extends { success: S.Schema.Any }>(
       tag: Tag,
@@ -129,7 +139,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         Tag,
         { readonly _tag: S.tag<Tag> } & Payload,
         typeof config["success"],
-        typeof S.Never
+        GetFailure1<GetEffectError<CTXMap, C>>
       >
       & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields, C extends { failure: S.Schema.Any }>(
@@ -142,7 +152,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         Tag,
         { readonly _tag: S.tag<Tag> } & Payload,
         typeof S.Void,
-        typeof config["failure"]
+        GetFailure1<GetEffectError<CTXMap, C>>
       >
       & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields, C extends Record<string, any>>(
@@ -155,7 +165,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         Tag,
         { readonly _tag: S.tag<Tag> } & Payload,
         typeof S.Void,
-        typeof S.Never
+        GetFailure1<GetEffectError<CTXMap, C>>
       >
       & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields>(
@@ -189,7 +199,10 @@ export const makeRpcClient = <RequestConfig extends object>() => {
   }
 }
 
-const RPClient = makeRpcClient<RequestConfig>()
+const RPClient = makeRpcClient<RequestConfig, CTXMap>({
+  allowAnonymous: Unauthenticated,
+  requireMagentoSession: Unauthenticated
+})
 
 // TODO: default succeed = S.Void, default failure = S.Never
 // TODO, 3rd arg: error type
