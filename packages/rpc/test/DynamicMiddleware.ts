@@ -1,17 +1,4 @@
-import { Headers } from "@effect/platform"
-import { RpcRouter } from "@effect/rpc"
-import * as Rpc from "@effect/rpc/Rpc"
-import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
-import { Console, Option } from "effect"
-import type * as Array from "effect/Array"
-import * as Chunk from "effect/Chunk"
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import { flow } from "effect/Function"
-import type * as EffectRequest from "effect/Request"
-import * as Stream from "effect/Stream"
-import { assert, describe, expect, it, test } from "vitest"
 
 /**
  * Middleware is inactivate by default, the Key is optional in route context, and the service is optionally provided as Effect Context.
