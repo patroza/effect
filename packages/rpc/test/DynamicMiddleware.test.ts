@@ -179,6 +179,8 @@ export const makeRpcClient = <
       typeof S.Never
     >
   } {
+    // TODO: filter errors based on config + take care of inversion
+    const errorSchemas = Object.values(errors)
     return (<Tag extends string, Fields extends S.Struct.Fields, C extends Context>(
       tag: Tag,
       fields: Fields,
@@ -186,7 +188,7 @@ export const makeRpcClient = <
     ) => {
       const req = S.TaggedRequest<Self>()(tag, {
         payload: fields,
-        failure: config?.failure ?? S.Never,
+        failure: merge(config?.failure, errorSchemas),
         success: config?.success ?? S.Void
       })
       const req2 = Object.assign(req, { config })
@@ -199,14 +201,15 @@ export const makeRpcClient = <
   }
 }
 
+const merge = (a: any, b: Array<any>) =>
+  a !== undefined && b.length ? S.Union(a, ...b) : a !== undefined ? a : b.length ? S.Union(...b) : S.Never
+
 const RPClient = makeRpcClient<RequestConfig, CTXMap>({
   allowAnonymous: Unauthenticated,
   requireMagentoSession: Unauthenticated
 })
 
-// TODO: default succeed = S.Void, default failure = S.Never
-// TODO, 3rd arg: error type
-export const makeRpc = <CTXMap extends Record<string, [string, any, any, boolean]>>() => {
+export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any, boolean]>>() => {
   return {
     // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
     /** @deprecated use RPClient.TaggedRequest */
@@ -401,7 +404,7 @@ const handlerArray = (u: ReadonlyArray<unknown>) =>
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus" } // , "x-magento-id": "some-magento-id"
+    headers: { authorization: "bogus", "x-magento-id": "some-magento-id" }
   }))).pipe(
     Stream.runCollect,
     Effect.map(flow(
