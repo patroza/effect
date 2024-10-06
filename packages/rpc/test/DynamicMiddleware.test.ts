@@ -92,7 +92,15 @@ export type GetEffectError<CTXMap extends Record<string, [string, any, any, bool
   }
 >
 
-export type RequestConfig = { allowAnonymous?: true; requireMagentoSession?: true }
+export type RequestConfig = {
+  /** Disable authentication requirement */
+  allowAnonymous?: true
+  /// ** Control the roles that are required to access the resource */
+  // allowRoles?: readonly Role[]
+
+  /** Enable Magento shop authentication requirement */
+  requireMagentoSession?: true
+}
 
 export const makeRpcClient = <RequestConfig extends object>() => {
   // Long way around Context/C extends etc to support actual jsdoc from passed in RequestConfig etc...
@@ -110,7 +118,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         typeof config["success"],
         typeof config["failure"]
       >
-      & C
+      & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields, C extends { success: S.Schema.Any }>(
       tag: Tag,
       fields: Payload,
@@ -123,7 +131,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         typeof config["success"],
         typeof S.Never
       >
-      & C
+      & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields, C extends { failure: S.Schema.Any }>(
       tag: Tag,
       fields: Payload,
@@ -136,7 +144,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         typeof S.Void,
         typeof config["failure"]
       >
-      & C
+      & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields, C extends Record<string, any>>(
       tag: Tag,
       fields: Payload,
@@ -149,7 +157,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         typeof S.Void,
         typeof S.Never
       >
-      & C
+      & { config: Omit<C, "success" | "failure"> }
     <Tag extends string, Payload extends S.Struct.Fields>(
       tag: Tag,
       fields: Payload
@@ -171,7 +179,7 @@ export const makeRpcClient = <RequestConfig extends object>() => {
         failure: config?.failure ?? S.Never,
         success: config?.success ?? S.Void
       })
-      const req2 = Object.assign(req, config)
+      const req2 = Object.assign(req, { config })
       return req2
     }) as any
   }
@@ -239,12 +247,10 @@ class Post extends S.Class<Post>("Post")({
   body: S.String
 }) {}
 
-class CreatePost extends RPC.TaggedRequest<CreatePost>()("CreatePost", {
-  failure: S.Never,
-  success: Post,
-  payload: {
-    body: S.String
-  }
+class CreatePost extends RPClient.TaggedRequest<CreatePost>()("CreatePost", {
+  body: S.String
+}, {
+  success: Post
 }) {}
 
 const posts = RpcRouter.make(
@@ -256,24 +262,21 @@ const posts = RpcRouter.make(
   )
 )
 
-class Greet extends RPC.TaggedRequest<Greet>()("Greet", {
+class Greet extends RPClient.TaggedRequest<Greet>()("Greet", {
+  name: S.String
+}, {
+  allowAnonymous: true,
   failure: S.Never,
-  success: S.String,
-  payload: {
-    name: S.String
-  }
-}) {
-  static config = { allowAnonymous: true } as const
-}
+  success: S.String
+}) {}
 
-class Fail extends RPC.TaggedRequest<Fail>()("Fail", {
+class Fail extends RPClient.TaggedRequest<Fail>()("Fail", {
+  name: S.String
+}, {
   failure: SomeError,
   success: S.Void,
-  payload: {
-    name: S.String
-  }
+  requireMagentoSession: true
 }) {
-  static config = { requireMagentoSession: true }
 }
 
 class FailNoInput
