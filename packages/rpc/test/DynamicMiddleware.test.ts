@@ -313,6 +313,7 @@ class Fail extends RPClient.TaggedRequest<Fail>()("Fail", {
 }, {
   failure: SomeError,
   success: S.Void,
+  allowAnonymous: true,
   requireMagentoSession: true
 }) {
 }
@@ -524,7 +525,7 @@ describe("Router", () => {
       value: "Hello, John (not logged in, no magento session)!"
     }, {
       _tag: "Failure",
-      cause: { _tag: "Fail", error: { _tag: "Unauthenticated", message: "no auth" } }
+      cause: { _tag: "Fail", error: { _tag: "Unauthenticated", message: "no phpid" } }
     }, {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "Unauthenticated", message: "no auth" } }
