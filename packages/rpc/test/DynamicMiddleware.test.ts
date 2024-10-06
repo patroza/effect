@@ -1,23 +1,17 @@
+import { Headers } from "@effect/platform"
 import { RpcRouter } from "@effect/rpc"
 import * as Rpc from "@effect/rpc/Rpc"
 import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
+import { Console, Option } from "effect"
 import * as Array from "effect/Array"
 import * as Chunk from "effect/Chunk"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
-import { flow, pipe } from "effect/Function"
+import { flow } from "effect/Function"
+import type * as EffectRequest from "effect/Request"
 import * as Stream from "effect/Stream"
 import { assert, describe, expect, it, test } from "vitest"
-
-import { Headers } from "@effect/platform"
-import { Console, Option } from "effect"
-import type * as EffectRequest from "effect/Request"
-
-interface Name {
-  readonly _: unique symbol
-}
-const Name = Context.GenericTag<Name, string>("Name")
 
 /**
  * Middleware is inactivate by default, the Key is optional in route context, and the service is optionally provided as Effect Context.
@@ -32,29 +26,6 @@ export type ContextMapCustom<Key, Service, E, Custom> = [Key, Service, E, Custom
  * Unless omitted
  */
 export type ContextMapInverted<Key, Service, E> = [Key, Service, E, false]
-
-export class UserProfile extends Effect.Tag("UserProfile")<UserProfile, {
-  sub: string
-  displayName: string
-  roles: ReadonlyArray<string>
-}>() {
-}
-
-export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession, {
-  sessionKey: string
-}>() {
-}
-
-export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()("Unauthenticated", { message: S.String }) {}
-
-export class Unauthorized extends Schema.TaggedError<Unauthenticated>()("Unauthorized", {}) {}
-
-export type CTXMap = {
-  allowAnonymous: ContextMapInverted<"userProfile", UserProfile, typeof Unauthenticated>
-  requireMagentoSession: ContextMap<"magentoSession", MagentoSession, typeof Unauthenticated>
-  // TODO: not boolean but `string[]`
-  requireRoles: ContextMapCustom<"", void, typeof Unauthorized, Array<string>>
-}
 
 type Values<T extends Record<any, any>> = T[keyof T]
 
@@ -99,16 +70,6 @@ export type GetEffectError<CTXMap extends Record<string, [string, any, S.Schema.
       CTXMap[key][2]
   }
 >
-
-export type RequestConfig = {
-  /** Disable authentication requirement */
-  allowAnonymous?: true
-  /// ** Control the roles that are required to access the resource */
-  requireRoles?: ReadonlyArray<string>
-
-  /** Enable Magento shop authentication requirement */
-  requireMagentoSession?: true
-}
 
 type GetFailure1<F1> = F1 extends S.Schema.Any ? F1 : typeof S.Never
 type GetFailure<F1, F2> = F1 extends S.Schema.Any ? F2 extends S.Schema.Any ? S.Union<[F1, F2]> : F1 : F2
@@ -211,18 +172,9 @@ export const makeRpcClient = <
 const merge = (a: any, b: Array<any>) =>
   a !== undefined && b.length ? S.Union(a, ...b) : a !== undefined ? a : b.length ? S.Union(...b) : S.Never
 
-const RPClient = makeRpcClient<RequestConfig, CTXMap>({
-  allowAnonymous: Unauthenticated,
-  requireRoles: Unauthorized,
-  requireMagentoSession: Unauthenticated
-})
-
 // TODO: parameterise the Middleware..
 export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any, any]>>() => {
   return {
-    // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
-    /** @deprecated use RPClient.TaggedRequest */
-    TaggedRequest: S.TaggedRequest,
     effect: <T extends { config?: { [K in keyof CTXMap]?: any } }, Req extends Schema.TaggedRequest.All, R>(
       schema: T & Schema.Schema<Req, any, never>,
       handler: (
@@ -275,7 +227,50 @@ export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any
   }
 }
 
+export class UserProfile extends Effect.Tag("UserProfile")<UserProfile, {
+  sub: string
+  displayName: string
+  roles: ReadonlyArray<string>
+}>() {
+}
+
+export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession, {
+  sessionKey: string
+}>() {
+}
+
+export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()("Unauthenticated", { message: S.String }) {}
+
+export class Unauthorized extends Schema.TaggedError<Unauthenticated>()("Unauthorized", {}) {}
+
+export type CTXMap = {
+  allowAnonymous: ContextMapInverted<"userProfile", UserProfile, typeof Unauthenticated>
+  requireMagentoSession: ContextMap<"magentoSession", MagentoSession, typeof Unauthenticated>
+  // TODO: not boolean but `string[]`
+  requireRoles: ContextMapCustom<"", void, typeof Unauthorized, Array<string>>
+}
+
+export type RequestConfig = {
+  /** Disable authentication requirement */
+  allowAnonymous?: true
+  /// ** Control the roles that are required to access the resource */
+  requireRoles?: ReadonlyArray<string>
+
+  /** Enable Magento shop authentication requirement */
+  requireMagentoSession?: true
+}
+
 const RPC = makeRpc<CTXMap>()
+const RPClient = makeRpcClient<RequestConfig, CTXMap>({
+  allowAnonymous: Unauthenticated,
+  requireRoles: Unauthorized,
+  requireMagentoSession: Unauthenticated
+})
+
+interface Name {
+  readonly _: unique symbol
+}
+const Name = Context.GenericTag<Name, string>("Name")
 
 class SomeError extends S.TaggedError<SomeError>()("SomeError", {
   message: S.String
@@ -328,46 +323,6 @@ class FailRole extends RPClient.TaggedRequest<FailRole>()("FailRole", {
 }) {
 }
 
-class FailNoInput
-  extends RPC.TaggedRequest<FailNoInput>()("FailNoInput", { failure: SomeError, success: S.Void, payload: {} })
-{}
-
-class EncodeInput extends RPC.TaggedRequest<EncodeInput>()("EncodeInput", {
-  failure: S.Never,
-  success: S.Date,
-  payload: {
-    date: S.Date
-  }
-}) {}
-
-class EncodeDate extends RPC.TaggedRequest<EncodeDate>()("EncodeDate", {
-  failure: SomeError,
-  success: S.Date,
-  payload: {
-    date: S.String
-  }
-}) {}
-
-class Refined extends RPC.TaggedRequest<Refined>()("Refined", {
-  failure: S.Never,
-  success: S.Number,
-  payload: {
-    number: pipe(S.Number, S.int(), S.greaterThan(10))
-  }
-}) {}
-
-class SpanName
-  extends RPC.TaggedRequest<SpanName>()("SpanName", { failure: S.Never, success: S.String, payload: {} })
-{}
-
-class GetName extends RPC.TaggedRequest<GetName>()("GetName", { failure: S.Never, success: S.String, payload: {} }) {}
-
-class EchoHeaders extends RPC.TaggedRequest<EchoHeaders>()("EchoHeaders", {
-  failure: S.Never,
-  success: S.Record({ key: S.String, value: S.Union(S.String, S.Undefined) }),
-  payload: {}
-}) {}
-
 class Counts extends Rpc.StreamRequest<Counts>()(
   "Counts",
   { failure: S.Never, success: S.Number, payload: {} }
@@ -398,29 +353,10 @@ const router = RpcRouter.make(
       message: "fail"
     })),
   RPC.effect(FailRole, () => Effect.succeed({})),
-  RPC.effect(FailNoInput, () => new SomeError({ message: "fail" })),
-  RPC.effect(EncodeInput, ({ date }) => Effect.succeed(date)),
-  RPC.effect(EncodeDate, ({ date }) =>
-    Effect.try({
-      try: () => new Date(date),
-      catch: () => new SomeError({ message: "fail" })
-    })),
-  RPC.effect(Refined, ({ number }) => Effect.succeed(number)),
-  RPC.effect(SpanName, () =>
-    Effect.currentSpan.pipe(
-      Effect.map((span) => span.name),
-      Effect.orDie
-    )),
-  RPC.effect(GetName, () => Name),
   Rpc.stream(Counts, () =>
     Stream.make(1, 2, 3, 4, 5).pipe(
       Stream.tap((_) => Effect.sleep(10))
     )),
-  RPC.effect(EchoHeaders, () =>
-    Rpc.schemaHeaders(S.Struct({
-      foo: Schema.String,
-      baz: Schema.optional(Schema.String)
-    })).pipe(Effect.orDie)),
   Rpc.stream(FailStream, () =>
     Stream.range(0, 10).pipe(
       Stream.mapEffect((i) => i === 3 ? Effect.fail(new SomeError({ message: "fail" })) : Effect.succeed(i))
