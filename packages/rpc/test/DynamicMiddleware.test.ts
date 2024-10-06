@@ -318,6 +318,15 @@ class Fail extends RPClient.TaggedRequest<Fail>()("Fail", {
 }) {
 }
 
+class FailRole extends RPClient.TaggedRequest<FailRole>()("FailRole", {
+  name: S.String
+}, {
+  failure: SomeError,
+  success: S.Void,
+  requireRoles: ["admin"]
+}) {
+}
+
 class FailNoInput
   extends RPC.TaggedRequest<FailNoInput>()("FailNoInput", { failure: SomeError, success: S.Void, payload: {} })
 {}
@@ -387,6 +396,7 @@ const router = RpcRouter.make(
     new SomeError({
       message: "fail"
     })),
+  RPC.effect(FailRole, () => Effect.succeed({})),
   RPC.effect(FailNoInput, () => new SomeError({ message: "fail" })),
   RPC.effect(EncodeInput, ({ date }) => Effect.succeed(date)),
   RPC.effect(EncodeDate, ({ date }) =>
@@ -468,6 +478,7 @@ describe("Router", () => {
       handlerArray([
         { _tag: "Greet", name: "John" },
         { _tag: "Fail", name: "" },
+        { _tag: "FailRole", name: "" },
         { _tag: "CreatePost", body: "hello" }
       ])
     )
@@ -478,6 +489,9 @@ describe("Router", () => {
     }, {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
+    }, {
+      _tag: "Failure",
+      cause: { _tag: "Fail", error: { _tag: "Unauthorized" } }
     }, {
       _tag: "Success",
       value: {
