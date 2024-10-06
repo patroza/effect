@@ -42,7 +42,9 @@ export class MagentoSession extends Effect.Tag("MagentoSession")<MagentoSession,
 }>() {
 }
 
-export class Unauthenticated extends Schema.TaggedError<Unauthenticated>("Unauthenticated")("Unauthenticated", {}) {}
+export class Unauthenticated
+  extends Schema.TaggedError<Unauthenticated>("Unauthenticated")("Unauthenticated", { message: S.String })
+{}
 
 export type CTXMap = {
   allowAnonymous: ContextMapInverted<"userProfile", UserProfile, typeof Unauthenticated>
@@ -235,7 +237,7 @@ export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any
             if (Option.isSome(authorization) && authorization.value === "bogus") {
               ctx = ctx.pipe(Context.add(UserProfile, { sub: "id", displayName: "Jan" }))
             } else if ("config" in schema && !schema.config.allowAnonymous) {
-              return yield* new Unauthenticated()
+              return yield* new Unauthenticated({ message: "no auth" })
             }
 
             // actually comes from cookie in http
@@ -243,7 +245,7 @@ export const makeRpc = <CTXMap extends Record<string, [string, any, S.Schema.Any
             if (Option.isSome(phpsessid)) {
               ctx = ctx.pipe(Context.add(MagentoSession, { sessionKey: phpsessid.value }))
             } else if ("config" in schema && schema.config.requireMagentoSession) {
-              return yield* new Unauthenticated()
+              return yield* new Unauthenticated({ message: "no phpid" })
             }
 
             return yield* handler(req).pipe(Effect.provide(ctx))
