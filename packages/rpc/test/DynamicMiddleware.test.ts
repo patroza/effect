@@ -92,11 +92,103 @@ export type GetEffectError<CTXMap extends Record<string, [string, any, any, bool
   }
 >
 
+export type RequestConfig = { allowAnonymous?: true; requireMagentoSession?: true }
+
+export const makeRpcClient = <RequestConfig extends object>() => {
+  // Long way around Context/C extends etc to support actual jsdoc from passed in RequestConfig etc...
+  type Context = { success: S.Schema.Any; failure: S.Schema.Any }
+  function TaggedRequest<Self>(): {
+    <Tag extends string, Payload extends S.Struct.Fields, C extends Context>(
+      tag: Tag,
+      fields: Payload,
+      config: RequestConfig & C
+    ):
+      & S.TaggedRequestClass<
+        Self,
+        Tag,
+        { readonly _tag: S.tag<Tag> } & Payload,
+        typeof config["success"],
+        typeof config["failure"]
+      >
+      & C
+    <Tag extends string, Payload extends S.Struct.Fields, C extends { success: S.Schema.Any }>(
+      tag: Tag,
+      fields: Payload,
+      config: RequestConfig & C
+    ):
+      & S.TaggedRequestClass<
+        Self,
+        Tag,
+        { readonly _tag: S.tag<Tag> } & Payload,
+        typeof config["success"],
+        typeof S.Never
+      >
+      & C
+    <Tag extends string, Payload extends S.Struct.Fields, C extends { failure: S.Schema.Any }>(
+      tag: Tag,
+      fields: Payload,
+      config: RequestConfig & C
+    ):
+      & S.TaggedRequestClass<
+        Self,
+        Tag,
+        { readonly _tag: S.tag<Tag> } & Payload,
+        typeof S.Void,
+        typeof config["failure"]
+      >
+      & C
+    <Tag extends string, Payload extends S.Struct.Fields, C extends Record<string, any>>(
+      tag: Tag,
+      fields: Payload,
+      config: C & RequestConfig
+    ):
+      & S.TaggedRequestClass<
+        Self,
+        Tag,
+        { readonly _tag: S.tag<Tag> } & Payload,
+        typeof S.Void,
+        typeof S.Never
+      >
+      & C
+    <Tag extends string, Payload extends S.Struct.Fields>(
+      tag: Tag,
+      fields: Payload
+    ): S.TaggedRequestClass<
+      Self,
+      Tag,
+      { readonly _tag: S.tag<Tag> } & Payload,
+      typeof S.Void,
+      typeof S.Never
+    >
+  } {
+    return (<Tag extends string, Fields extends S.Struct.Fields, C extends Context>(
+      tag: Tag,
+      fields: Fields,
+      config?: C
+    ) => {
+      const req = S.TaggedRequest<Self>()(tag, {
+        payload: fields,
+        failure: config?.failure ?? S.Never,
+        success: config?.success ?? S.Void
+      })
+      const req2 = Object.assign(req, config)
+      return req2
+    }) as any
+  }
+
+  return {
+    TaggedRequest
+  }
+}
+
+const RPClient = makeRpcClient<RequestConfig>()
+
 // TODO: default succeed = S.Void, default failure = S.Never
 // TODO, 3rd arg: error type
 export const makeRpc = <CTXMap extends Record<string, [string, any, any, boolean]>>() => {
   return {
     // TODO: add error schema to the Request on request creation, make available to the handler, the type and the client
+    /** @deprecated use RPClient.TaggedRequest */
     TaggedRequest: S.TaggedRequest,
     effect: <T extends { config?: { [K in keyof CTXMap]?: boolean } }, Req extends Schema.TaggedRequest.All, R>(
       schema: T & Schema.Schema<Req, any, never>,
