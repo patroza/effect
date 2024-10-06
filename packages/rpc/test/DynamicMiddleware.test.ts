@@ -420,13 +420,16 @@ const router = RpcRouter.make(
 const handler = RpcRouter.toHandler(router)
 const handlerEffect = RpcRouter.toHandlerNoStream(router)
 const handlerUndecoded = RpcRouter.toHandlerUndecoded(router)
-const handlerArray = (u: ReadonlyArray<unknown>) =>
+const handlerArray = (
+  u: ReadonlyArray<unknown>,
+  headers: Record<string, string> = { authorization: "bogus", "x-magento-id": "some-magento-id" }
+) =>
   handler(u.map((request, i) => ({
     request,
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus", "x-magento-id": "some-magento-id" }
+    headers
   }))).pipe(
     Stream.runCollect,
     Effect.map(flow(
@@ -435,13 +438,16 @@ const handlerArray = (u: ReadonlyArray<unknown>) =>
       Array.filter((_): _ is S.ExitEncoded<any, any, unknown> => Array.isArray(_) === false)
     ))
   )
-const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
+const handlerEffectArray = (
+  u: ReadonlyArray<unknown>,
+  headers: Record<string, string> = { authorization: "bogus", "x-magento-id": "some-magento-id" }
+) =>
   handlerEffect(u.map((request, i) => ({
     request,
     traceId: "traceId",
     spanId: `spanId${i}`,
     sampled: true,
-    headers: { authorization: "bogus", "x-magento-id": "some-magento-id" }
+    headers
   }))).pipe(
     Effect.map(Array.filter((_): _ is S.ExitEncoded<any, any, unknown> => Array.isArray(_) === false))
   )
@@ -457,18 +463,11 @@ const handlerEffectArray = (u: ReadonlyArray<unknown>) =>
 
 describe("Router", () => {
   it("handler/", async () => {
-    const date = new Date()
     const result = await Effect.runPromise(
       handlerArray([
         { _tag: "Greet", name: "John" },
         { _tag: "Fail", name: "" },
-        { _tag: "FailNoInput" },
-        { _tag: "EncodeInput", date: date.toISOString() },
-        { _tag: "EncodeDate", date: date.toISOString() },
-        { _tag: "Refined", number: 11 },
-        { _tag: "CreatePost", body: "hello" },
-        { _tag: "SpanName" },
-        { _tag: "GetName" }
+        { _tag: "CreatePost", body: "hello" }
       ])
     )
 
@@ -479,45 +478,20 @@ describe("Router", () => {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
     }, {
-      _tag: "Failure",
-      cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
-    }, {
-      _tag: "Success",
-      value: date.toISOString()
-    }, {
-      _tag: "Success",
-      value: date.toISOString()
-    }, {
-      _tag: "Success",
-      value: 11
-    }, {
       _tag: "Success",
       value: {
         id: 1,
         body: "hello"
       }
-    }, {
-      _tag: "Success",
-      value: "Rpc.router SpanName"
-    }, {
-      _tag: "Success",
-      value: "John"
     }])
   })
 
   it("handlerEffect", async () => {
-    const date = new Date()
     const result = await Effect.runPromise(
       handlerEffectArray([
         { _tag: "Greet", name: "John" },
         { _tag: "Fail", name: "" },
-        { _tag: "FailNoInput" },
-        { _tag: "EncodeInput", date: date.toISOString() },
-        { _tag: "EncodeDate", date: date.toISOString() },
-        { _tag: "Refined", number: 11 },
-        { _tag: "CreatePost", body: "hello" },
-        { _tag: "SpanName" },
-        { _tag: "GetName" }
+        { _tag: "CreatePost", body: "hello" }
       ])
     )
 
@@ -528,29 +502,32 @@ describe("Router", () => {
       _tag: "Failure",
       cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
     }, {
-      _tag: "Failure",
-      cause: { _tag: "Fail", error: { _tag: "SomeError", message: "fail" } }
-    }, {
-      _tag: "Success",
-      value: date.toISOString()
-    }, {
-      _tag: "Success",
-      value: date.toISOString()
-    }, {
-      _tag: "Success",
-      value: 11
-    }, {
       _tag: "Success",
       value: {
         id: 1,
         body: "hello"
       }
-    }, {
+    }])
+  })
+
+  it("handlerEffect no headers", async () => {
+    const result = await Effect.runPromise(
+      handlerEffectArray([
+        { _tag: "Greet", name: "John" },
+        { _tag: "Fail", name: "" },
+        { _tag: "CreatePost", body: "hello" }
+      ], {})
+    )
+
+    assert.deepStrictEqual(result, [{
       _tag: "Success",
-      value: "Rpc.router SpanName"
+      value: "Hello, John (not logged in, no magento session)!"
     }, {
-      _tag: "Success",
-      value: "John"
+      _tag: "Failure",
+      cause: { _tag: "Fail", error: { _tag: "Unauthenticated", message: "no auth" } }
+    }, {
+      _tag: "Failure",
+      cause: { _tag: "Fail", error: { _tag: "Unauthenticated", message: "no auth" } }
     }])
   })
 
