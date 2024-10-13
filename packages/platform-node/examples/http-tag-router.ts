@@ -61,49 +61,26 @@ const AllUserRoutes = Layer.mergeAll(GetUsers, CreateUser).pipe(
   Layer.provideMerge(UserRouter.Live)
 )
 
-class RootRouter extends HttpRouter.Tag("RootRouter")<UserRouter, MiddlewareDependency>() {}
-const AllRoutes = RootRouter.use((router) =>
+const AllRoutes = HttpRouter.Default.use((router) =>
   Effect.gen(function*() {
-    yield* router.mount("/users", yield* UserRouter.router)
-  })
-).pipe(Layer.provide(AllUserRoutes))
+    // we can't use a packed layer, because we would be initializing Service2 over and over
+    const service2 = yield* Service2
+    const provide = Effect.provideServiceEffect(
+      MiddlewareDependency,
+      Effect.sync(() => ({ message: "hello from middleware at " + new Date() + service2.a }))
+    )
 
-// can use the Default router too, only if we eliminate the Request level dependencies.
-// const AllRoutes = HttpRouter.Default.use((router) =>
-//   Effect.gen(function*() {
-//     yield* router.mount(
-//       "/users",
-//       yield* UserRouter.router.pipe(
-//         // eliminate the middleware dependency
-//         Effect.map(
-//           HttpRouter.use(
-//             Effect.provideServiceEffect(
-//               MiddlewareDependency,
-//               Effect.sync(() => ({ message: "hello from middleware at " + new Date() }))
-//             )
-//           )
-//         )
-//       )
-//     )
-//   })
-// ).pipe(Layer.provide(AllUserRoutes))
+    yield* router.mount("/users", yield* UserRouter.router.pipe(Effect.map(HttpRouter.use(provide))))
+  })
+).pipe(Layer.provide([AllUserRoutes, Service2.Default]))
 
 const ServerLive = NodeHttpServer.layer(createServer, { port: 3000 })
 
 // use the `.unwrap` api to turn the underlying `HttpRouter` into another layer.
 // Here we use `HttpServer.serve` to create a server from the `HttpRouter`.
-const HttpLive = RootRouter.unwrap(
-  HttpServer.serve(
-    flow(
-      HttpMiddleware.logger,
-      Effect.provideServiceEffect(
-        MiddlewareDependency,
-        Service2.pipe(Effect.andThen((s) => ({ message: "hello from middleware at " + new Date() + s.a })))
-      )
-    )
-  )
+const HttpLive = HttpRouter.Default.unwrap(
+  HttpServer.serve(HttpMiddleware.logger)
 ).pipe(
-  Layer.provide(Service2.Default), // for the middleware
   Layer.provide(AllRoutes),
   Layer.provide(ServerLive)
 )
