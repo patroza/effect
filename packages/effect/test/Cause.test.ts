@@ -742,6 +742,18 @@ describe("Cause", () => {
       expectAs(sequential, Cause.sequential(Cause.fail(2), defect))
       expectAs(parallel, Cause.parallel(Cause.fail(2), defect))
     })
+  })
+
+  describe("InterruptedException", () => {
+    it("renders as string", () => {
+      const ex = new Cause.InterruptedException("my message")
+      expect(ex.toString()).include("InterruptedException: my message")
+      if (typeof window === "undefined") {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { inspect } = require("node:util")
+        expect(inspect(ex)).include("Cause.test.ts:362")
+      }
+    })
 
     it("map", () => {
       const expectMap = <E>(cause: Cause.Cause<E>, expected: Cause.Cause<number>) => {
