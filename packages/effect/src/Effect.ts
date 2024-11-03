@@ -6910,3 +6910,255 @@ export declare namespace Service {
   export type MakeAccessors<Make> = Make extends { readonly accessors: true } ? true
     : false
 }
+
+/**
+ * @example
+ * import { Effect } from 'effect';
+ *
+ * class Prefix extends Effect.Service<Prefix>()("Prefix", {
+ *  sync: () => ({ prefix: "PRE" })
+ * }) {}
+ *
+ * class Logger extends Effect.Service<Logger>()("Logger", {
+ *  accessors: true,
+ *  effect: Effect.gen(function* () {
+ *    const { prefix } = yield* Prefix
+ *    return {
+ *      info: (message: string) =>
+ *        Effect.sync(() => {
+ *          console.log(`[${prefix}][${message}]`)
+ *        })
+ *    }
+ *  }),
+ *  dependencies: [Prefix.Default]
+ * }) {}
+ *
+ * @since 3.9.0
+ * @category context
+ * @experimental might be up for breaking changes
+ */
+export const ServiceStrict: <Self>() => {
+  <
+    const Key extends string,
+    const Make extends
+      | {
+        readonly scoped: Effect<
+          Service.AllowedType<Key, Make>,
+          any,
+          Make["strict"] extends false ? any : Service.MakeDepsOut<Make> | Scope.Scope
+        >
+        readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+        readonly accessors?: boolean
+        readonly strict?: false
+        /** @deprecated */
+        readonly ಠ_ಠ: never
+      }
+      | {
+        readonly effect: Effect<
+          Service.AllowedType<Key, Make>,
+          any,
+          Make["strict"] extends false ? any : Service.MakeDepsOut<Make>
+        >
+        readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+        readonly accessors?: boolean
+        readonly strict?: false
+        /** @deprecated */
+        readonly ಠ_ಠ: never
+      }
+      | {
+        readonly sync: LazyArg<Service.AllowedType<Key, Make>>
+        readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+        readonly accessors?: boolean
+        readonly strict?: false
+        /** @deprecated */
+        readonly ಠ_ಠ: never
+      }
+      | {
+        readonly succeed: Service.AllowedType<Key, Make>
+        readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+        readonly accessors?: boolean
+        readonly strict?: false
+        /** @deprecated */
+        readonly ಠ_ಠ: never
+      }
+  >(
+    key: Key,
+    make: Make
+  ): Service.Class<Self, Key, Make>
+  <
+    const Key extends string,
+    const Make extends NoExcessProperties<{
+      readonly scoped: Effect<
+        Service.AllowedType<Key, Make>,
+        any,
+        Make["strict"] extends false ? any : Service.MakeDepsOut<Make> | Scope.Scope
+      >
+      readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+      readonly accessors?: boolean
+      readonly strict?: false
+    }, Make>
+  >(
+    key: Key,
+    make: Make
+  ): Service.Class<Self, Key, Make>
+  <
+    const Key extends string,
+    const Make extends NoExcessProperties<{
+      readonly effect: Effect<
+        Service.AllowedType<Key, Make>,
+        any,
+        Make["strict"] extends false ? any : Service.MakeDepsOut<Make>
+      >
+      readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+      readonly accessors?: boolean
+      readonly strict?: false
+    }, Make>
+  >(
+    key: Key,
+    make: Make
+  ): Service.Class<Self, Key, Make>
+  <
+    const Key extends string,
+    const Make extends NoExcessProperties<{
+      readonly sync: LazyArg<Service.AllowedType<Key, Make>>
+      readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+      readonly accessors?: boolean
+      readonly strict?: false
+    }, Make>
+  >(
+    key: Key,
+    make: Make
+  ): Service.Class<Self, Key, Make>
+  <
+    const Key extends string,
+    const Make extends NoExcessProperties<{
+      readonly succeed: Service.AllowedType<Key, Make>
+      readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
+      readonly accessors?: boolean
+      readonly strict?: false
+    }, Make>
+  >(
+    key: Key,
+    make: Make
+  ): Service.Class<Self, Key, Make>
+  <
+    const Key extends string,
+    const Make extends NoExcessProperties<
+      | {
+        readonly effect?: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly scoped: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly dependencies: [
+          ...Make["dependencies"],
+          Layer.Layer<Exclude<Service.MakeContext<Make>, Service.MakeDepsOut<Make>>, any, any>
+        ]
+        readonly accessors?: boolean
+      }
+      | {
+        readonly effect: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly scoped?: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly dependencies: [
+          ...Make["dependencies"],
+          Layer.Layer<Exclude<Service.MakeContext<Make>, Service.MakeDepsOut<Make>>, any, any>
+        ]
+        readonly accessors?: boolean
+      },
+      Make
+    >
+  >(
+    key: Key,
+    make: Make
+  ): Service.Class<Self, Key, Make>
+} = function() {
+  return function() {
+    const [id, maker] = arguments
+    const proxy = "accessors" in maker ? maker["accessors"] : false
+    const limit = Error.stackTraceLimit
+    Error.stackTraceLimit = 2
+    const creationError = new Error()
+    Error.stackTraceLimit = limit
+
+    let patchState: "unchecked" | "plain" | "patched" = "unchecked"
+    const TagClass: any = function(this: any, service: any) {
+      if (patchState === "unchecked") {
+        const proto = Object.getPrototypeOf(service)
+        if (proto === Object.prototype || proto === null) {
+          patchState = "plain"
+        } else {
+          const selfProto = Object.getPrototypeOf(this)
+          Object.setPrototypeOf(selfProto, proto)
+          patchState = "patched"
+        }
+      }
+      if (patchState === "plain") {
+        Object.assign(this, service)
+      } else if (patchState === "patched") {
+        Object.setPrototypeOf(service, Object.getPrototypeOf(this))
+        return service
+      }
+    }
+
+    TagClass.prototype._tag = id
+    Object.defineProperty(TagClass, "make", {
+      get() {
+        return (service: any) => new this(service)
+      }
+    })
+    Object.defineProperty(TagClass, "use", {
+      get() {
+        return (body: any) => core.andThen(this, body)
+      }
+    })
+    TagClass.key = id
+
+    Object.assign(TagClass, TagProto)
+
+    Object.defineProperty(TagClass, "stack", {
+      get() {
+        return creationError.stack
+      }
+    })
+
+    const hasDeps = "dependencies" in maker && maker.dependencies.length > 0
+    const layerName = hasDeps ? "DefaultWithoutDependencies" : "Default"
+    let layerCache: Layer.Layer.Any | undefined
+    if ("effect" in maker) {
+      Object.defineProperty(TagClass, layerName, {
+        get(this: any) {
+          return layerCache ??= layer.fromEffect(TagClass, map(maker.effect, (_) => new this(_)))
+        }
+      })
+    } else if ("scoped" in maker) {
+      Object.defineProperty(TagClass, layerName, {
+        get(this: any) {
+          return layerCache ??= layer.scoped(TagClass, map(maker.scoped, (_) => new this(_)))
+        }
+      })
+    } else if ("sync" in maker) {
+      Object.defineProperty(TagClass, layerName, {
+        get(this: any) {
+          return layerCache ??= layer.sync(TagClass, () => new this(maker.sync()))
+        }
+      })
+    } else {
+      Object.defineProperty(TagClass, layerName, {
+        get(this: any) {
+          return layerCache ??= layer.succeed(TagClass, new this(maker.succeed))
+        }
+      })
+    }
+
+    if (hasDeps) {
+      let layerWithDepsCache: Layer.Layer.Any | undefined
+      Object.defineProperty(TagClass, "Default", {
+        get(this: any) {
+          return layerWithDepsCache ??= layer.provide(
+            this.DefaultWithoutDependencies,
+            maker.dependencies
+          )
+        }
+      })
+    }
+
+    return proxy === true ? makeTagProxy(TagClass) : TagClass
+  }
+}
