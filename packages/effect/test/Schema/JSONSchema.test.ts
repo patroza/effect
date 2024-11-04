@@ -1872,6 +1872,85 @@ schema (Suspend): <suspended schema>`
       )
     })
 
+    it("Struct", () => {
+      expectJSONSchema(
+        Schema.Struct({ a: Schema.String, b: JsonNumber }).annotations({
+          identifier: "test",
+          title: "Test"
+        }),
+        {
+          "$defs": {
+            "test": {
+              "additionalProperties": false,
+              "properties": {
+                "a": {
+                  "type": "string"
+                },
+                "b": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "a",
+                "b"
+              ],
+              "type": "object",
+              "title": "Test"
+            }
+          },
+          "$ref": "#/$defs/test",
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        false
+      )
+      expectJSONSchema(
+        Schema.Struct({ a: Schema.String, b: Schema.optionalWith(JsonNumber, { default: () => 1 }) }).annotations({
+          identifier: "test",
+          title: "Test"
+        }),
+        {
+          "$defs": {
+            "test": {
+              "additionalProperties": false,
+              "properties": {
+                "a": {
+                  "type": "string"
+                },
+                "b": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "a"
+              ],
+              "title": "Test",
+              "type": "object"
+            }
+          },
+          "$ref": "#/$defs/test",
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        // {
+        //   "$schema": "http://json-schema.org/draft-07/schema#",
+        //   "additionalProperties": false,
+        //   "properties": {
+        //     "a": {
+        //       "type": "string"
+        //     },
+        //     "b": {
+        //       "type": "number"
+        //     }
+        //   },
+        //   "required": [
+        //     "a"
+        //   ],
+        //   "title": "Struct (Encoded side)",
+        //   "type": "object"
+        // },
+        false
+      )
+    })
+
     it("Union", () => {
       expectJSONSchema(
         Schema.Union(Schema.String, JsonNumber).annotations({ jsonSchema: { "type": "custom JSON Schema" } }),

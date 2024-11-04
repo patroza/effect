@@ -372,7 +372,10 @@ const go = (
   if (Option.isSome(surrogate)) {
     return go(surrogate.value, $defs, handleIdentifier, path)
   }
-  if (handleIdentifier && !AST.isTransformation(ast) && !AST.isRefinement(ast)) {
+  if (
+    handleIdentifier && (!AST.isTransformation(ast) || ast.transformation._tag === "TypeLiteralTransformation") &&
+    !AST.isRefinement(ast)
+  ) {
     const identifier = AST.getJSONIdentifier(ast)
     if (Option.isSome(identifier)) {
       const id = identifier.value
@@ -601,7 +604,12 @@ const go = (
       // derived from the 'from' side (type: string), ensuring the output matches the intended
       // complex schema type.
       const next = isParseJsonTransformation(ast.from) ? ast.to : ast.from
-      return go(next, $defs, true, path)
+      return go(
+        AST.annotations(next, ast.annotations),
+        $defs,
+        false,
+        path
+      )
     }
   }
 }
