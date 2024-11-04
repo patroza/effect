@@ -373,7 +373,9 @@ const go = (
     return go(surrogate.value, $defs, handleIdentifier, path)
   }
   if (
-    handleIdentifier && (!AST.isTransformation(ast) || ast.transformation._tag === "TypeLiteralTransformation") &&
+    handleIdentifier &&
+    (!AST.isTransformation(ast) || ast.transformation._tag === "TypeLiteralTransformation" ||
+      ast.transformation._tag === "FinalTransformation") &&
     !AST.isRefinement(ast)
   ) {
     const identifier = AST.getJSONIdentifier(ast)
@@ -604,8 +606,23 @@ const go = (
       // derived from the 'from' side (type: string), ensuring the output matches the intended
       // complex schema type.
       const next = isParseJsonTransformation(ast.from) ? ast.to : ast.from
+      const merged = AST.annotations(next, ast.to.annotations)
+      const { [AST.SurrogateAnnotationId]: _da, ...annotations } = {
+        ...ast.to.annotations,
+        ...ast.from.annotations,
+        ...ast.annotations
+      }
+      console.log({
+        a: ast.from.annotations,
+        b: ast.to.annotations,
+        c: ast.annotations,
+        d: ast.transformation,
+        e: annotations,
+        f: merged
+      })
+
       return go(
-        AST.annotations(next, ast.annotations),
+        AST.annotations(next, annotations),
         $defs,
         false,
         path
