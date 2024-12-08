@@ -100,24 +100,23 @@ export interface SchemaClass<A, I = A, R = never> extends AnnotableClass<SchemaC
  * @category constructors
  * @since 3.10.0
  */
-export const make = <A, I = A, R = never>(ast: AST.AST): SchemaClass<A, I, R> =>
-  class SchemaClass {
-    [TypeId] = variance
-    static Type: A
-    static Encoded: I
-    static Context: R
-    static [TypeId] = variance
-    static ast = ast
-    static annotations(annotations: Annotations.Schema<A>) {
-      return make<A, I, R>(mergeSchemaAnnotations(this.ast, annotations))
-    }
-    static pipe() {
-      return pipeArguments(this, arguments)
-    }
-    static toString() {
-      return String(ast)
-    }
+export const make = <A, I = A, R = never>(ast: AST.AST): SchemaClass<A, I, R> => (class SchemaClass {
+  [TypeId] = variance
+  static Type: A
+  static Encoded: I
+  static Context: R
+  static [TypeId] = variance
+  static ast = ast
+  static annotations(annotations: Annotations.Schema<A>) {
+    return make<A, I, R>(mergeSchemaAnnotations(this.ast, annotations))
   }
+  static pipe() {
+    return pipeArguments(this, arguments)
+  }
+  static toString() {
+    return String(ast)
+  }
+})
 
 const variance = {
   /* c8 ignore next */
@@ -601,13 +600,12 @@ const getDefaultLiteralAST = <Literals extends array_.NonEmptyReadonlyArray<AST.
 const makeLiteralClass = <Literals extends array_.NonEmptyReadonlyArray<AST.LiteralValue>>(
   literals: Literals,
   ast: AST.AST = getDefaultLiteralAST(literals)
-): Literal<Literals> =>
-  class LiteralClass extends make<Literals[number]>(ast) {
-    static override annotations(annotations: Annotations.Schema<Literals[number]>): Literal<Literals> {
-      return makeLiteralClass(this.literals, mergeSchemaAnnotations(this.ast, annotations))
-    }
-    static literals = [...literals] as Literals
+): Literal<Literals> => (class LiteralClass extends make<Literals[number]>(ast) {
+  static override annotations(annotations: Annotations.Schema<Literals[number]>): Literal<Literals> {
+    return makeLiteralClass(this.literals, mergeSchemaAnnotations(this.ast, annotations))
   }
+  static literals = [...literals] as Literals
+})
 
 /**
  * @category constructors
@@ -630,6 +628,7 @@ export function Literal<Literals extends ReadonlyArray<AST.LiteralValue>>(
  * Creates a new `Schema` from a literal schema.
  *
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  * import { Either } from "effect"
  *
@@ -638,6 +637,7 @@ export function Literal<Literals extends ReadonlyArray<AST.LiteralValue>>(
  * assert.deepStrictEqual(Schema.decodeSync(schema)("a"), "a")
  * assert.deepStrictEqual(Schema.decodeSync(schema)("b"), "b")
  * assert.strictEqual(Either.isLeft(Schema.decodeUnknownEither(schema)("c")), true)
+ * ```
  *
  * @category constructors
  * @since 3.10.0
@@ -675,14 +675,13 @@ const getDefaultEnumsAST = <A extends EnumsDefinition>(enums: A) =>
 const makeEnumsClass = <A extends EnumsDefinition>(
   enums: A,
   ast: AST.AST = getDefaultEnumsAST(enums)
-): Enums<A> =>
-  class EnumsClass extends make<A[keyof A]>(ast) {
-    static override annotations(annotations: Annotations.Schema<A[keyof A]>) {
-      return makeEnumsClass(this.enums, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static enums = { ...enums }
+): Enums<A> => (class EnumsClass extends make<A[keyof A]>(ast) {
+  static override annotations(annotations: Annotations.Schema<A[keyof A]>) {
+    return makeEnumsClass(this.enums, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static enums = { ...enums }
+})
 
 /**
  * @category constructors
@@ -690,9 +689,16 @@ const makeEnumsClass = <A extends EnumsDefinition>(
  */
 export const Enums = <A extends EnumsDefinition>(enums: A): Enums<A> => makeEnumsClass(enums)
 
-type Join<Params> = Params extends [infer Head, ...infer Tail] ?
-  `${(Head extends Schema<infer A> ? A : Head) & (AST.LiteralValue)}${Join<Tail>}`
-  : ""
+type AppendType<
+  Template extends string,
+  Next
+> = Next extends AST.LiteralValue ? `${Template}${Next}`
+  : Next extends Schema<infer A extends AST.LiteralValue, infer _I, infer _R> ? `${Template}${A}`
+  : never
+
+type GetTemplateLiteralType<Params> = Params extends [...infer Init, infer Last] ?
+  AppendType<GetTemplateLiteralType<Init>, Last>
+  : ``
 
 /**
  * @category API interface
@@ -708,77 +714,69 @@ type TemplateLiteralParameter = Schema.AnyNoContext | AST.LiteralValue
  */
 export const TemplateLiteral = <Params extends array_.NonEmptyReadonlyArray<TemplateLiteralParameter>>(
   ...[head, ...tail]: Params
-): TemplateLiteral<Join<Params>> => {
-  let astOrs: ReadonlyArray<AST.TemplateLiteral | string> = getTemplateLiterals(
-    getTemplateLiteralParameterAST(head)
-  )
-  for (const span of tail) {
-    astOrs = array_.flatMap(
-      astOrs,
-      (a) => getTemplateLiterals(getTemplateLiteralParameterAST(span)).map((b) => combineTemplateLiterals(a, b))
-    )
-  }
-  return make(AST.Union.make(astOrs.map((astOr) => Predicate.isString(astOr) ? new AST.Literal(astOr) : astOr)))
-}
+): TemplateLiteral<GetTemplateLiteralType<Params>> => {
+  const spans: Array<AST.TemplateLiteralSpan> = []
+  let h = ""
+  let ts = tail
 
-const getTemplateLiteralParameterAST = (span: TemplateLiteralParameter): AST.AST =>
-  isSchema(span) ? span.ast : new AST.Literal(String(span))
+  if (isSchema(head)) {
+    if (AST.isLiteral(head.ast)) {
+      h = String(head.ast.literal)
+    } else {
+      ts = [head, ...ts]
+    }
+  } else {
+    h = String(head)
+  }
 
-const combineTemplateLiterals = (
-  a: AST.TemplateLiteral | string,
-  b: AST.TemplateLiteral | string
-): AST.TemplateLiteral | string => {
-  if (Predicate.isString(a)) {
-    return Predicate.isString(b) ?
-      a + b :
-      new AST.TemplateLiteral(a + b.head, b.spans)
+  for (let i = 0; i < ts.length; i++) {
+    const item = ts[i]
+    if (isSchema(item)) {
+      if (i < ts.length - 1) {
+        const next = ts[i + 1]
+        if (isSchema(next)) {
+          if (AST.isLiteral(next.ast)) {
+            spans.push(new AST.TemplateLiteralSpan(item.ast, String(next.ast.literal)))
+            i++
+            continue
+          }
+        } else {
+          spans.push(new AST.TemplateLiteralSpan(item.ast, String(next)))
+          i++
+          continue
+        }
+      }
+      spans.push(new AST.TemplateLiteralSpan(item.ast, ""))
+    } else {
+      spans.push(new AST.TemplateLiteralSpan(new AST.Literal(item), ""))
+    }
   }
-  if (Predicate.isString(b)) {
-    return new AST.TemplateLiteral(
-      a.head,
-      array_.modifyNonEmptyLast(
-        a.spans,
-        (span) => new AST.TemplateLiteralSpan(span.type, span.literal + b)
-      )
-    )
-  }
-  return new AST.TemplateLiteral(
-    a.head,
-    array_.appendAll(
-      array_.modifyNonEmptyLast(
-        a.spans,
-        (span) => new AST.TemplateLiteralSpan(span.type, span.literal + String(b.head))
-      ),
-      b.spans
-    )
-  )
-}
 
-const getTemplateLiterals = (
-  ast: AST.AST
-): ReadonlyArray<AST.TemplateLiteral | string> => {
-  switch (ast._tag) {
-    case "Literal":
-      return [String(ast.literal)]
-    case "NumberKeyword":
-    case "StringKeyword":
-      return [new AST.TemplateLiteral("", [new AST.TemplateLiteralSpan(ast, "")])]
-    case "Union":
-      return array_.flatMap(ast.types, getTemplateLiterals)
+  if (array_.isNonEmptyArray(spans)) {
+    return make(new AST.TemplateLiteral(h, spans))
+  } else {
+    return make(new AST.TemplateLiteral("", [new AST.TemplateLiteralSpan(new AST.Literal(h), "")]))
   }
-  throw new Error(errors_.getSchemaUnsupportedLiteralSpanErrorMessage(ast))
 }
 
 type TemplateLiteralParserParameters = Schema.Any | AST.LiteralValue
 
-type TemplateLiteralParserParametersType<T> = T extends [infer Head, ...infer Tail] ?
-  readonly [Head extends Schema<infer A, infer _I, infer _R> ? A : Head, ...TemplateLiteralParserParametersType<Tail>]
+type GetTemplateLiteralParserType<Params> = Params extends [infer Head, ...infer Tail] ? readonly [
+    Head extends Schema<infer A, infer _I, infer _R> ? A : Head,
+    ...GetTemplateLiteralParserType<Tail>
+  ]
   : []
 
-type TemplateLiteralParserParametersEncoded<T> = T extends [infer Head, ...infer Tail] ? `${
-    & (Head extends Schema<infer _A, infer I, infer _R> ? I : Head)
-    & (AST.LiteralValue)}${TemplateLiteralParserParametersEncoded<Tail>}`
-  : ""
+type AppendEncoded<
+  Template extends string,
+  Next
+> = Next extends AST.LiteralValue ? `${Template}${Next}`
+  : Next extends Schema<infer _A, infer I extends AST.LiteralValue, infer _R> ? `${Template}${I}`
+  : never
+
+type GetTemplateLiteralParserEncoded<Params> = Params extends [...infer Init, infer Last] ?
+  AppendEncoded<GetTemplateLiteralParserEncoded<Init>, Last>
+  : ``
 
 /**
  * @category API interface
@@ -787,12 +785,18 @@ type TemplateLiteralParserParametersEncoded<T> = T extends [infer Head, ...infer
 export interface TemplateLiteralParser<Params extends array_.NonEmptyReadonlyArray<TemplateLiteralParserParameters>>
   extends
     Schema<
-      TemplateLiteralParserParametersType<Params>,
-      TemplateLiteralParserParametersEncoded<Params>,
+      GetTemplateLiteralParserType<Params>,
+      GetTemplateLiteralParserEncoded<Params>,
       Schema.Context<Params[number]>
     >
 {
   readonly params: Params
+}
+
+const literalValueCoercions: Record<string, ((v: AST.LiteralValue) => AST.LiteralValue)> = {
+  bigint: (v: AST.LiteralValue) => Predicate.isString(v) ? BigInt(v) : v,
+  boolean: (v: AST.LiteralValue) => v === "true" ? true : v === "false" ? false : v,
+  null: (v: AST.LiteralValue) => v === "null" ? null : v
 }
 
 /**
@@ -804,35 +808,50 @@ export const TemplateLiteralParser = <Params extends array_.NonEmptyReadonlyArra
 ): TemplateLiteralParser<Params> => {
   const encodedSchemas: Array<Schema.Any> = []
   const typeSchemas: Array<Schema.Any> = []
-  const numbers: Array<number> = []
+  const coercions: Record<number, ((v: AST.LiteralValue) => AST.LiteralValue) | undefined> = {}
   for (let i = 0; i < params.length; i++) {
-    const p = params[i]
-    if (isSchema(p)) {
-      const encoded = encodedSchema(p)
+    const param = params[i]
+    if (isSchema(param)) {
+      const encoded = encodedSchema(param)
       if (AST.isNumberKeyword(encoded.ast)) {
-        numbers.push(i)
+        coercions[i] = Number
       }
       encodedSchemas.push(encoded)
-      typeSchemas.push(p)
+      typeSchemas.push(param)
     } else {
-      const literal = Literal(p)
-      encodedSchemas.push(literal)
-      typeSchemas.push(literal)
+      const schema = Literal(param)
+      if (Predicate.isNumber(param)) {
+        coercions[i] = Number
+      } else if (Predicate.isBigInt(param)) {
+        coercions[i] = literalValueCoercions.bigint
+      } else if (Predicate.isBoolean(param)) {
+        coercions[i] = literalValueCoercions.boolean
+      } else if (Predicate.isNull(param)) {
+        coercions[i] = literalValueCoercions.null
+      }
+      encodedSchemas.push(schema)
+      typeSchemas.push(schema)
     }
   }
   const from = TemplateLiteral(...encodedSchemas as any)
   const re = AST.getTemplateLiteralCapturingRegExp(from.ast as AST.TemplateLiteral)
-  return class TemplateLiteralParserClass extends transform(from, Tuple(...typeSchemas), {
+  return class TemplateLiteralParserClass extends transformOrFail(from, Tuple(...typeSchemas), {
     strict: false,
-    decode: (s) => {
-      const out: Array<number | string> = re.exec(s)!.slice(1, params.length + 1)
-      for (let i = 0; i < numbers.length; i++) {
-        const index = numbers[i]
-        out[index] = Number(out[index])
+    decode: (s, _, ast) => {
+      const match = re.exec(s)
+      if (match) {
+        const out: Array<AST.LiteralValue> = match.slice(1, params.length + 1)
+        for (let i = 0; i < out.length; i++) {
+          const coerce = coercions[i]
+          if (coerce) {
+            out[i] = coerce(out[i])
+          }
+        }
+        return ParseResult.succeed(out)
       }
-      return out
+      return ParseResult.fail(new ParseResult.Type(ast, s, `${re.source}: no match for ${JSON.stringify(s)}`))
     },
-    encode: (tuple) => tuple.join("")
+    encode: (tuple) => ParseResult.succeed(tuple.join(""))
   }) {
     static params = params.slice()
   } as any
@@ -1106,16 +1125,17 @@ const getDefaultUnionAST = <Members extends AST.Members<Schema.All>>(members: Me
 const makeUnionClass = <Members extends AST.Members<Schema.All>>(
   members: Members,
   ast: AST.AST = getDefaultUnionAST(members)
-): Union<Members> =>
-  class UnionClass
-    extends make<Schema.Type<Members[number]>, Schema.Encoded<Members[number]>, Schema.Context<Members[number]>>(ast)
-  {
-    static override annotations(annotations: Annotations.Schema<Schema.Type<Members[number]>>): Union<Members> {
-      return makeUnionClass(this.members, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static members = [...members]
+): Union<
+  Members
+> => (class UnionClass
+  extends make<Schema.Type<Members[number]>, Schema.Encoded<Members[number]>, Schema.Context<Members[number]>>(ast)
+{
+  static override annotations(annotations: Annotations.Schema<Schema.Type<Members[number]>>): Union<Members> {
+    return makeUnionClass(this.members, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static members = [...members]
+})
 
 /**
  * @category combinators
@@ -1334,22 +1354,21 @@ const makeTupleTypeClass = <Elements extends TupleType.Elements, Rest extends Tu
   elements: Elements,
   rest: Rest,
   ast: AST.AST = getDefaultTupleTypeAST(elements, rest)
-) =>
-  class TupleTypeClass extends make<
-    TupleType.Type<Elements, Rest>,
-    TupleType.Encoded<Elements, Rest>,
-    Schema.Context<Elements[number]> | Schema.Context<Rest[number]>
-  >(ast) {
-    static override annotations(
-      annotations: Annotations.Schema<TupleType.Type<Elements, Rest>>
-    ): TupleType<Elements, Rest> {
-      return makeTupleTypeClass(this.elements, this.rest, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static elements = [...elements] as any as Elements
-
-    static rest = [...rest] as any as Rest
+) => (class TupleTypeClass extends make<
+  TupleType.Type<Elements, Rest>,
+  TupleType.Encoded<Elements, Rest>,
+  Schema.Context<Elements[number]> | Schema.Context<Rest[number]>
+>(ast) {
+  static override annotations(
+    annotations: Annotations.Schema<TupleType.Type<Elements, Rest>>
+  ): TupleType<Elements, Rest> {
+    return makeTupleTypeClass(this.elements, this.rest, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static elements = [...elements] as any as Elements
+
+  static rest = [...rest] as any as Rest
+})
 
 /**
  * @category api interface
@@ -1383,14 +1402,16 @@ export interface Array$<Value extends Schema.Any> extends TupleType<[], [Value]>
   annotations(annotations: Annotations.Schema<TupleType.Type<[], [Value]>>): Array$<Value>
 }
 
-const makeArrayClass = <Value extends Schema.Any>(value: Value, ast?: AST.AST): Array$<Value> =>
-  class ArrayClass extends makeTupleTypeClass<[], [Value]>([], [value], ast) {
-    static override annotations(annotations: Annotations.Schema<TupleType.Type<[], [Value]>>) {
-      return makeArrayClass(this.value, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static value = value
+const makeArrayClass = <Value extends Schema.Any>(
+  value: Value,
+  ast?: AST.AST
+): Array$<Value> => (class ArrayClass extends makeTupleTypeClass<[], [Value]>([], [value], ast) {
+  static override annotations(annotations: Annotations.Schema<TupleType.Type<[], [Value]>>) {
+    return makeArrayClass(this.value, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static value = value
+})
 
 const Array$ = <Value extends Schema.Any>(value: Value): Array$<Value> => makeArrayClass(value)
 
@@ -1411,14 +1432,18 @@ export interface NonEmptyArray<Value extends Schema.Any> extends TupleType<[Valu
   annotations(annotations: Annotations.Schema<TupleType.Type<[Value], [Value]>>): NonEmptyArray<Value>
 }
 
-const makeNonEmptyArrayClass = <Value extends Schema.Any>(value: Value, ast?: AST.AST): NonEmptyArray<Value> =>
-  class NonEmptyArrayClass extends makeTupleTypeClass<[Value], [Value]>([value], [value], ast) {
-    static override annotations(annotations: Annotations.Schema<TupleType.Type<[Value], [Value]>>) {
-      return makeNonEmptyArrayClass(this.value, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static value = value
+const makeNonEmptyArrayClass = <Value extends Schema.Any>(
+  value: Value,
+  ast?: AST.AST
+): NonEmptyArray<
+  Value
+> => (class NonEmptyArrayClass extends makeTupleTypeClass<[Value], [Value]>([value], [value], ast) {
+  static override annotations(annotations: Annotations.Schema<TupleType.Type<[Value], [Value]>>) {
+    return makeNonEmptyArrayClass(this.value, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static value = value
+})
 
 /**
  * @category constructors
@@ -2543,6 +2568,8 @@ export interface TypeLiteral<
   ): Simplify<TypeLiteral.Type<Fields, Records>>
 }
 
+const preserveMissingMessageAnnotation = AST.whiteListAnnotations([AST.MissingMessageAnnotationId])
+
 const getDefaultTypeLiteralAST = <
   Fields extends Struct.Fields,
   const Records extends IndexSignature.Records
@@ -2563,7 +2590,7 @@ const getDefaultTypeLiteralAST = <
             const type = ast.type
             const isOptional = ast.isOptional
             const toAnnotations = ast.annotations
-            from.push(new AST.PropertySignature(key, type, isOptional, true))
+            from.push(new AST.PropertySignature(key, type, isOptional, true, preserveMissingMessageAnnotation(ast)))
             to.push(new AST.PropertySignature(key, AST.typeAST(type), isOptional, true, toAnnotations))
             pss.push(
               new AST.PropertySignature(key, type, isOptional, true, toAnnotations)
@@ -2605,8 +2632,8 @@ const getDefaultTypeLiteralAST = <
         })
       }
       return new AST.Transformation(
-        new AST.TypeLiteral(from, issFrom, { [AST.TitleAnnotationId]: "Struct (Encoded side)" }),
-        new AST.TypeLiteral(to, issTo, { [AST.TitleAnnotationId]: "Struct (Type side)" }),
+        new AST.TypeLiteral(from, issFrom, { [AST.AutoTitleAnnotationId]: "Struct (Encoded side)" }),
+        new AST.TypeLiteral(to, issTo, { [AST.AutoTitleAnnotationId]: "Struct (Type side)" }),
         new AST.TypeLiteralTransformation(transformations)
       )
     }
@@ -2722,6 +2749,7 @@ export interface tag<Tag extends AST.LiteralValue> extends PropertySignature<":"
  * @see {@link TaggedStruct}
  *
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * const User = Schema.Struct({
@@ -2731,6 +2759,7 @@ export interface tag<Tag extends AST.LiteralValue> extends PropertySignature<":"
  * })
  *
  * assert.deepStrictEqual(User.make({ name: "John", age: 44 }), { _tag: "User", name: "John", age: 44 })
+ * ```
  *
  * @since 3.10.0
  */
@@ -2751,6 +2780,7 @@ export type TaggedStruct<Tag extends AST.LiteralValue, Fields extends Struct.Fie
  * The tag is optional when using the `make` method.
  *
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * const User = Schema.TaggedStruct("User", {
@@ -2759,6 +2789,7 @@ export type TaggedStruct<Tag extends AST.LiteralValue, Fields extends Struct.Fie
  * })
  *
  * assert.deepStrictEqual(User.make({ name: "John", age: 44 }), { _tag: "User", name: "John", age: 44 })
+ * ```
  *
  * @category constructors
  * @since 3.10.0
@@ -2780,18 +2811,21 @@ export interface Record$<K extends Schema.All, V extends Schema.All> extends Typ
   ): Record$<K, V>
 }
 
-const makeRecordClass = <K extends Schema.All, V extends Schema.All>(key: K, value: V, ast?: AST.AST): Record$<K, V> =>
-  class RecordClass extends makeTypeLiteralClass({}, [{ key, value }], ast) {
-    static override annotations(
-      annotations: Annotations.Schema<Simplify<TypeLiteral.Type<{}, [{ key: K; value: V }]>>>
-    ) {
-      return makeRecordClass(key, value, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static key = key
-
-    static value = value
+const makeRecordClass = <K extends Schema.All, V extends Schema.All>(
+  key: K,
+  value: V,
+  ast?: AST.AST
+): Record$<K, V> => (class RecordClass extends makeTypeLiteralClass({}, [{ key, value }], ast) {
+  static override annotations(
+    annotations: Annotations.Schema<Simplify<TypeLiteral.Type<{}, [{ key: K; value: V }]>>>
+  ) {
+    return makeRecordClass(key, value, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static key = key
+
+  static value = value
+})
 
 /**
  * @category constructors
@@ -2824,6 +2858,7 @@ export const omit = <A, I, Keys extends ReadonlyArray<keyof A & keyof I>>(...key
  * producing a new schema that represents a transformation from the `{ readonly [key]: I[K] }` type to `A[K]`.
  *
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  *
  * // ---------------------------------------------
@@ -2843,6 +2878,7 @@ export const omit = <A, I, Keys extends ReadonlyArray<keyof A & keyof I>>(...key
  *
  * console.log(Schema.decodeUnknownEither(Schema.Array(pullOutColumn))([{ column1: "1", column2: 100 }, { column1: "2", column2: 300 }]))
  * // Output: { _id: 'Either', _tag: 'Right', right: [ 1, 2 ] }
+ * ```
  *
  * @category struct transformations
  * @since 3.10.0
@@ -2895,16 +2931,17 @@ export interface brand<S extends Schema.Any, B extends string | symbol>
   annotations(annotations: Annotations.Schema<Schema.Type<S> & Brand<B>>): brand<S, B>
 }
 
-const makeBrandClass = <S extends Schema.Any, B extends string | symbol>(ast: AST.AST): brand<S, B> =>
-  class BrandClass extends make<Schema.Type<S> & Brand<B>, Schema.Encoded<S>, Schema.Context<S>>(ast) {
-    static override annotations(annotations: Annotations.Schema<Schema.Type<S> & Brand<B>>): brand<S, B> {
-      return makeBrandClass(mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static make = (a: Brand.Unbranded<Schema.Type<S> & Brand<B>>, options?: MakeOptions): Schema.Type<S> & Brand<B> => {
-      return getDisableValidationMakeOption(options) ? a : ParseResult.validateSync(this)(a)
-    }
+const makeBrandClass = <S extends Schema.Any, B extends string | symbol>(
+  ast: AST.AST
+): brand<S, B> => (class BrandClass extends make<Schema.Type<S> & Brand<B>, Schema.Encoded<S>, Schema.Context<S>>(ast) {
+  static override annotations(annotations: Annotations.Schema<Schema.Type<S> & Brand<B>>): brand<S, B> {
+    return makeBrandClass(mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static make = (a: Brand.Unbranded<Schema.Type<S> & Brand<B>>, options?: MakeOptions): Schema.Type<S> & Brand<B> => {
+    return getDisableValidationMakeOption(options) ? a : ParseResult.validateSync(this)(a)
+  }
+})
 
 /**
  * Returns a nominal branded schema by applying a brand to a given schema.
@@ -2917,10 +2954,12 @@ const makeBrandClass = <S extends Schema.Any, B extends string | symbol>(ast: AS
  * @param brand - The brand to apply.
  *
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  *
  * const Int = Schema.Number.pipe(Schema.int(), Schema.brand("Int"))
  * type Int = Schema.Schema.Type<typeof Int> // number & Brand<"Int">
+ * ```
  *
  * @category branding
  * @since 3.10.0
@@ -3208,6 +3247,7 @@ export interface extend<Self extends Schema.Any, That extends Schema.Any> extend
  * - A suspend of a struct with a supported schema
  *
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  *
  * const schema = Schema.Struct({
@@ -3229,6 +3269,7 @@ export interface extend<Self extends Schema.Any, That extends Schema.Any> extend
  *   Schema.extend(Schema.Struct({ c: Schema.String })), // <= you can add more fields
  *   Schema.extend(Schema.Record({ key: Schema.String, value: Schema.String })) // <= you can add index signatures
  * ))
+ * ```
  *
  * @category combinators
  * @since 3.10.0
@@ -3334,22 +3375,21 @@ const makeRefineClass = <From extends Schema.Any, A>(
     self: AST.Refinement
   ) => option_.Option<ParseResult.ParseIssue>,
   ast: AST.AST
-): refine<A, From> =>
-  class RefineClass extends make<A, Schema.Encoded<From>, Schema.Context<From>>(ast) {
-    static override annotations(annotations: Annotations.Schema<A>): refine<A, From> {
-      return makeRefineClass(this.from, this.filter, mergeSchemaAnnotations(this.ast, annotations))
-    }
-
-    static [RefineSchemaId] = from
-
-    static from = from
-
-    static filter = filter
-
-    static make = (a: Schema.Type<From>, options?: MakeOptions): A => {
-      return getDisableValidationMakeOption(options) ? a : ParseResult.validateSync(this)(a)
-    }
+): refine<A, From> => (class RefineClass extends make<A, Schema.Encoded<From>, Schema.Context<From>>(ast) {
+  static override annotations(annotations: Annotations.Schema<A>): refine<A, From> {
+    return makeRefineClass(this.from, this.filter, mergeSchemaAnnotations(this.ast, annotations))
   }
+
+  static [RefineSchemaId] = from
+
+  static from = from
+
+  static filter = filter
+
+  static make = (a: Schema.Type<From>, options?: MakeOptions): A => {
+    return getDisableValidationMakeOption(options) ? a : ParseResult.validateSync(this)(a)
+  }
+})
 
 /**
  * @category api interface
@@ -3531,22 +3571,25 @@ const makeTransformationClass = <From extends Schema.Any, To extends Schema.Any,
   from: From,
   to: To,
   ast: AST.AST
-): transformOrFail<From, To, R> =>
-  class TransformationClass
-    extends make<Schema.Type<To>, Schema.Encoded<From>, Schema.Context<From> | Schema.Context<To> | R>(ast)
-  {
-    static override annotations(annotations: Annotations.Schema<Schema.Type<To>>) {
-      return makeTransformationClass<From, To, R>(
-        this.from,
-        this.to,
-        mergeSchemaAnnotations(this.ast, annotations)
-      )
-    }
-
-    static from = from
-
-    static to = to
+): transformOrFail<
+  From,
+  To,
+  R
+> => (class TransformationClass
+  extends make<Schema.Type<To>, Schema.Encoded<From>, Schema.Context<From> | Schema.Context<To> | R>(ast)
+{
+  static override annotations(annotations: Annotations.Schema<Schema.Type<To>>) {
+    return makeTransformationClass<From, To, R>(
+      this.from,
+      this.to,
+      mergeSchemaAnnotations(this.ast, annotations)
+    )
   }
+
+  static from = from
+
+  static to = to
+})
 
 /**
  * Create a new `Schema` by transforming the input and output of an existing `Schema`
@@ -3721,11 +3764,13 @@ export interface transformLiteral<Type, Encoded> extends Annotable<transformLite
  * Creates a new `Schema` which transforms literal values.
  *
  * @example
+ * ```ts
  * import * as S from "effect/Schema"
  *
  * const schema = S.transformLiteral(0, "a")
  *
  * assert.deepStrictEqual(S.decodeSync(schema)(0), "a")
+ * ```
  *
  * @category constructors
  * @since 3.10.0
@@ -3740,6 +3785,7 @@ export const transformLiteral = <Encoded extends AST.LiteralValue, Type extends 
  * Creates a new `Schema` which maps between corresponding literal values.
  *
  * @example
+ * ```ts
  * import * as S from "effect/Schema"
  *
  * const Animal = S.transformLiterals(
@@ -3749,6 +3795,7 @@ export const transformLiteral = <Encoded extends AST.LiteralValue, Type extends 
  * )
  *
  * assert.deepStrictEqual(S.decodeSync(Animal)(1), "dog")
+ * ```
  *
  * @category constructors
  * @since 3.10.0
@@ -3778,6 +3825,7 @@ export function transformLiterals<
  * @param value - The value of the property to add to the schema.
  *
  * @example
+ * ```ts
  * import * as S from "effect/Schema"
  * import { pipe } from "effect/Function"
  *
@@ -3792,6 +3840,7 @@ export function transformLiterals<
  *   kind: "circle",
  *   radius: 10
  * })
+ * ```
  *
  * @category combinators
  * @since 3.10.0
@@ -4399,11 +4448,13 @@ export class Trimmed extends String$.pipe(
  * leading or trailing whitespace.
  *
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * console.log(Schema.decodeOption(Schema.NonEmptyTrimmedString)("")) // Option.none()
  * console.log(Schema.decodeOption(Schema.NonEmptyTrimmedString)(" a ")) // Option.none()
  * console.log(Schema.decodeOption(Schema.NonEmptyTrimmedString)("a")) // Option.some("a")
+ * ```
  *
  * @category string constructors
  * @since 3.10.0
@@ -4449,7 +4500,7 @@ export type ParseJsonOptions = {
 const JsonString = String$.annotations({
   [AST.IdentifierAnnotationId]: "JsonString",
   [AST.TitleAnnotationId]: "JsonString",
-  [AST.DescriptionAnnotationId]: "a JSON string"
+  [AST.DescriptionAnnotationId]: "a string that will be parsed as JSON"
 })
 
 const getParseJsonTransformation = (options?: ParseJsonOptions) =>
@@ -4480,10 +4531,12 @@ const getParseJsonTransformation = (options?: ParseJsonOptions) =>
  * Optionally, you can pass a schema `Schema<A, I, R>` to obtain an `A` type instead of `unknown`.
  *
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  *
  * assert.deepStrictEqual(Schema.decodeUnknownSync(Schema.parseJson())(`{"a":"1"}`), { a: "1" })
  * assert.deepStrictEqual(Schema.decodeUnknownSync(Schema.parseJson(Schema.Struct({ a: Schema.NumberFromString })))(`{"a":"1"}`), { a: 1 })
+ * ```
  *
  * @category string transformations
  * @since 3.10.0
@@ -4525,6 +4578,10 @@ export class UUID extends String$.pipe(
     schemaId: UUIDSchemaId,
     identifier: "UUID",
     title: "UUID",
+    jsonSchema: {
+      format: "uuid",
+      pattern: uuidRegexp.source
+    },
     description: "a Universally Unique Identifier",
     arbitrary: (): LazyArbitrary<string> => (fc) => fc.uuid()
   })
@@ -4556,6 +4613,49 @@ export class ULID extends String$.pipe(
     arbitrary: (): LazyArbitrary<string> => (fc) => fc.ulid()
   })
 ) {}
+
+/**
+ * Defines a schema that represents a `URL` object.
+ *
+ * @category URL constructors
+ * @since 3.11.0
+ */
+export class URLFromSelf extends instanceOf(URL, {
+  identifier: "URLFromSelf",
+  title: "URLFromSelf",
+  arbitrary: (): LazyArbitrary<URL> => (fc) => fc.webUrl().map((s) => new URL(s)),
+  pretty: () => (url) => url.toString()
+}) {}
+
+/** @ignore */
+class URL$ extends transformOrFail(
+  String$.annotations({ description: "a string that will be parsed into a URL" }),
+  URLFromSelf,
+  {
+    strict: true,
+    decode: (str, _, ast) =>
+      ParseResult.try({
+        try: () => new URL(str),
+        catch: () => new ParseResult.Type(ast, str)
+      }),
+    encode: (url) => ParseResult.succeed(url.toString())
+  }
+).annotations({
+  identifier: "URL",
+  title: "URL",
+  pretty: () => (url) => url.toString()
+}) {}
+
+export {
+  /**
+   * Defines a schema that attempts to convert a `string` to a `URL` object using
+   * the `new URL` constructor.
+   *
+   * @category URL transformations
+   * @since 3.11.0
+   */
+  URL$ as URL
+}
 
 /**
  * @category schema id
@@ -4889,7 +4989,7 @@ export const parseNumber = <A extends string, I, R>(
  *
  * The following special string values are supported: "NaN", "Infinity", "-Infinity".
  *
- * @category number constructors
+ * @category number transformations
  * @since 3.10.0
  */
 export class NumberFromString extends parseNumber(String$.annotations({
@@ -4958,6 +5058,7 @@ export const JsonNumberSchemaId: unique symbol = Symbol.for("effect/SchemaId/Jso
  * format.
  *
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  *
  * const is = Schema.is(S.JsonNumber)
@@ -4966,12 +5067,13 @@ export const JsonNumberSchemaId: unique symbol = Symbol.for("effect/SchemaId/Jso
  * assert.deepStrictEqual(is(Number.NaN), false)
  * assert.deepStrictEqual(is(Number.POSITIVE_INFINITY), false)
  * assert.deepStrictEqual(is(Number.NEGATIVE_INFINITY), false)
+ * ```
  *
  * @category number constructors
  * @since 3.10.0
  */
 export class JsonNumber extends Number$.pipe(
-  filter((n) => !Number.isNaN(n) && Number.isFinite(n), {
+  filter(Number.isFinite, {
     schemaId: JsonNumberSchemaId,
     identifier: "JsonNumber",
     title: "JSON-compatible number",
@@ -6601,11 +6703,13 @@ export const OptionFromUndefinedOr = <Value extends Schema.Any>(
  * `none` for invalid inputs and `some` for valid non-empty strings.
  *
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * console.log(Schema.decodeSync(Schema.OptionFromNonEmptyTrimmedString)("")) // Option.none()
  * console.log(Schema.decodeSync(Schema.OptionFromNonEmptyTrimmedString)(" a ")) // Option.some("a")
  * console.log(Schema.decodeSync(Schema.OptionFromNonEmptyTrimmedString)("a")) // Option.some("a")
+ * ```
  *
  * @category Option transformations
  * @since 3.10.0
@@ -6791,10 +6895,12 @@ export interface EitherFromUnion<R extends Schema.All, L extends Schema.All> ext
 
 /**
  * @example
+ * ```ts
  * import * as Schema from "effect/Schema"
  *
  * // Schema<string | number, Either<string, number>>
  * Schema.EitherFromUnion({ left: Schema.String, right: Schema.Number })
+ * ```
  *
  * @category Either transformations
  * @since 3.10.0
@@ -7174,7 +7280,8 @@ const bigDecimalPretty = (): pretty_.Pretty<bigDecimal_.BigDecimal> => (val) =>
   `BigDecimal(${bigDecimal_.format(bigDecimal_.normalize(val))})`
 
 const bigDecimalArbitrary = (): LazyArbitrary<bigDecimal_.BigDecimal> => (fc) =>
-  fc.tuple(fc.bigInt(), fc.integer()).map(([value, scale]) => bigDecimal_.make(value, scale))
+  fc.tuple(fc.bigInt(), fc.integer({ min: 0, max: 18 }))
+    .map(([value, scale]) => bigDecimal_.make(value, scale))
 
 /**
  * @category BigDecimal constructors
@@ -7739,7 +7846,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
   new(
     props: RequiredKeys<C> extends never ? void | Simplify<C> : Simplify<C>,
     options?: MakeOptions
-  ): Struct.Type<Fields> & Omit<Inherited, keyof Fields> & Proto
+  ): Struct.Type<Fields> & Inherited & Proto
 
   /** @since 3.10.0 */
   readonly ast: AST.Transformation
@@ -7754,6 +7861,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
 
   /**
    * @example
+   * ```ts
    * import { Schema } from "effect"
    *
    * class MyClass extends Schema.Class<MyClass>("MyClass")({
@@ -7771,8 +7879,9 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    *    return this.myMethod() + this.myField + this.nextField
    *  }
    * }
+   * ```
    */
-  extend<Extended = never>(identifier: string): <newFields extends Struct.Fields>(
+  extend<Extended = never>(identifier?: string | undefined): <newFields extends Struct.Fields>(
     fields: newFields | HasFields<newFields>,
     annotations?: Annotations.Schema<Extended>
   ) => [Extended] extends [never] ? MissingSelfGeneric<"Base.extend">
@@ -7788,6 +7897,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
 
   /**
    * @example
+   * ```ts
    * import { Effect, Schema } from "effect"
    *
    * class MyClass extends Schema.Class<MyClass>("MyClass")({
@@ -7812,8 +7922,9 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    *     return this.myMethod() + this.myField + this.nextField
    *   }
    * }
+   * ```
    */
-  transformOrFail<Transformed = never>(identifier: string): <
+  transformOrFail<Transformed = never>(identifier?: string | undefined): <
     newFields extends Struct.Fields,
     R2,
     R3
@@ -7845,6 +7956,7 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
 
   /**
    * @example
+   * ```ts
    * import { Effect, Schema } from "effect"
    *
    * class MyClass extends Schema.Class<MyClass>("MyClass")({
@@ -7869,8 +7981,9 @@ export interface Class<Self, Fields extends Struct.Fields, I, R, C, Inherited, P
    *     return this.myMethod() + this.myField + this.nextField
    *   }
    * }
+   * ```
    */
-  transformOrFailFrom<Transformed = never>(identifier: string): <
+  transformOrFailFrom<Transformed = never>(identifier?: string | undefined): <
     newFields extends Struct.Fields,
     R2,
     R3
@@ -7921,6 +8034,7 @@ const getFieldsFromFieldsOr = <Fields extends Struct.Fields>(fieldsOr: Fields | 
 
 /**
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * class MyClass extends Schema.Class<MyClass>("MyClass")({
@@ -7930,11 +8044,12 @@ const getFieldsFromFieldsOr = <Fields extends Struct.Fields>(fieldsOr: Fields | 
  *    return this.someField + "bar"
  *  }
  * }
+ * ```
  *
  * @category classes
  * @since 3.10.0
  */
-export const Class = <Self = never>(identifier: string) =>
+export const Class = <Self = never>(identifier?: string | undefined) =>
 <Fields extends Struct.Fields>(
   fieldsOr: Fields | HasFields<Fields>,
   annotations?: Annotations.Schema<Self>
@@ -7981,11 +8096,13 @@ export interface TaggedClass<Self, Tag extends string, Fields extends Struct.Fie
 
 /**
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * class MyClass extends Schema.TaggedClass<MyClass>("MyClass")("MyClass", {
  *  a: Schema.String
  * }) {}
+ * ```
  *
  * @category classes
  * @since 3.10.0
@@ -8034,6 +8151,7 @@ export interface TaggedErrorClass<Self, Tag extends string, Fields extends Struc
 
 /**
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * class MyError extends Schema.TaggedError<MyError>("MyError")(
@@ -8048,6 +8166,7 @@ export interface TaggedErrorClass<Self, Tag extends string, Fields extends Struc
  *     return `${this.module}.${this.method}: ${this.description}`
  *   }
  * }
+ * ```
  * @category classes
  * @since 3.10.0
  */
@@ -8099,15 +8218,6 @@ const extendFields = (a: Struct.Fields, b: Struct.Fields): Struct.Fields => {
   return out
 }
 
-// does not overwrite existing title annotation
-const orElseTitleAnnotation = <A, I, R>(schema: Schema<A, I, R>, title: string): Schema<A, I, R> => {
-  const annotation = AST.getTitleAnnotation(schema.ast)
-  if (option_.isNone(annotation)) {
-    return schema.annotations({ title })
-  }
-  return schema
-}
-
 type MakeOptions = boolean | {
   readonly disableValidation?: boolean
 }
@@ -8115,20 +8225,22 @@ type MakeOptions = boolean | {
 const getDisableValidationMakeOption = (options: MakeOptions | undefined): boolean =>
   Predicate.isBoolean(options) ? options : options?.disableValidation ?? false
 
+const astCache = globalValue("effect/Schema/astCache", () => new WeakMap<any, AST.AST>())
+
 const makeClass = ({ Base, annotations, disableToString, fields, identifier, kind, schema }: {
   kind: "Class" | "TaggedClass" | "TaggedError" | "TaggedRequest"
-  identifier: string
+  identifier: string | undefined
   schema: Schema.Any
   fields: Struct.Fields
   Base: new(...args: ReadonlyArray<any>) => any
   annotations?: Annotations.Schema<any> | undefined
   disableToString?: boolean | undefined
 }): any => {
-  const classSymbol = Symbol.for(`effect/Schema/${kind}/${identifier}`)
-  const validateSchema = orElseTitleAnnotation(schema, `${identifier} (Constructor)`)
-  const encodedSide: Schema.Any = orElseTitleAnnotation(schema, `${identifier} (Encoded side)`)
-  const typeSide = orElseTitleAnnotation(typeSchema(schema), `${identifier} (Type side)`)
-  const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, classSymbol) && ParseResult.is(typeSide)(u)
+  let symbolCache: symbol | undefined = undefined
+  let validateSchemaCache: Schema.Any | undefined = undefined
+  let encodedSideCache: Schema.Any | undefined = undefined
+  let identifierCache: string | undefined = undefined
+
   const klass = class extends Base {
     constructor(
       props: { [x: string | symbol]: unknown } = {},
@@ -8140,7 +8252,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       }
       props = lazilyMergeDefaults(fields, props)
       if (!getDisableValidationMakeOption(options)) {
-        props = ParseResult.validateSync(validateSchema)(props)
+        props = ParseResult.validateSync(klass.validateSchema)(props)
       }
       super(props, true)
     }
@@ -8151,7 +8263,30 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
 
     static [TypeId] = variance
 
-    static get ast() {
+    static get validateSchema(): Schema.Any {
+      return validateSchemaCache ??= schema.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Constructor)`
+      })
+    }
+
+    static get encodedSide(): Schema.Any {
+      return encodedSideCache ??= schema.annotations({
+        [AST.AutoTitleAnnotationId]: `${this.identifier} (Encoded side)`
+      })
+    }
+
+    static get ast(): AST.AST {
+      if (astCache.has(this)) {
+        return astCache.get(this)!
+      }
+      const identifier = this.identifier
+      const ts = typeSchema(schema)
+      const declarationSurrogate = ts.annotations({ identifier, ...annotations })
+      const typeSide = ts.annotations({ [AST.AutoTitleAnnotationId]: `${identifier} (Type side)` })
+      const transformationSurrogate = schema.annotations({ ...annotations })
+
+      const fallbackInstanceOf = (u: unknown) =>
+        Predicate.hasProperty(u, this.classSymbol) && ParseResult.is(typeSide)(u)
       const declaration: Schema.Any = declare(
         [typeSide],
         {
@@ -8165,25 +8300,28 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
               : ParseResult.map(
                 ParseResult.encodeUnknown(typeSide)(input, options),
                 (props) => new this(props, true)
-              )
+              ) as any
         },
         {
           identifier,
-          title: identifier,
-          description: `an instance of ${identifier}`,
           pretty: (pretty) => (self: any) => `${identifier}(${pretty(self)})`,
           // @ts-expect-error
           arbitrary: (arb) => (fc) => arb(fc).map((props) => new this(props)),
           equivalence: identity,
-          [AST.SurrogateAnnotationId]: typeSide.ast,
+          [AST.SurrogateAnnotationId]: declarationSurrogate.ast,
           ...annotations
         }
       )
+
       const transformation = transform(
-        encodedSide,
+        this.encodedSide,
         declaration,
         { strict: true, decode: (input) => new this(input, true), encode: identity }
-      ).annotations({ [AST.SurrogateAnnotationId]: schema.ast })
+      ).annotations({
+        [AST.JSONIdentifierAnnotationId]: identifier,
+        [AST.SurrogateAnnotationId]: transformationSurrogate.ast
+      })
+      astCache.set(this, transformation.ast)
       return transformation.ast
     }
 
@@ -8196,7 +8334,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
     }
 
     static toString() {
-      return `(${String(encodedSide)} <-> ${identifier})`
+      return `(${String(this.encodedSide)} <-> ${this.identifier})`
     }
 
     // ----------------
@@ -8209,9 +8347,9 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
 
     static fields = { ...fields }
 
-    static identifier = identifier
+    static customIdentifier?: string
 
-    static extend<Extended>(identifier: string) {
+    static extend<Extended>(identifier?: string | undefined) {
       return (newFieldsOr: Struct.Fields | HasFields<Struct.Fields>, annotations?: Annotations.Schema<Extended>) => {
         const newFields = getFieldsFromFieldsOr(newFieldsOr)
         const newSchema = getSchemaFromFieldsOr(newFieldsOr)
@@ -8227,7 +8365,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       }
     }
 
-    static transformOrFail<Transformed>(identifier: string) {
+    static transformOrFail<Transformed>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, options: any, annotations?: Annotations.Schema<Transformed>) => {
         const transformedFields: Struct.Fields = extendFields(fields, newFields)
         return makeClass({
@@ -8245,7 +8383,7 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       }
     }
 
-    static transformOrFailFrom<Transformed>(identifier: string) {
+    static transformOrFailFrom<Transformed>(identifier?: string | undefined) {
       return (newFields: Struct.Fields, options: any, annotations?: Annotations.Schema<Transformed>) => {
         const transformedFields: Struct.Fields = extendFields(fields, newFields)
         return makeClass({
@@ -8267,14 +8405,18 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
     // other
     // ----------------
 
-    get [classSymbol]() {
-      return classSymbol
+    static get identifier() {
+      return identifierCache ??= identifier || this.customIdentifier || this.name
+    }
+
+    static get classSymbol() {
+      return symbolCache ??= Symbol.for(`effect/schema/${kind}/${this.identifier}`)
     }
   }
   if (disableToString !== true) {
     Object.defineProperty(klass.prototype, "toString", {
       value() {
-        return `${identifier}({ ${
+        return `${this.constructor.identifier}({ ${
           util_.ownKeys(fields).map((p: any) => `${util_.formatPropertyKey(p)}: ${util_.formatUnknown(this[p])}`)
             .join(", ")
         } })`
@@ -9246,6 +9388,19 @@ export class BooleanFromUnknown extends transform(
 ).annotations({ identifier: "BooleanFromUnknown" }) {}
 
 /**
+ * Converts an `string` value into its corresponding `boolean`
+ * ("true" as `true` and "false" as `false`).
+ *
+ * @category boolean transformations
+ * @since 3.11.0
+ */
+export class BooleanFromString extends transform(
+  Literal("true", "false"),
+  Boolean$,
+  { strict: true, decode: (value) => value === "true", encode: (value) => value ? "true" : "false" }
+).annotations({ identifier: "BooleanFromString" }) {}
+
+/**
  * @category Config validations
  * @since 3.10.0
  */
@@ -9717,6 +9872,7 @@ export interface TaggedRequestClass<
 
 /**
  * @example
+ * ```ts
  * import { Schema } from "effect"
  *
  * class MyRequest extends Schema.TaggedRequest<MyRequest>("MyRequest")("MyRequest", {
@@ -9724,6 +9880,7 @@ export interface TaggedRequestClass<
  *  success: Schema.Number,
  *  payload: { id: Schema.String }
  * }) {}
+ * ```
  *
  * @category classes
  * @since 3.10.0

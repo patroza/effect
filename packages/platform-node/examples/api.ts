@@ -40,10 +40,7 @@ export class Authentication extends HttpApiMiddleware.Tag<Authentication>()("Aut
 
 class UsersApi extends HttpApiGroup.make("users")
   .add(
-    HttpApiEndpoint.get("findById", "/:id")
-      .setPath(Schema.Struct({
-        id: Schema.NumberFromString
-      }))
+    HttpApiEndpoint.get("findById")`/${HttpApiSchema.param("id", Schema.NumberFromString)}`
       .addSuccess(User)
       .setHeaders(Schema.Struct({
         page: Schema.NumberFromString.pipe(
@@ -103,9 +100,20 @@ class TopLevelApi extends HttpApiGroup.make("topLevel", { topLevel: true })
   }))
 {}
 
+class PeopleApi extends HttpApiGroup.make("people")
+  .add(
+    HttpApiEndpoint.get("list", "/")
+      .addSuccess(Schema.Array(User))
+  )
+  .prefix("/people")
+{}
+
+class AnotherApi extends HttpApi.empty.add(PeopleApi).prefix("/v2") {}
+
 class MyApi extends HttpApi.empty
   .add(UsersApi)
   .add(TopLevelApi)
+  .addHttpApi(AnotherApi)
 {}
 
 // ------------------------------------------------
@@ -150,6 +158,12 @@ const UsersLive = HttpApiBuilder.group(
   Layer.provide(AuthenticationLive)
 )
 
+const PeopleLive = HttpApiBuilder.group(
+  MyApi,
+  "people",
+  (handlers) => handlers.handle("list", (_) => Effect.succeed([new User({ id: 1, name: "John" })]))
+)
+
 const TopLevelLive = HttpApiBuilder.group(
   MyApi,
   "topLevel",
@@ -165,7 +179,7 @@ const TopLevelLive = HttpApiBuilder.group(
 )
 
 const ApiLive = HttpApiBuilder.api(MyApi).pipe(
-  Layer.provide([UsersLive, TopLevelLive])
+  Layer.provide([UsersLive, TopLevelLive, PeopleLive])
 )
 
 // ------------------------------------------------
@@ -203,7 +217,7 @@ Effect.gen(function*() {
   user = yield* client.users.me()
   console.log("json me", user)
 
-  const csv = yield* client.csv()
+  const csv = yield* client.csv({ withResponse: true })
   console.log("csv", csv)
 
   const urlParams = yield* client.urlParams()
@@ -211,6 +225,8 @@ Effect.gen(function*() {
 
   const binary = yield* client.binary()
   console.log("binary", binary)
+
+  console.log("merged api", yield* client.people.list())
 }).pipe(
   Effect.provide(FetchHttpClient.layer),
   NodeRuntime.runMain

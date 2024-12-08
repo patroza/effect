@@ -193,6 +193,7 @@ export const accumulateChunks: <A, E, R>(self: Stream<A, E, R>) => Stream<A, E, 
  * stream is consumed.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * // Simulating File operations
@@ -214,6 +215,7 @@ export const accumulateChunks: <A, E, R>(self: Stream<A, E, R>) => Stream<A, E, 
  * // Opening file.txt
  * // Closing file.txt
  * // { _id: 'Chunk', values: [ [ 'Line 1', 'Line 2', 'Line 3' ] ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -297,12 +299,14 @@ export const aggregateWithinEither: {
  * Maps the success values of this stream to the specified constant value.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.range(1, 5).pipe(Stream.as(null))
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ null, null, null, null, null ] }
+ * ```
  *
  * @since 2.0.0
  * @category mapping
@@ -330,6 +334,7 @@ export {
    * executed if the `Fiber` executing this Effect is interrupted.
    *
    * @example
+   * ```ts
    * import type { StreamEmit } from "effect"
    * import { Chunk, Effect, Option, Stream } from "effect"
    *
@@ -352,6 +357,7 @@ export {
    * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
    * // { _id: 'Chunk', values: [ 1, 2 ] }
    *
+   * ```
    * @since 2.0.0
    * @category constructors
    */
@@ -389,6 +395,7 @@ export const asyncEffect: <A, E = never, R = never>(
  * second argument with the `bufferSize` and `strategy` fields.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * Stream.asyncPush<string>((emit) =>
@@ -403,6 +410,7 @@ export const asyncEffect: <A, E = never, R = never>(
  *         clearInterval(handle)
  *       })
  *   ), { bufferSize: 16, strategy: "dropping" })
+ * ```
  *
  * @since 3.6.0
  * @category constructors
@@ -458,6 +466,7 @@ export const branchAfter: {
  * chunks before the slowest downstream stream.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Fiber, Schedule, Stream } from "effect"
  *
  * const numbers = Effect.scoped(
@@ -527,6 +536,7 @@ export const branchAfter: {
  * // Logging to the Console: 19
  * // Logging to the Console: 20
  * // { _id: 'Chunk', values: [ undefined ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -684,6 +694,7 @@ export const broadcastedQueuesDynamic: {
  *       of 2 for better performance.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Schedule, Stream } from "effect"
  *
  * const stream = Stream.range(1, 10).pipe(
@@ -710,6 +721,7 @@ export const broadcastedQueuesDynamic: {
  * // after buffering: 5
  * // before buffering: 10
  * // ...
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -897,12 +909,14 @@ export const catchSomeCause: {
  * elements are equal.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 1, 1, 2, 2, 3, 4).pipe(Stream.changes)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -1036,6 +1050,7 @@ export const combineChunks: {
  * specified stream.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 2, 3)
@@ -1045,6 +1060,7 @@ export const combineChunks: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4, 5 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -1058,6 +1074,7 @@ export const concat: {
  * Concatenates all of the streams in the chunk to one stream.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 2, 3)
@@ -1074,6 +1091,7 @@ export const concat: {
  * //     5, 6, 7, 8
  * //   ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1088,6 +1106,7 @@ export const concatAll: <A, E, R>(streams: Chunk.Chunk<Stream<A, E, R>>) => Stre
  * See also `Stream.zip` for the more common point-wise variant.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 2, 3)
@@ -1102,6 +1121,7 @@ export const concatAll: <A, E, R>(streams: Chunk.Chunk<Stream<A, E, R>>) => Stre
  * //     [ 1, "a" ], [ 1, "b" ], [ 2, "a" ], [ 2, "b" ], [ 3, "a" ], [ 3, "b" ]
  * //   ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -1176,6 +1196,7 @@ export const crossWith: {
  * has paused typing so as to not prematurely recommend results.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * let last = Date.now()
@@ -1213,6 +1234,7 @@ export const crossWith: {
  * // Received 8 after 1ms
  * // > Emitted 8 after 101ms
  * // { _id: 'Chunk', values: [ 3, 6, 8 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -1310,6 +1332,7 @@ export const distributedWithDynamic: {
  * elements. Useful for sequencing effects using streams:
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // We create a stream and immediately drain it.
@@ -1317,6 +1340,7 @@ export const distributedWithDynamic: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -1434,12 +1458,14 @@ export const either: <A, E, R>(self: Stream<A, E, R>) => Stream<Either.Either<A,
  * The empty stream.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.empty
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1450,6 +1476,7 @@ export const empty: Stream<never> = internal.empty
  * Executes the provided finalizer after this stream's finalizers run.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * const program = Stream.fromEffect(Console.log("Application Logic.")).pipe(
@@ -1464,6 +1491,7 @@ export const empty: Stream<never> = internal.empty
  * // Finalizing the stream
  * // Doing some other works after stream's finalization
  * // { _id: 'Chunk', values: [ undefined, undefined ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -1537,6 +1565,7 @@ export const execute: <X, E, R>(effect: Effect.Effect<X, E, R>) => Stream<never,
  * Terminates with the specified error.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.fail("Uh oh!")
@@ -1547,6 +1576,7 @@ export const execute: <X, E, R>(effect: Effect.Effect<X, E, R>) => Stream<never,
  * //   _tag: 'Failure',
  * //   cause: { _id: 'Cause', _tag: 'Fail', failure: 'Uh oh!' }
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1581,12 +1611,14 @@ export const failCauseSync: <E>(evaluate: LazyArg<Cause.Cause<E>>) => Stream<nev
  * Filters the elements emitted by this stream using the provided function.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.range(1, 11).pipe(Stream.filter((n) => n % 2 === 0))
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 2, 4, 6, 8, 10 ] }
+ * ```
  *
  * @since 2.0.0
  * @category filtering
@@ -1672,6 +1704,7 @@ export const filterMapWhileEffect: {
  * when it ends.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * const application = Stream.fromEffect(Console.log("Application Logic."))
@@ -1693,6 +1726,7 @@ export const filterMapWhileEffect: {
  * // Deleting dir: tmp
  * // Temporary directory was deleted.
  * // { _id: 'Chunk', values: [ undefined, undefined ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1855,6 +1889,7 @@ export const forever: <A, E, R>(self: Stream<A, E, R>) => Stream<A, E, R> = inte
  * Creates a stream from an `AsyncIterable`.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const myAsyncIterable = async function*() {
@@ -1869,6 +1904,7 @@ export const forever: <A, E, R>(self: Stream<A, E, R>) => Stream<A, E, R> = inte
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1900,6 +1936,7 @@ export const toChannel: <A, E, R>(
  * Creates a stream from a `Chunk` of values.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Stream } from "effect"
  *
  * // Creating a stream with values from a single Chunk
@@ -1907,6 +1944,7 @@ export const toChannel: <A, E, R>(
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1949,6 +1987,7 @@ export const fromChunkQueue: <A>(
  * Creates a stream from an arbitrary number of chunks.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Stream } from "effect"
  *
  * // Creating a stream with values from multiple Chunks
@@ -1956,6 +1995,7 @@ export const fromChunkQueue: <A>(
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4, 5, 6 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -1967,12 +2007,14 @@ export const fromChunks: <A>(...chunks: Array<Chunk.Chunk<A>>) => Stream<A> = in
  * with the failure value of this effect.
  *
  * @example
+ * ```ts
  * import { Effect, Random, Stream } from "effect"
  *
  * const stream = Stream.fromEffect(Random.nextInt)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // Example Output: { _id: 'Chunk', values: [ 922694024 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -2027,6 +2069,7 @@ export const fromTPubSub: <A>(pubsub: TPubSub<A>) => Stream<A> = internal.fromTP
  * Creates a new `Stream` from an iterable collection of values.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const numbers = [1, 2, 3]
@@ -2035,6 +2078,7 @@ export const fromTPubSub: <A>(pubsub: TPubSub<A>) => Stream<A> = internal.fromTP
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -2045,6 +2089,7 @@ export const fromIterable: <A>(iterable: Iterable<A>) => Stream<A> = internal.fr
  * Creates a stream from an effect producing a value of type `Iterable<A>`.
  *
  * @example
+ * ```ts
  * import { Context, Effect, Stream } from "effect"
  *
  * class Database extends Context.Tag("Database")<
@@ -2060,6 +2105,7 @@ export const fromIterable: <A>(iterable: Iterable<A>) => Stream<A> = internal.fr
  * //   Stream.runCollect(stream.pipe(Stream.provideService(Database, { getUsers: Effect.succeed(["user1", "user2"]) })))
  * // ).then(console.log)
  * // { _id: 'Chunk', values: [ 'user1', 'user2' ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -2162,6 +2208,7 @@ export const fromReadableStreamByob: {
  * schedule, continuing for as long as the schedule continues.
  *
  * @example
+ * ```ts
  * import { Effect, Schedule, Stream } from "effect"
  *
  * // Emits values every 1 second for a total of 5 emissions
@@ -2173,6 +2220,7 @@ export const fromReadableStreamByob: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 0, 1, 2, 3, 4 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -2196,6 +2244,7 @@ export const groupAdjacentBy: {
  * More powerful version of `Stream.groupByKey`.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, GroupBy, Stream } from "effect"
  *
  * const groupByKeyResult = Stream.fromIterable([
@@ -2223,6 +2272,7 @@ export const groupAdjacentBy: {
  * //   _id: 'Chunk',
  * //   values: [ [ 'M', 1 ], [ 'J', 3 ], [ 'R', 2 ], [ 'P', 2 ] ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category grouping
@@ -2296,6 +2346,7 @@ export const groupByKey: {
  * Partitions the stream with specified `chunkSize`.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.range(0, 8).pipe(Stream.grouped(3))
@@ -2310,6 +2361,7 @@ export const groupByKey: {
  * //     [length]: 3
  * //   ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category grouping
@@ -2324,6 +2376,7 @@ export const grouped: {
  * `duration` has passed, whichever is satisfied first.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Schedule, Stream } from "effect"
  *
  * const stream = Stream.range(0, 9).pipe(
@@ -2359,6 +2412,7 @@ export const grouped: {
  * //     ]
  * //   }
  * // ]
+ * ```
  *
  * @since 2.0.0
  * @category grouping
@@ -2432,6 +2486,7 @@ export const identity: <A, E = never, R = never>() => Stream<A, E, R> = internal
  * pulled.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 2, 3)
@@ -2441,6 +2496,7 @@ export const identity: <A, E = never, R = never>() => Stream<A, E, R> = internal
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 4, 2, 5, 3, 6 ] }
+ * ```
  * @since 2.0.0
  * @category utils
  */
@@ -2459,6 +2515,7 @@ export const interleave: {
  * ignored.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 3, 5, 7, 9)
@@ -2476,6 +2533,7 @@ export const interleave: {
  * //     8, 5, 10, 7, 9
  * //   ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -2496,6 +2554,7 @@ export const interleaveWith: {
  * Intersperse stream with provided `element`.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3, 4, 5).pipe(Stream.intersperse(0))
@@ -2508,6 +2567,7 @@ export const interleaveWith: {
  * //     0, 4, 0, 5
  * //   ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -2521,6 +2581,7 @@ export const intersperse: {
  * Intersperse the specified element, also adding a prefix and a suffix.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3, 4, 5).pipe(
@@ -2540,6 +2601,7 @@ export const intersperse: {
  * //     ']'
  * //   ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -2603,6 +2665,7 @@ export const interruptWhenDeferred: {
  * f(f(f(a))), ...
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // An infinite Stream of numbers starting from 1 and incrementing
@@ -2610,6 +2673,7 @@ export const interruptWhenDeferred: {
  *
  * // Effect.runPromise(Stream.runCollect(stream.pipe(Stream.take(10)))).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -2620,12 +2684,14 @@ export const iterate: <A>(value: A, next: (value: A) => A) => Stream<A> = intern
  * Creates a stream from an sequence of values.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -2636,12 +2702,14 @@ export const make: <As extends Array<any>>(...as: As) => Stream<As[number]> = in
  * Transforms the elements of this stream using the supplied function.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3).pipe(Stream.map((n) => n + 1))
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 2, 3, 4 ] }
+ * ```
  *
  * @since 2.0.0
  * @category mapping
@@ -2655,6 +2723,7 @@ export const map: {
  * Statefully maps over the elements of this stream to produce new elements.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const runningTotal = (stream: Stream.Stream<number>): Stream.Stream<number> =>
@@ -2665,6 +2734,7 @@ export const map: {
  * //   console.log
  * // )
  * // { _id: "Chunk", values: [ 0, 1, 3, 6, 10, 15, 21 ] }
+ * ```
  *
  * @since 2.0.0
  * @category mapping
@@ -2742,6 +2812,7 @@ export const mapChunksEffect: {
  * output of this stream.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const numbers = Stream.make("1-2-3", "4-5", "6").pipe(
@@ -2751,6 +2822,7 @@ export const mapChunksEffect: {
  *
  * // Effect.runPromise(Stream.runCollect(numbers)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4, 5, 6 ] }
+ * ```
  *
  * @since 2.0.0
  * @category mapping
@@ -2810,6 +2882,7 @@ export const mapConcatEffect: {
  * Maps over elements of the stream with the specified effectful function.
  *
  * @example
+ * ```ts
  * import { Effect, Random, Stream } from "effect"
  *
  * const stream = Stream.make(10, 20, 30).pipe(
@@ -2818,6 +2891,7 @@ export const mapConcatEffect: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // Example Output: { _id: 'Chunk', values: [ 7, 19, 8 ] }
+ * ```
  *
  * @since 2.0.0
  * @category mapping
@@ -2876,6 +2950,7 @@ export const mapErrorCause: {
  * no termination strategy is specified.
  *
  * @example
+ * ```ts
  * import { Effect, Schedule, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 2, 3).pipe(
@@ -2889,6 +2964,7 @@ export const mapErrorCause: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 4, 2, 3, 5, 6 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -2935,12 +3011,14 @@ export const mergeAll: {
  * @since 3.8.5
  *
  * @example
+ * ```ts
  * import { Stream } from "effect"
  * // Stream.Stream<{ _tag: "a"; value: number; } | { _tag: "b"; value: string; }>
  * const res = Stream.mergeWithTag({
  *    a: Stream.make(0),
  *    b: Stream.make("")
  * }, { concurrency: "unbounded" })
+ * ```
  */
 export const mergeWithTag: {
   <S extends { [k in string]: Stream<any, any, any> }>(
@@ -2972,6 +3050,7 @@ export const mergeWithTag: {
  * no termination strategy is specified.
  *
  * @example
+ * ```ts
  * import { Effect, Schedule, Stream } from "effect"
  *
  * const s1 = Stream.make("1", "2", "3").pipe(
@@ -2988,6 +3067,7 @@ export const mergeWithTag: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 4, 2, 3, 5, 6 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -3071,6 +3151,7 @@ export const never: Stream<never> = internal.never
  * Adds an effect to be executed at the end of the stream.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3).pipe(
@@ -3085,6 +3166,7 @@ export const never: Stream<never> = internal.never
  * // after mapping: 6
  * // Stream ended
  * // { _id: 'Chunk', values: [ 2, 4, 6 ] }
+ * ```
  *
  * @since 3.6.0
  * @category sequencing
@@ -3134,6 +3216,7 @@ export const onDone: {
  * Adds an effect to be executed at the start of the stream.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3).pipe(
@@ -3148,6 +3231,7 @@ export const onDone: {
  * // after mapping: 4
  * // after mapping: 6
  * // { _id: 'Chunk', values: [ 2, 4, 6 ] }
+ * ```
  *
  * @since 3.6.0
  * @category sequencing
@@ -3277,6 +3361,7 @@ export const orElseSucceed: {
  * APIs, hence the name.
  *
  * @example
+ * ```ts
  * import { Effect, Option, Stream } from "effect"
  *
  * const stream = Stream.paginate(0, (n) => [
@@ -3286,6 +3371,7 @@ export const orElseSucceed: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 0, 1, 2, 3 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -3332,29 +3418,41 @@ export const paginateEffect: <S, A, E, R>(
 ) => Stream<A, E, R> = internal.paginateEffect
 
 /**
- * Partition a stream using a predicate. The first stream will contain all
- * element evaluated to true and the second one will contain all element
- * evaluated to false. The faster stream may advance by up to buffer elements
- * further than the slower one.
+ * Splits a stream into two substreams based on a predicate.
+ *
+ * **Details**
+ *
+ * The `Stream.partition` function splits a stream into two parts: one for
+ * elements that satisfy the predicate (evaluated to `true`) and another for
+ * those that do not (evaluated to `false`).
+ *
+ * The faster stream may advance up to `bufferSize` elements ahead of the slower
+ * one.
+ *
+ * @see {@link partitionEither} for partitioning a stream based on effectful
+ * conditions.
  *
  * @example
+ * ```ts
+ * // Title: Partitioning a Stream into Even and Odd Numbers
  * import { Effect, Stream } from "effect"
  *
- * const partition = Stream.range(1, 10).pipe(
+ * const partition = Stream.range(1, 9).pipe(
  *   Stream.partition((n) => n % 2 === 0, { bufferSize: 5 })
  * )
  *
  * const program = Effect.scoped(
  *   Effect.gen(function*() {
- *     const [evens, odds] = yield* partition
- *     console.log(yield* Stream.runCollect(evens))
+ *     const [odds, evens] = yield* partition
  *     console.log(yield* Stream.runCollect(odds))
+ *     console.log(yield* Stream.runCollect(evens))
  *   })
  * )
  *
  * // Effect.runPromise(program)
- * // { _id: 'Chunk', values: [ 2, 4, 6, 8, 10 ] }
  * // { _id: 'Chunk', values: [ 1, 3, 5, 7, 9 ] }
+ * // { _id: 'Chunk', values: [ 2, 4, 6, 8 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -3385,15 +3483,29 @@ export const partition: {
 } = internal.partition
 
 /**
- * Split a stream by an effectful predicate. The faster stream may advance by
- * up to buffer elements further than the slower one.
+ * Splits a stream into two substreams based on an effectful condition.
+ *
+ * **Details**
+ *
+ * The `Stream.partitionEither` function is used to divide a stream into two
+ * parts: one for elements that satisfy a condition producing `Either.left`
+ * values, and another for those that produce `Either.right` values. This
+ * function applies an effectful predicate to each element in the stream to
+ * determine which substream it belongs to.
+ *
+ * The faster stream may advance up to `bufferSize` elements ahead of the slower
+ * one.
+ *
+ * @see {@link partition} for partitioning a stream based on simple conditions.
  *
  * @example
+ * ```ts
+ * // Title: Partitioning a Stream with an Effectful Predicate
  * import { Effect, Either, Stream } from "effect"
  *
  * const partition = Stream.range(1, 9).pipe(
  *   Stream.partitionEither(
- *     (n) => Effect.succeed(n % 2 === 0 ? Either.left(n) : Either.right(n)),
+ *     (n) => Effect.succeed(n % 2 === 0 ? Either.right(n) : Either.left(n)),
  *     { bufferSize: 5 }
  *   )
  * )
@@ -3407,8 +3519,9 @@ export const partition: {
  * )
  *
  * // Effect.runPromise(program)
- * // { _id: 'Chunk', values: [ 2, 4, 6, 8 ] }
  * // { _id: 'Chunk', values: [ 1, 3, 5, 7, 9 ] }
+ * // { _id: 'Chunk', values: [ 2, 4, 6, 8 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -3619,6 +3732,7 @@ export const provideSomeLayer: {
  * Any upstream failures will cause the returned stream to fail.
  *
  * @example
+ * ```ts
  * import { Stream, Schedule, Console, Effect } from "effect"
  *
  * const stream = Stream.fromSchedule(Schedule.spaced('2 millis')).pipe(
@@ -3635,6 +3749,7 @@ export const provideSomeLayer: {
  * // 3
  * // 4
  * // 5
+ * ```
  * @since 3.7.0
  * @category racing
  */
@@ -3655,6 +3770,7 @@ export const race: {
  * Any upstream failures will cause the returned stream to fail.
  *
  * @example
+ * ```ts
  * import { Stream, Schedule, Console, Effect } from "effect"
  *
  * const stream = Stream.raceAll(
@@ -3671,6 +3787,7 @@ export const race: {
  * // 3
  * // 4
  * // 5
+ * ```
  * @since 3.5.0
  * @category racing
  */
@@ -3686,6 +3803,7 @@ export const raceAll: <S extends ReadonlyArray<Stream<any, any, any>>>(
  * Constructs a stream from a range of integers, including both endpoints.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // A Stream with a range of numbers from 1 to 5
@@ -3693,6 +3811,7 @@ export const raceAll: <S extends ReadonlyArray<Stream<any, any, any>>>(
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4, 5 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -3742,12 +3861,14 @@ export const refineOrDieWith: {
  * execute normally, and then repeat again according to the provided schedule.
  *
  * @example
+ * ```ts
  * import { Effect, Schedule, Stream } from "effect"
  *
  * const stream = Stream.repeat(Stream.succeed(1), Schedule.forever)
  *
  * // Effect.runPromise(Stream.runCollect(stream.pipe(Stream.take(5)))).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 1, 1, 1, 1 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -3762,12 +3883,14 @@ export const repeat: {
  * forever.
  *
  * @example
+ * ```ts
  * import { Effect, Random, Stream } from "effect"
  *
  * const stream = Stream.repeatEffect(Random.nextInt)
  *
  * // Effect.runPromise(Stream.runCollect(stream.pipe(Stream.take(5)))).then(console.log)
  * // Example Output: { _id: 'Chunk', values: [ 3891571149, 4239494205, 2352981603, 2339111046, 1488052210 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -3800,6 +3923,7 @@ export const repeatEffectChunkOption: <A, E, R>(
  * with `None`.
  *
  * @example
+ * ```ts
  * // In this example, we're draining an Iterator to create a stream from it
  * import { Stream, Effect, Option } from "effect"
  *
@@ -3814,6 +3938,7 @@ export const repeatEffectChunkOption: <A, E, R>(
  *       })
  *     )
  *   )
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -3897,12 +4022,14 @@ export const repeatElementsWith: {
  * Repeats the provided value infinitely.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.repeatValue(0)
  *
  * // Effect.runPromise(Stream.runCollect(stream.pipe(Stream.take(5)))).then(console.log)
  * // { _id: 'Chunk', values: [ 0, 0, 0, 0, 0 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -3972,8 +4099,7 @@ export const run: {
  * @since 2.0.0
  * @category destructors
  */
-export const runCollect: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<Chunk.Chunk<A>, E, Exclude<R, Scope.Scope>> =
-  internal.runCollect
+export const runCollect: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<Chunk.Chunk<A>, E, R> = internal.runCollect
 
 /**
  * Runs the stream and emits the number of elements processed
@@ -3981,8 +4107,7 @@ export const runCollect: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<Chunk
  * @since 2.0.0
  * @category destructors
  */
-export const runCount: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<number, E, Exclude<R, Scope.Scope>> =
-  internal.runCount
+export const runCount: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<number, E, R> = internal.runCount
 
 /**
  * Runs the stream only for its effects. The emitted elements are discarded.
@@ -3990,8 +4115,7 @@ export const runCount: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<number,
  * @since 2.0.0
  * @category destructors
  */
-export const runDrain: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<void, E, Exclude<R, Scope.Scope>> =
-  internal.runDrain
+export const runDrain: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<void, E, R> = internal.runDrain
 
 /**
  * Executes a pure fold over the stream of values - reduces all elements in
@@ -4001,8 +4125,8 @@ export const runDrain: <A, E, R>(self: Stream<A, E, R>) => Effect.Effect<void, E
  * @category destructors
  */
 export const runFold: {
-  <S, A>(s: S, f: (s: S, a: A) => S): <E, R>(self: Stream<A, E, R>) => Effect.Effect<S, E, Exclude<R, Scope.Scope>>
-  <A, E, R, S>(self: Stream<A, E, R>, s: S, f: (s: S, a: A) => S): Effect.Effect<S, E, Exclude<R, Scope.Scope>>
+  <S, A>(s: S, f: (s: S, a: A) => S): <E, R>(self: Stream<A, E, R>) => Effect.Effect<S, E, R>
+  <A, E, R, S>(self: Stream<A, E, R>, s: S, f: (s: S, a: A) => S): Effect.Effect<S, E, R>
 } = internal.runFold
 
 /**
@@ -4062,17 +4186,8 @@ export const runFoldScopedEffect: {
  * @category destructors
  */
 export const runFoldWhile: {
-  <S, A>(
-    s: S,
-    cont: Predicate<S>,
-    f: (s: S, a: A) => S
-  ): <E, R>(self: Stream<A, E, R>) => Effect.Effect<S, E, Exclude<R, Scope.Scope>>
-  <A, E, R, S>(
-    self: Stream<A, E, R>,
-    s: S,
-    cont: Predicate<S>,
-    f: (s: S, a: A) => S
-  ): Effect.Effect<S, E, Exclude<R, Scope.Scope>>
+  <S, A>(s: S, cont: Predicate<S>, f: (s: S, a: A) => S): <E, R>(self: Stream<A, E, R>) => Effect.Effect<S, E, R>
+  <A, E, R, S>(self: Stream<A, E, R>, s: S, cont: Predicate<S>, f: (s: S, a: A) => S): Effect.Effect<S, E, R>
 } = internal.runFoldWhile
 
 /**
@@ -4356,12 +4471,14 @@ export const runSum: <E, R>(self: Stream<number, E, R>) => Effect.Effect<number,
  * intermediate results of type `S` given an initial S.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.range(1, 6).pipe(Stream.scan(0, (a, b) => a + b))
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 0,  1,  3, 6, 10, 15, 21 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -4460,6 +4577,7 @@ export const scheduleWith: {
  * Creates a single-valued stream from a scoped resource.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * // Creating a single-valued stream from a scoped resource
@@ -4476,12 +4594,24 @@ export const scheduleWith: {
  * // use
  * // release
  * // { _id: 'Chunk', values: [ undefined ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
  */
 export const scoped: <A, E, R>(effect: Effect.Effect<A, E, R>) => Stream<A, E, Exclude<R, Scope.Scope>> =
   internal.scoped
+
+/**
+ * Use a function that receives a scope and returns an effect to emit an output
+ * element. The output element will be the result of the returned effect, if
+ * successful.
+ *
+ * @since 3.11.0
+ * @category constructors
+ */
+export const scopedWith: <A, E, R>(f: (scope: Scope.Scope) => Effect.Effect<A, E, R>) => Stream<A, E, R> =
+  internal.scopedWith
 
 /**
  * Emits a sliding window of `n` elements.
@@ -4548,7 +4678,7 @@ export const someOrFail: {
 } = internal.someOrFail
 
 /**
- * Splits elements based on a predicate.
+ * Splits elements based on a predicate or refinement.
  *
  * ```ts
  * import * as Stream from "./Stream"
@@ -4566,7 +4696,11 @@ export const someOrFail: {
  * @category utils
  */
 export const split: {
+  <A, B extends A>(
+    refinement: Refinement<NoInfer<A>, B>
+  ): <E, R>(self: Stream<A, E, R>) => Stream<Chunk.Chunk<Exclude<A, B>>, E, R>
   <A>(predicate: Predicate<NoInfer<A>>): <E, R>(self: Stream<A, E, R>) => Stream<Chunk.Chunk<A>, E, R>
+  <A, E, R, B extends A>(self: Stream<A, E, R>, refinement: Refinement<A, B>): Stream<Chunk.Chunk<Exclude<A, B>>, E, R>
   <A, E, R>(self: Stream<A, E, R>, predicate: Predicate<A>): Stream<Chunk.Chunk<A>, E, R>
 } = internal.split
 
@@ -4594,6 +4728,7 @@ export const splitLines: <E, R>(self: Stream<string, E, R>) => Stream<string, E,
  * Creates a single-valued pure stream.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // A Stream with a single number
@@ -4601,6 +4736,7 @@ export const splitLines: <E, R>(self: Stream<string, E, R>) => Stream<string, E,
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 3 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -4627,12 +4763,14 @@ export const suspend: <A, E, R>(stream: LazyArg<Stream<A, E, R>>) => Stream<A, E
  * Takes the specified number of elements from this stream.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.take(Stream.iterate(0, (n) => n + 1), 5)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 0, 1, 2, 3, 4 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -4646,12 +4784,14 @@ export const take: {
  * Takes the last specified number of elements from this stream.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.takeRight(Stream.make(1, 2, 3, 4, 5, 6), 3)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 4, 5, 6 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -4666,12 +4806,14 @@ export const takeRight: {
  * `true`.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.takeUntil(Stream.iterate(0, (n) => n + 1), (n) => n === 4)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 0, 1, 2, 3, 4 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -4703,12 +4845,14 @@ export const takeUntilEffect: {
  * evaluates to `true`.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.takeWhile(Stream.iterate(0, (n) => n + 1), (n) => n < 5)
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ 0, 1, 2, 3, 4 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -4724,6 +4868,7 @@ export const takeWhile: {
  * Adds an effect to consumption of every element of the stream.
  *
  * @example
+ * ```ts
  * import { Console, Effect, Stream } from "effect"
  *
  * const stream = Stream.make(1, 2, 3).pipe(
@@ -4740,6 +4885,7 @@ export const takeWhile: {
  * // before mapping: 3
  * // after mapping: 6
  * // { _id: 'Chunk', values: [ 2, 4, 6 ] }
+ * ```
  *
  * @since 2.0.0
  * @category sequencing
@@ -4830,6 +4976,7 @@ export const tapSink: {
  * Defaults to the "shape" strategy.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Schedule, Stream } from "effect"
  *
  * let last = Date.now()
@@ -4865,6 +5012,7 @@ export const tapSink: {
  * // Received 5 after 52ms
  * // > Emitted 5 after 49ms
  * // { _id: 'Chunk', values: [ 0, 1, 2, 3, 4, 5 ] }
+ * ```
  *
  * @since 2.0.0
  * @category utils
@@ -4933,6 +5081,7 @@ export const throttleEffect: {
  * A stream that emits void values spaced by the specified duration.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * let last = Date.now()
@@ -4952,6 +5101,7 @@ export const throttleEffect: {
  * // tick after 1002ms
  * // tick after 1002ms
  * // { _id: 'Chunk', values: [ undefined, undefined, undefined, undefined, undefined ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -5051,6 +5201,7 @@ export const toPubSub: {
  * the stream's output.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // Simulate a chunked stream
@@ -5075,6 +5226,7 @@ export const toPubSub: {
  * //   "_id": "Option",
  * //   "_tag": "None"
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category destructors
@@ -5204,12 +5356,14 @@ export const transduce: {
  * Creates a stream by peeling off the "layers" of a value of type `S`.
  *
  * @example
+ * ```ts
  * import { Effect, Option, Stream } from "effect"
  *
  * const stream = Stream.unfold(1, (n) => Option.some([n, n + 1]))
  *
  * // Effect.runPromise(Stream.runCollect(stream.pipe(Stream.take(5)))).then(console.log)
  * // { _id: 'Chunk', values: [ 1, 2, 3, 4, 5 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -5244,6 +5398,7 @@ export const unfoldChunkEffect: <S, A, E, R>(
  * `S`.
  *
  * @example
+ * ```ts
  * import { Effect, Option, Random, Stream } from "effect"
  *
  * const stream = Stream.unfoldEffect(1, (n) =>
@@ -5253,6 +5408,7 @@ export const unfoldChunkEffect: <S, A, E, R>(
  *
  * // Effect.runPromise(Stream.runCollect(stream.pipe(Stream.take(5)))).then(console.log)
  * // { _id: 'Chunk', values: [ 1, -1, -1, -1, -1 ] }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -5268,6 +5424,7 @@ export {
    * A stream that contains a single `void` value.
    *
    * @example
+   * ```ts
    * import { Effect, Stream } from "effect"
    *
    * const stream = Stream.void
@@ -5275,6 +5432,7 @@ export {
    * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
    * // { _id: 'Chunk', values: [ undefined ] }
    *
+   * ```
    * @since 2.0.0
    * @category constructors
    */
@@ -5299,6 +5457,18 @@ export const unwrap: <A, E2, R2, E, R>(effect: Effect.Effect<Stream<A, E2, R2>, 
 export const unwrapScoped: <A, E2, R2, E, R>(
   effect: Effect.Effect<Stream<A, E2, R2>, E, R>
 ) => Stream<A, E | E2, R2 | Exclude<R, Scope.Scope>> = internal.unwrapScoped
+
+/**
+ * Creates a stream produced from a function which receives a `Scope` and
+ * returns an `Effect`. The resulting stream will emit a single element, which
+ * will be the result of the returned effect, if successful.
+ *
+ * @since 3.11.0
+ * @category constructors
+ */
+export const unwrapScopedWith: <A, E2, R2, E, R>(
+  f: (scope: Scope.Scope) => Effect.Effect<Stream<A, E2, R2>, E, R>
+) => Stream<A, E | E2, R | R2> = internal.unwrapScopedWith
 
 /**
  * Updates the specified service within the context of the `Stream`.
@@ -5396,6 +5566,7 @@ export const withSpan: {
  * The new stream will end when one of the sides ends.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // We create two streams and zip them together.
@@ -5406,6 +5577,7 @@ export const withSpan: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ [ 1, 'a' ], [ 2, 'b' ], [ 3, 'c' ] ] }
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5442,6 +5614,7 @@ export const zipFlatten: {
  * have different lengths and one of the streams has ended before the other.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.zipAll(Stream.make(1, 2, 3, 4, 5, 6), {
@@ -5452,6 +5625,7 @@ export const zipFlatten: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: "Chunk", values: [ [ 1, "a" ], [ 2, "b" ], [ 3, "c" ], [ 4, "x" ], [ 5, "x" ], [ 6, "x" ] ] }
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5639,6 +5813,7 @@ export const zipAllSortedByKeyWith: {
  * lengths and one of the streams has ended before the other.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.zipAllWith(Stream.make(1, 2, 3, 4, 5, 6), {
@@ -5650,6 +5825,7 @@ export const zipAllSortedByKeyWith: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: "Chunk", values: [ [ 0, "a" ], [ 1, "b" ], [ 2, "c" ], [ 4, "x" ], [ 5, "x" ], [ 6, "x" ] ] }
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5684,6 +5860,7 @@ export const zipAllWith: {
  * used for zipping.
  *
  * @example
+ * ```ts
  * import { Effect, Schedule, Stream } from "effect"
  *
  * const s1 = Stream.make(1, 2, 3).pipe(
@@ -5698,6 +5875,7 @@ export const zipAllWith: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: "Chunk", values: [ [ 1, "a" ], [ 1, "b" ], [ 2, "b" ], [ 2, "c" ], [ 2, "d" ], [ 3, "d" ] ] }
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5716,6 +5894,7 @@ export const zipLatest: {
  * used for zipping.
  *
  * @example
+ * ```ts
  * import { Stream, Schedule, Console, Effect } from "effect"
  *
  * const stream = Stream.zipLatestAll(
@@ -5733,6 +5912,7 @@ export const zipLatest: {
  * // [ 3, 1, 0 ]
  * // [ 3, 1, 1 ]
  * // .....
+ * ```
  *
  * @since 3.3.0
  * @category zipping
@@ -5805,6 +5985,7 @@ export const zipRight: {
  * The new stream will end when one of the sides ends.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * // We create two streams and zip them with custom logic.
@@ -5816,6 +5997,7 @@ export const zipRight: {
  *
  * // Effect.runPromise(Stream.runCollect(stream)).then(console.log)
  * // { _id: 'Chunk', values: [ [ 0, 'a' ], [ 1, 'b' ], [ 2, 'c' ] ] }
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5863,6 +6045,7 @@ export const zipWithChunks: {
  * Zips each element with the next element if present.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Stream } from "effect"
  *
  * const stream = Stream.zipWithNext(Stream.make(1, 2, 3, 4))
@@ -5874,6 +6057,7 @@ export const zipWithChunks: {
  * //   [ 3, { _id: 'Option', _tag: 'Some', value: 4 } ],
  * //   [ 4, { _id: 'Option', _tag: 'None' } ]
  * // ]
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5885,6 +6069,7 @@ export const zipWithNext: <A, E, R>(self: Stream<A, E, R>) => Stream<[A, Option.
  * `None`.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Stream } from "effect"
  *
  * const stream = Stream.zipWithPrevious(Stream.make(1, 2, 3, 4))
@@ -5896,6 +6081,7 @@ export const zipWithNext: <A, E, R>(self: Stream<A, E, R>) => Stream<[A, Option.
  * //   [ { _id: 'Option', _tag: 'Some', value: 2 }, 3 ],
  * //   [ { _id: 'Option', _tag: 'Some', value: 3 }, 4 ]
  * // ]
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5907,6 +6093,7 @@ export const zipWithPrevious: <A, E, R>(self: Stream<A, E, R>) => Stream<[Option
  * Zips each element with both the previous and next element.
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, Stream } from "effect"
  *
  * const stream = Stream.zipWithPreviousAndNext(Stream.make(1, 2, 3, 4))
@@ -5934,6 +6121,7 @@ export const zipWithPrevious: <A, E, R>(self: Stream<A, E, R>) => Stream<[Option
  * //     { _id: 'Option', _tag: 'None' }
  * //   ]
  * // ]
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5946,6 +6134,7 @@ export const zipWithPreviousAndNext: <A, E, R>(
  * Zips this stream together with the index of elements.
  *
  * @example
+ * ```ts
  * import { Effect, Stream } from "effect"
  *
  * const stream = Stream.make("Mary", "James", "Robert", "Patricia")
@@ -5957,6 +6146,7 @@ export const zipWithPreviousAndNext: <A, E, R>(
  * //   _id: 'Chunk',
  * //   values: [ [ 'Mary', 0 ], [ 'James', 1 ], [ 'Robert', 2 ], [ 'Patricia', 3 ] ]
  * // }
+ * ```
  *
  * @since 2.0.0
  * @category zipping
@@ -5983,6 +6173,7 @@ export const zipWithIndex: <A, E, R>(self: Stream<A, E, R>) => Stream<[A, number
  * @see {@link let_ let}
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, pipe, Stream } from "effect"
  *
  * const result = pipe(
@@ -5992,6 +6183,7 @@ export const zipWithIndex: <A, E, R>(self: Stream<A, E, R>) => Stream<[A, number
  *   Stream.let("sum", ({ x, y }) => x + y)
  * )
  * assert.deepStrictEqual(Effect.runSync(Stream.runCollect(result)), Chunk.of({ x: 2, y: 3, sum: 5 }))
+ * ```
  *
  * @category do notation
  * @since 2.0.0
@@ -6014,6 +6206,7 @@ export const Do: Stream<{}> = internal.Do
  * @see {@link let_ let}
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, pipe, Stream } from "effect"
  *
  * const result = pipe(
@@ -6023,6 +6216,7 @@ export const Do: Stream<{}> = internal.Do
  *   Stream.let("sum", ({ x, y }) => x + y)
  * )
  * assert.deepStrictEqual(Effect.runSync(Stream.runCollect(result)), Chunk.of({ x: 2, y: 3, sum: 5 }))
+ * ```
  *
  * @category do notation
  * @since 2.0.0
@@ -6086,6 +6280,7 @@ export const bindEffect: {
  * @see {@link let_ let}
  *
  * @example
+ * ```ts
  * import { Chunk, Effect, pipe, Stream } from "effect"
  *
  * const result = pipe(
@@ -6095,6 +6290,7 @@ export const bindEffect: {
  *   Stream.let("sum", ({ x, y }) => x + y)
  * )
  * assert.deepStrictEqual(Effect.runSync(Stream.runCollect(result)), Chunk.of({ x: 2, y: 3, sum: 5 }))
+ * ```
  *
  * @category do notation
  * @since 2.0.0
@@ -6133,6 +6329,7 @@ export {
    * @see {@link bindEffect}
    *
    * @example
+   * ```ts
    * import { Chunk, Effect, pipe, Stream } from "effect"
    *
    * const result = pipe(
@@ -6143,6 +6340,7 @@ export {
    * )
    * assert.deepStrictEqual(Effect.runSync(Stream.runCollect(result)), Chunk.of({ x: 2, y: 3, sum: 5 }))
    *
+   * ```
    * @category do notation
    * @since 2.0.0
    */

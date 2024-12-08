@@ -16,7 +16,7 @@ const paths = Glob.globSync(pattern, {
 
 const transformer = Path.resolve("scripts/codemods/jsdoc.ts")
 
-jscodeshift.run(Path.resolve(transformer), paths, {
+jscodeshift.run(transformer, paths, {
   babel: true,
   parser: "ts"
 })

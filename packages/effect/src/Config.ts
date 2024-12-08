@@ -129,6 +129,14 @@ export const array: <A>(config: Config<A>, name?: string) => Config<Array<A>> = 
 export const boolean: (name?: string) => Config<boolean> = internal.boolean
 
 /**
+ * Constructs a config for a URL value.
+ *
+ * @since 3.11.0
+ * @category constructors
+ */
+export const url: (name?: string) => Config<URL> = internal.url
+
+/**
  * Constructs a config for a sequence of values.
  *
  * @since 2.0.0
@@ -172,9 +180,11 @@ export const integer: (name?: string) => Config<number> = internal.integer
  * Constructs a config for a literal value.
  *
  * @example
+ * ```ts
  * import { Config } from "effect"
  *
  * const config = Config.literal("http", "https")("PROTOCOL")
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -349,7 +359,10 @@ export const secret: (name?: string) => Config<Secret.Secret> = internal.secret
  * @since 2.0.0
  * @category constructors
  */
-export const redacted: (name?: string) => Config<Redacted.Redacted> = internal.redacted
+export const redacted: {
+  (name?: string): Config<Redacted.Redacted>
+  <A>(config: Config<A>): Config<Redacted.Redacted<A>>
+} = internal.redacted
 
 /**
  * Constructs a config for a sequence of values.

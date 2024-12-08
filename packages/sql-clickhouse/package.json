@@ -1,6 +1,6 @@
 {
   "name": "@effect/sql-clickhouse",
-  "version": "0.3.3",
+  "version": "0.7.4",
   "type": "module",
   "license": "MIT",
   "description": "A Clickhouse toolkit for Effect",
@@ -42,7 +42,6 @@
     "@effect/platform": "workspace:^",
     "@effect/platform-node": "workspace:^",
     "@effect/sql": "workspace:^",
-    "@types/node": "^22.5.4",
     "effect": "workspace:^"
   },
   "peerDependencies": {

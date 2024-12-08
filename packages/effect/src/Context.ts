@@ -45,6 +45,38 @@ export interface Tag<in out Id, in out Value> extends Pipeable, Inspectable {
   [Unify.ignoreSymbol]?: TagUnifyIgnore
 }
 
+const ReferenceTypeId: unique symbol = internal.ReferenceTypeId
+
+/**
+ * @since 3.11.0
+ * @category symbol
+ */
+export type ReferenceTypeId = typeof ReferenceTypeId
+
+/**
+ * @since 3.11.0
+ * @category models
+ */
+export interface Reference<in out Id, in out Value> extends Pipeable, Inspectable {
+  readonly [ReferenceTypeId]: ReferenceTypeId
+  readonly defaultValue: () => Value
+
+  readonly _op: "Tag"
+  readonly Service: Value
+  readonly Identifier: Id
+  readonly [TagTypeId]: {
+    readonly _Service: Types.Invariant<Value>
+    readonly _Identifier: Types.Invariant<Id>
+  }
+  of(self: Value): Value
+  context(self: Value): Context<Id>
+  readonly stack?: string | undefined
+  readonly key: string
+  [Unify.typeSymbol]?: unknown
+  [Unify.unifySymbol]?: TagUnify<this>
+  [Unify.ignoreSymbol]?: TagUnifyIgnore
+}
+
 /**
  * @since 2.0.0
  * @category models
@@ -60,6 +92,14 @@ export interface TagClassShape<Id, Shape> {
  * @category models
  */
 export interface TagClass<Self, Id, Type> extends Tag<Self, Type> {
+  new(_: never): TagClassShape<Id, Type>
+}
+
+/**
+ * @since 3.11.0
+ * @category models
+ */
+export interface ReferenceClass<Self, Id, Type> extends Reference<Self, Type> {
   new(_: never): TagClassShape<Id, Type>
 }
 
@@ -101,9 +141,11 @@ export declare namespace Tag {
  * @param key - A key that will be used to compare tags.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * assert.strictEqual(Context.GenericTag("PORT").key === Context.GenericTag("PORT").key, true)
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -148,9 +190,11 @@ export const unsafeMake: <Services>(unsafeMap: Map<string, any>) => Context<Serv
  * @param input - The value to be checked if it is a `Context`.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * assert.strictEqual(Context.isContext(Context.empty()), true)
+ * ```
  *
  * @since 2.0.0
  * @category guards
@@ -163,9 +207,11 @@ export const isContext: (input: unknown) => input is Context<never> = internal.i
  * @param input - The value to be checked if it is a `Tag`.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * assert.strictEqual(Context.isTag(Context.GenericTag("Tag")), true)
+ * ```
  *
  * @since 2.0.0
  * @category guards
@@ -173,12 +219,24 @@ export const isContext: (input: unknown) => input is Context<never> = internal.i
 export const isTag: (input: unknown) => input is Tag<any, any> = internal.isTag
 
 /**
+ * Checks if the provided argument is a `Reference`.
+ *
+ * @param input - The value to be checked if it is a `Reference`.
+ * @since 3.11.0
+ * @category guards
+ * @experimental
+ */
+export const isReference: (u: unknown) => u is Reference<any, any> = internal.isReference
+
+/**
  * Returns an empty `Context`.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * assert.strictEqual(Context.isContext(Context.empty()), true)
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -189,6 +247,7 @@ export const empty: () => Context<never> = internal.empty
  * Creates a new `Context` with a single service associated to the tag.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -196,6 +255,7 @@ export const empty: () => Context<never> = internal.empty
  * const Services = Context.make(Port, { PORT: 8080 })
  *
  * assert.deepStrictEqual(Context.get(Services, Port), { PORT: 8080 })
+ * ```
  *
  * @since 2.0.0
  * @category constructors
@@ -207,6 +267,7 @@ export const make: <T extends Tag<any, any>>(tag: T, service: Tag.Service<T>) =>
  * Adds a service to a given `Context`.
  *
  * @example
+ * ```ts
  * import { Context, pipe } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -221,6 +282,7 @@ export const make: <T extends Tag<any, any>>(tag: T, service: Tag.Service<T>) =>
  *
  * assert.deepStrictEqual(Context.get(Services, Port), { PORT: 8080 })
  * assert.deepStrictEqual(Context.get(Services, Timeout), { TIMEOUT: 5000 })
+ * ```
  *
  * @since 2.0.0
  */
@@ -243,6 +305,7 @@ export const add: {
  * @param tag - The `Tag` of the service to retrieve.
  *
  * @example
+ * ```ts
  * import { pipe, Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -254,12 +317,15 @@ export const add: {
  * )
  *
  * assert.deepStrictEqual(Context.get(Services, Timeout), { TIMEOUT: 5000 })
+ * ```
  *
  * @since 2.0.0
  * @category getters
  */
 export const get: {
+  <I, S>(tag: Reference<I, S>): <Services>(self: Context<Services>) => S
   <Services, T extends ValidTagsById<Services>>(tag: T): (self: Context<Services>) => Tag.Service<T>
+  <Services, I, S>(self: Context<Services>, tag: Reference<I, S>): S
   <Services, T extends ValidTagsById<Services>>(self: Context<Services>, tag: T): Tag.Service<T>
 } = internal.get
 
@@ -285,6 +351,7 @@ export const getOrElse: {
  * @param tag - The `Tag` of the service to retrieve.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -294,6 +361,7 @@ export const getOrElse: {
  *
  * assert.deepStrictEqual(Context.unsafeGet(Services, Port), { PORT: 8080 })
  * assert.throws(() => Context.unsafeGet(Services, Timeout))
+ * ```
  *
  * @since 2.0.0
  * @category unsafe
@@ -311,6 +379,7 @@ export const unsafeGet: {
  * @param tag - The `Tag` of the service to retrieve.
  *
  * @example
+ * ```ts
  * import { Context, Option } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -320,6 +389,7 @@ export const unsafeGet: {
  *
  * assert.deepStrictEqual(Context.getOption(Services, Port), Option.some({ PORT: 8080 }))
  * assert.deepStrictEqual(Context.getOption(Services, Timeout), Option.none())
+ * ```
  *
  * @since 2.0.0
  * @category getters
@@ -336,6 +406,7 @@ export const getOption: {
  * @param that - The second `Context` to merge.
  *
  * @example
+ * ```ts
  * import { Context } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -348,6 +419,7 @@ export const getOption: {
  *
  * assert.deepStrictEqual(Context.get(Services, Port), { PORT: 8080 })
  * assert.deepStrictEqual(Context.get(Services, Timeout), { TIMEOUT: 5000 })
+ * ```
  *
  * @since 2.0.0
  */
@@ -363,6 +435,7 @@ export const merge: {
  * @param tags - The list of `Tag`s to be included in the new `Context`.
  *
  * @example
+ * ```ts
  * import { pipe, Context, Option } from "effect"
  *
  * const Port = Context.GenericTag<{ PORT: number }>("Port")
@@ -377,6 +450,7 @@ export const merge: {
  *
  * assert.deepStrictEqual(Context.getOption(Services, Port), Option.some({ PORT: 8080 }))
  * assert.deepStrictEqual(Context.getOption(Services, Timeout), Option.none())
+ * ```
  *
  * @since 2.0.0
  */
@@ -394,6 +468,7 @@ export const omit: <Services, S extends Array<ValidTagsById<Services>>>(
 
 /**
  * @example
+ * ```ts
  * import { Context, Layer } from "effect"
  *
  * class MyTag extends Context.Tag("MyTag")<
@@ -402,8 +477,69 @@ export const omit: <Services, S extends Array<ValidTagsById<Services>>>(
  * >() {
  *  static Live = Layer.succeed(this, { myNum: 108 })
  * }
+ * ```
  *
  * @since 2.0.0
  * @category constructors
  */
 export const Tag: <const Id extends string>(id: Id) => <Self, Shape>() => TagClass<Self, Id, Shape> = internal.Tag
+
+/**
+ * Creates a context tag with a default value.
+ *
+ * **Details**
+ *
+ * `Context.Reference` allows you to create a tag that can hold a value. You can
+ * provide a default value for the service, which will automatically be used
+ * when the context is accessed, or override it with a custom implementation
+ * when needed.
+ *
+ * @example
+ * ```ts
+ * // Title: Declaring a Tag with a default value
+ * import { Context, Effect } from "effect"
+ *
+ * class SpecialNumber extends Context.Reference<SpecialNumber>()(
+ *   "SpecialNumber",
+ *   { defaultValue: () => 2048 }
+ * ) {}
+ *
+ * //      ┌─── Effect<void, never, never>
+ * //      ▼
+ * const program = Effect.gen(function* () {
+ *   const specialNumber = yield* SpecialNumber
+ *   console.log(`The special number is ${specialNumber}`)
+ * })
+ *
+ * // No need to provide the SpecialNumber implementation
+ * Effect.runPromise(program)
+ * // Output: The special number is 2048
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Title: Overriding the default value
+ * import { Context, Effect } from "effect"
+ *
+ * class SpecialNumber extends Context.Reference<SpecialNumber>()(
+ *   "SpecialNumber",
+ *   { defaultValue: () => 2048 }
+ * ) {}
+ *
+ * const program = Effect.gen(function* () {
+ *   const specialNumber = yield* SpecialNumber
+ *   console.log(`The special number is ${specialNumber}`)
+ * })
+ *
+ * Effect.runPromise(program.pipe(Effect.provideService(SpecialNumber, -1)))
+ * // Output: The special number is -1
+ * ```
+ *
+ * @since 3.11.0
+ * @category constructors
+ * @experimental
+ */
+export const Reference: <Self>() => <const Id extends string, Service>(
+  id: Id,
+  options: { readonly defaultValue: () => Service }
+) => ReferenceClass<Self, Id, Service> = internal.Reference

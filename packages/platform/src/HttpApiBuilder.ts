@@ -1,15 +1,14 @@
 /**
  * @since 1.0.0
  */
+import * as Cause from "effect/Cause"
 import * as Chunk from "effect/Chunk"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
-import * as FiberRef from "effect/FiberRef"
+import * as Fiber from "effect/Fiber"
 import { identity } from "effect/Function"
 import { globalValue } from "effect/GlobalValue"
-import * as HashMap from "effect/HashMap"
-import * as HashSet from "effect/HashSet"
 import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
 import * as Option from "effect/Option"
@@ -40,6 +39,7 @@ import * as HttpServerRequest from "./HttpServerRequest.js"
 import * as HttpServerResponse from "./HttpServerResponse.js"
 import * as OpenApi from "./OpenApi.js"
 import type { Path } from "./Path.js"
+import * as UrlParams from "./UrlParams.js"
 
 /**
  * The router that the API endpoints are attached to.
@@ -90,7 +90,7 @@ export const serve = <R = never>(
   httpApp.pipe(
     Effect.map((app) => HttpServer.serve(app as any, middleware!)),
     Layer.unwrapEffect,
-    Layer.provide(Router.Live)
+    Layer.provide([Router.Live, Middleware.layer])
   )
 
 /**
@@ -102,23 +102,24 @@ export const serve = <R = never>(
 export const httpApp: Effect.Effect<
   HttpApp.Default<never, HttpRouter.HttpRouter.DefaultServices>,
   never,
-  Router | HttpApi.Api
+  Router | HttpApi.Api | Middleware
 > = Effect.gen(function*() {
   const { api, context } = yield* HttpApi.Api
   const middleware = makeMiddlewareMap(api.middlewares, context)
   const router = applyMiddleware(middleware, yield* Router.router)
-  const apiMiddleware = yield* Effect.serviceOption(Middleware)
+  const apiMiddlewareService = yield* Middleware
+  const apiMiddleware = yield* apiMiddlewareService.retrieve
   const errorSchema = makeErrorSchema(api as any)
   const encodeError = Schema.encodeUnknown(errorSchema)
   return router.pipe(
-    apiMiddleware._tag === "Some" ? apiMiddleware.value : identity,
-    Effect.catchAll((error) =>
-      Effect.matchEffect(Effect.provide(encodeError(error), context), {
-        onFailure: () => Effect.die(error),
+    apiMiddleware,
+    Effect.catchAllCause((cause) =>
+      Effect.matchEffect(Effect.provide(encodeError(Cause.squash(cause)), context), {
+        onFailure: () => Effect.failCause(cause),
         onSuccess: Effect.succeed
       })
     )
-  )
+  ) as any
 })
 
 /**
@@ -127,6 +128,7 @@ export const httpApp: Effect.Effect<
  * @since 1.0.0
  * @category constructors
  * @example
+ * ```ts
  * import { HttpApi, HttpApiBuilder, HttpServer } from "@effect/platform"
  * import { Layer } from "effect"
  *
@@ -142,6 +144,7 @@ export const httpApp: Effect.Effect<
  *     HttpServer.layerContext
  *   )
  * )
+ * ```
  */
 export const toWebHandler = <LA, LE>(
   layer: Layer.Layer<LA | HttpApi.Api | HttpRouter.HttpRouter.DefaultServices, LE>,
@@ -159,21 +162,17 @@ export const toWebHandler = <LA, LE>(
   readonly dispose: () => Promise<void>
 } => {
   const runtime = ManagedRuntime.make(
-    Layer.merge(layer, Router.Live),
+    Layer.mergeAll(layer, Router.Live, Middleware.layer),
     options?.memoMap
   )
   let handlerCached: ((request: Request) => Promise<Response>) | undefined
-  const handlerPromise = httpApp.pipe(
-    Effect.bindTo("httpApp"),
-    Effect.bind("runtime", () => runtime.runtimeEffect),
-    Effect.map(({ httpApp, runtime }) =>
-      HttpApp.toWebHandlerRuntime(runtime)(options?.middleware ? options.middleware(httpApp as any) as any : httpApp)
-    ),
-    Effect.tap((handler) => {
-      handlerCached = handler
-    }),
-    runtime.runPromise
-  )
+  const handlerPromise = Effect.gen(function*() {
+    const app = yield* httpApp
+    const rt = yield* runtime.runtimeEffect
+    const handler = HttpApp.toWebHandlerRuntime(rt)(options?.middleware ? options.middleware(app as any) as any : app)
+    handlerCached = handler
+    return handler
+  }).pipe(runtime.runPromise)
   function handler(request: Request): Promise<Response> {
     if (handlerCached !== undefined) {
       return handlerCached(request)
@@ -379,7 +378,7 @@ const HandlersProto = {
     name: string,
     handler: HttpApiEndpoint.HttpApiEndpoint.Handler<any, any, any>
   ) {
-    const endpoint = HashMap.unsafeGet(this.group.endpoints, name)
+    const endpoint = this.group.endpoints[name]
     return makeHandlers({
       group: this.group,
       handlers: Chunk.append(this.handlers, {
@@ -394,7 +393,7 @@ const HandlersProto = {
     name: string,
     handler: HttpApiEndpoint.HttpApiEndpoint.Handler<any, any, any>
   ) {
-    const endpoint = HashMap.unsafeGet(this.group.endpoints, name)
+    const endpoint = this.group.endpoints[name]
     return makeHandlers({
       group: this.group,
       handlers: Chunk.append(this.handlers, {
@@ -442,15 +441,15 @@ export const group = <
     handlers: Handlers.FromGroup<ApiError, ApiR, HttpApiGroup.HttpApiGroup.WithName<Groups, Name>>
   ) => Handlers.ValidateReturn<Return>
 ): Layer.Layer<
-  HttpApiGroup.Group<Name>,
+  HttpApiGroup.ApiGroup<Name>,
   Handlers.Error<Return>,
   | Handlers.Context<Return>
-  | HttpApiGroup.HttpApiGroup.ContextWithName<Groups, Name>
+  | HttpApiGroup.HttpApiGroup.MiddlewareWithName<Groups, Name>
 > =>
   Router.use((router) =>
     Effect.gen(function*() {
       const context = yield* Effect.context<any>()
-      const group = HashMap.unsafeGet(api.groups, groupName)
+      const group = api.groups[groupName]!
       const result = build(makeHandlers({ group, handlers: Chunk.empty() }))
       const handlers: Handlers<any, any, any> = Effect.isEffect(result)
         ? (yield* result as Effect.Effect<any, any, any>)
@@ -511,20 +510,31 @@ export const handler = <
 
 const requestPayload = (
   request: HttpServerRequest.HttpServerRequest,
-  urlParams: ReadonlyRecord<string, string | Array<string>>,
-  isMultipart: boolean
+  urlParams: ReadonlyRecord<string, string | Array<string>>
 ): Effect.Effect<
   unknown,
   never,
   | FileSystem
   | Path
   | Scope
-> =>
-  HttpMethod.hasBody(request.method)
-    ? isMultipart
-      ? Effect.orDie(request.multipart)
-      : Effect.orDie(request.json)
-    : Effect.succeed(urlParams)
+> => {
+  if (!HttpMethod.hasBody(request.method)) {
+    return Effect.succeed(urlParams)
+  }
+  const contentType = request.headers["content-type"]
+    ? request.headers["content-type"].toLowerCase().trim()
+    : "application/json"
+  if (contentType.includes("application/json")) {
+    return Effect.orDie(request.json)
+  } else if (contentType.includes("multipart/form-data")) {
+    return Effect.orDie(request.multipart)
+  } else if (contentType.includes("x-www-form-urlencoded")) {
+    return Effect.map(Effect.orDie(request.urlParamsBody), UrlParams.toRecord)
+  } else if (contentType.startsWith("text/")) {
+    return Effect.orDie(request.text)
+  }
+  return Effect.map(Effect.orDie(request.arrayBuffer), (buffer) => new Uint8Array(buffer))
+}
 
 type MiddlewareMap = Map<string, {
   readonly tag: HttpApiMiddleware.TagClassAny
@@ -532,7 +542,7 @@ type MiddlewareMap = Map<string, {
 }>
 
 const makeMiddlewareMap = (
-  middleware: HashSet.HashSet<HttpApiMiddleware.TagClassAny>,
+  middleware: ReadonlySet<HttpApiMiddleware.TagClassAny>,
   context: Context.Context<never>,
   initial?: MiddlewareMap
 ): MiddlewareMap => {
@@ -540,7 +550,7 @@ const makeMiddlewareMap = (
     readonly tag: HttpApiMiddleware.TagClassAny
     readonly effect: Effect.Effect<any, any, any>
   }>(initial)
-  HashSet.forEach(middleware, (tag) => {
+  middleware.forEach((tag) => {
     map.set(tag.key, {
       tag,
       effect: Context.unsafeGet(context, tag as any)
@@ -557,10 +567,6 @@ const handlerToRoute = (
 ): HttpRouter.Route<any, any> => {
   const endpoint = endpoint_ as HttpApiEndpoint.HttpApiEndpoint.AnyWithProps
   const decodePath = Option.map(endpoint.pathSchema, Schema.decodeUnknown)
-  const isMultipart = endpoint.payloadSchema.pipe(
-    Option.map((schema) => HttpApiSchema.getMultipart(schema.ast)),
-    Option.getOrElse(() => false)
-  )
   const decodePayload = Option.map(endpoint.payloadSchema, Schema.decodeUnknown)
   const decodeHeaders = Option.map(endpoint.headersSchema, Schema.decodeUnknown)
   const decodeUrlParams = Option.map(endpoint.urlParamsSchema, Schema.decodeUnknown)
@@ -570,52 +576,35 @@ const handlerToRoute = (
     endpoint.path,
     applyMiddleware(
       middleware,
-      Effect.withFiberRuntime((fiber) => {
-        const context = fiber.getFiberRef(FiberRef.currentContext)
-        const request = Context.unsafeGet(context, HttpServerRequest.HttpServerRequest)
+      Effect.gen(function*() {
+        const fiber = Option.getOrThrow(Fiber.getCurrentFiber())
+        const context = fiber.currentContext
+        const httpRequest = Context.unsafeGet(context, HttpServerRequest.HttpServerRequest)
         const routeContext = Context.unsafeGet(context, HttpRouter.RouteContext)
         const urlParams = Context.unsafeGet(context, HttpServerRequest.ParsedSearchParams)
-        return (
-          decodePath._tag === "Some"
-            ? decodePath.value(routeContext.params)
-            : Effect.succeed(routeContext.params)
-        ).pipe(
-          Effect.bindTo("pathParams"),
-          decodePayload._tag === "Some"
-            ? Effect.bind(
-              "payload",
-              (_) =>
-                Effect.flatMap(
-                  requestPayload(request, urlParams, isMultipart),
-                  decodePayload.value
-                )
-            ) as typeof identity
-            : identity,
-          decodeHeaders._tag === "Some"
-            ? Effect.bind("headers", (_) => decodeHeaders.value(request.headers)) as typeof identity
-            : identity,
-          decodeUrlParams._tag === "Some"
-            ? Effect.bind("urlParams", (_) => decodeUrlParams.value(urlParams)) as typeof identity
-            : identity,
-          Effect.flatMap((input) => {
-            const request: any = { path: input.pathParams }
-            if ("payload" in input) {
-              request.payload = input.payload
-            }
-            if ("headers" in input) {
-              request.headers = input.headers
-            }
-            if ("urlParams" in input) {
-              request.urlParams = input.urlParams
-            }
-            return handler(request)
-          }),
-          isFullResponse ?
-            identity as (_: any) => Effect.Effect<HttpServerResponse.HttpServerResponse> :
-            Effect.flatMap(encodeSuccess),
-          Effect.catchIf(ParseResult.isParseError, HttpApiDecodeError.refailParseError)
-        )
-      })
+        const request: any = {}
+        if (decodePath._tag === "Some") {
+          request.path = yield* decodePath.value(routeContext.params)
+        }
+        if (decodePayload._tag === "Some") {
+          request.payload = yield* Effect.flatMap(
+            requestPayload(httpRequest, urlParams),
+            decodePayload.value
+          )
+        }
+        if (decodeHeaders._tag === "Some") {
+          request.headers = yield* decodeHeaders.value(httpRequest.headers)
+        }
+        if (decodeUrlParams._tag === "Some") {
+          request.urlParams = yield* decodeUrlParams.value(urlParams)
+        }
+        const response = isFullResponse
+          ? yield* handler(request)
+          : yield* Effect.flatMap(handler(request), encodeSuccess)
+        return response as HttpServerResponse.HttpServerResponse
+      }).pipe(
+        Effect.catchIf(ParseResult.isParseError, HttpApiDecodeError.refailParseError)
+      )
     )
   )
 }
@@ -687,12 +676,12 @@ const makeErrorSchema = (
 ): Schema.Schema<unknown, HttpServerResponse.HttpServerResponse> => {
   const schemas = new Set<Schema.Schema.Any>()
   HttpApiSchema.deunionize(schemas, api.errorSchema)
-  HashMap.forEach(api.groups, (group) => {
-    HashMap.forEach(group.endpoints, (endpoint) => {
+  for (const group of Object.values(api.groups)) {
+    for (const endpoint of Object.values(group.endpoints)) {
       HttpApiSchema.deunionize(schemas, endpoint.errorSchema)
-    })
+    }
     HttpApiSchema.deunionize(schemas, group.errorSchema)
-  })
+  }
   return Schema.Union(...Array.from(schemas, toResponseError)) as any
 }
 
@@ -768,8 +757,26 @@ const toResponseError = toResponseSchema(HttpApiSchema.getStatusErrorAST)
  */
 export class Middleware extends Context.Tag("@effect/platform/HttpApiBuilder/Middleware")<
   Middleware,
-  HttpMiddleware.HttpMiddleware
->() {}
+  {
+    readonly add: (middleware: HttpMiddleware.HttpMiddleware) => Effect.Effect<void>
+    readonly retrieve: Effect.Effect<HttpMiddleware.HttpMiddleware>
+  }
+>() {
+  /**
+   * @since 1.0.0
+   */
+  static readonly layer = Layer.sync(Middleware, () => {
+    let middleware: HttpMiddleware.HttpMiddleware = identity
+    return Middleware.of({
+      add: (f) =>
+        Effect.sync(() => {
+          const prev = middleware
+          middleware = (app) => f(prev(app))
+        }),
+      retrieve: Effect.sync(() => middleware)
+    })
+  })
+}
 
 /**
  * @since 1.0.0
@@ -779,26 +786,24 @@ export type MiddlewareFn<Error, R = HttpRouter.HttpRouter.Provided> = (
   httpApp: HttpApp.Default
 ) => HttpApp.Default<Error, R>
 
-const middlewareAdd = (middleware: HttpMiddleware.HttpMiddleware): Effect.Effect<HttpMiddleware.HttpMiddleware> =>
-  Effect.map(
-    Effect.context<never>(),
-    (context) => {
-      const current = Context.getOption(context, Middleware)
-      const withContext: HttpMiddleware.HttpMiddleware = (httpApp) =>
-        Effect.mapInputContext(middleware(httpApp), (input) => Context.merge(context, input))
-      return current._tag === "None" ? withContext : (httpApp) => withContext(current.value(httpApp))
-    }
-  )
+const middlewareAdd = (
+  middleware: HttpMiddleware.HttpMiddleware
+): Effect.Effect<void, never, Middleware> =>
+  Effect.gen(function*() {
+    const context = yield* Effect.context<never>()
+    const service = yield* Middleware
+    yield* service.add((httpApp) =>
+      Effect.mapInputContext(middleware(httpApp), (input) => Context.merge(context, input))
+    )
+  })
 
 const middlewareAddNoContext = (
   middleware: HttpMiddleware.HttpMiddleware
-): Effect.Effect<HttpMiddleware.HttpMiddleware> =>
-  Effect.map(
-    Effect.serviceOption(Middleware),
-    (current): HttpMiddleware.HttpMiddleware => {
-      return current._tag === "None" ? middleware : (httpApp) => middleware(current.value(httpApp))
-    }
-  )
+): Effect.Effect<void, never, Middleware> =>
+  Effect.gen(function*() {
+    const service = yield* Middleware
+    yield* service.add(middleware)
+  })
 
 /**
  * Create an `HttpApi` level middleware `Layer`.
@@ -851,9 +856,9 @@ export const middleware: {
   const withContext = apiFirst ? args[2]?.withContext === true : (args as any)[1]?.withContext === true
   const add = withContext ? middlewareAdd : middlewareAddNoContext
   const middleware = apiFirst ? args[1] : args[0]
-  return Effect.isEffect(middleware)
-    ? Layer.effect(Middleware, Effect.flatMap(middleware as any, add))
-    : Layer.effect(Middleware, add(middleware as any))
+  return (Effect.isEffect(middleware)
+    ? Layer.effectDiscard(Effect.flatMap(middleware as any, add))
+    : Layer.effectDiscard(add(middleware as any))).pipe(Layer.provide(Middleware.layer))
 }
 
 /**
@@ -908,7 +913,9 @@ export const middlewareScoped: {
   const withContext = apiFirst ? args[2]?.withContext === true : (args as any)[1]?.withContext === true
   const add = withContext ? middlewareAdd : middlewareAddNoContext
   const middleware = apiFirst ? args[1] : args[0]
-  return Layer.scoped(Middleware, Effect.flatMap(middleware as any, add))
+  return Layer.scopedDiscard(Effect.flatMap(middleware as any, add)).pipe(
+    Layer.provide(Middleware.layer)
+  )
 }
 
 /**
@@ -951,6 +958,7 @@ export const middlewareOpenApi = (
   )
 
 const bearerLen = `Bearer `.length
+const basicLen = `Basic `.length
 
 /**
  * @since 1.0.0
@@ -992,7 +1000,7 @@ export const securityDecode = <Security extends HttpApiSecurity.HttpApiSecurity>
         password: Redacted.make("")
       } as any
       return HttpServerRequest.HttpServerRequest.pipe(
-        Effect.flatMap((request) => Encoding.decodeBase64String(request.headers.authorization ?? "")),
+        Effect.flatMap((request) => Encoding.decodeBase64String((request.headers.authorization ?? "").slice(basicLen))),
         Effect.match({
           onFailure: () => empty,
           onSuccess: (header) => {

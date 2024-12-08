@@ -3,11 +3,9 @@
  */
 import * as Context from "effect/Context"
 import { globalValue } from "effect/GlobalValue"
-import * as HashSet from "effect/HashSet"
 import * as Option from "effect/Option"
 import type { ReadonlyRecord } from "effect/Record"
 import * as Schema from "effect/Schema"
-import * as AST from "effect/SchemaAST"
 import type { DeepMutable, Mutable } from "effect/Types"
 import * as HttpApi from "./HttpApi.js"
 import * as HttpApiMiddleware from "./HttpApiMiddleware.js"
@@ -72,7 +70,29 @@ export class Format extends Context.Tag("@effect/platform/OpenApi/Format")<Forma
  * @since 1.0.0
  * @category annotations
  */
+export class Summary extends Context.Tag("@effect/platform/OpenApi/Summary")<Summary, string>() {}
+
+/**
+ * @since 1.0.0
+ * @category annotations
+ */
+export class Deprecated extends Context.Tag("@effect/platform/OpenApi/Deprecated")<Deprecated, boolean>() {}
+
+/**
+ * @since 1.0.0
+ * @category annotations
+ */
 export class Override extends Context.Tag("@effect/platform/OpenApi/Override")<Override, Record<string, unknown>>() {}
+
+/**
+ * Transforms the generated OpenAPI specification
+ * @since 1.0.0
+ * @category annotations
+ */
+export class Transform extends Context.Tag("@effect/platform/OpenApi/Transform")<
+  Transform,
+  (openApiSpec: Record<string, any>) => Record<string, any>
+>() {}
 
 const contextPartial = <Tags extends Record<string, Context.Tag<any, any>>>(tags: Tags): (
   options: {
@@ -102,10 +122,12 @@ export const annotations: (
     readonly version?: string | undefined
     readonly description?: string | undefined
     readonly license?: OpenAPISpecLicense | undefined
+    readonly summary?: string | undefined
     readonly externalDocs?: OpenAPISpecExternalDocs | undefined
     readonly servers?: ReadonlyArray<OpenAPISpecServer> | undefined
     readonly format?: string | undefined
     readonly override?: Record<string, unknown> | undefined
+    readonly transform?: ((openApiSpec: Record<string, any>) => Record<string, any>) | undefined
   }
 ) => Context.Context<never> = contextPartial({
   identifier: Identifier,
@@ -113,10 +135,12 @@ export const annotations: (
   version: Version,
   description: Description,
   license: License,
+  summary: Summary,
   externalDocs: ExternalDocs,
   servers: Servers,
   format: Format,
-  override: Override
+  override: Override,
+  transform: Transform
 })
 
 const apiCache = globalValue("@effect/platform/OpenApi/apiCache", () => new WeakMap<HttpApi.HttpApi.Any, OpenAPISpec>())
@@ -131,8 +155,8 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
   }
   const api = self as unknown as HttpApi.HttpApi.AnyWithProps
   const jsonSchemaDefs: Record<string, JsonSchema.JsonSchema> = {}
-  const spec: DeepMutable<OpenAPISpec> = {
-    openapi: "3.0.3",
+  let spec: DeepMutable<OpenAPISpec> = {
+    openapi: "3.1.0",
     info: {
       title: Context.getOrElse(api.annotations, Title, () => "Api"),
       version: Context.getOrElse(api.annotations, Version, () => "0.0.1")
@@ -147,8 +171,7 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
   }
   function makeJsonSchemaOrRef(schema: Schema.Schema.All): JsonSchema.JsonSchema {
     return JsonSchema.makeWithDefs(schema as any, {
-      defs: jsonSchemaDefs,
-      defsPath: "#/components/schemas/"
+      defs: jsonSchemaDefs
     })
   }
   function registerSecurity(
@@ -161,11 +184,17 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
     const scheme = makeSecurityScheme(security)
     spec.components!.securitySchemes![name] = scheme
   }
+  Option.map(Context.getOption(api.annotations, HttpApi.AdditionalSchemas), (componentSchemas) => {
+    componentSchemas.forEach((componentSchema) => makeJsonSchemaOrRef(componentSchema))
+  })
   Option.map(Context.getOption(api.annotations, Description), (description) => {
     spec.info.description = description
   })
   Option.map(Context.getOption(api.annotations, License), (license) => {
     spec.info.license = license
+  })
+  Option.map(Context.getOption(api.annotations, Summary), (summary) => {
+    spec.info.summary = summary as any
   })
   Option.map(Context.getOption(api.annotations, Servers), (servers) => {
     spec.servers = servers as any
@@ -173,7 +202,7 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
   Option.map(Context.getOption(api.annotations, Override), (override) => {
     Object.assign(spec, override)
   })
-  HashSet.forEach(api.middlewares, (middleware) => {
+  api.middlewares.forEach((middleware) => {
     if (!HttpApiMiddleware.isSecurity(middleware)) {
       return
     }
@@ -184,7 +213,7 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
   })
   HttpApi.reflect(api as any, {
     onGroup({ group }) {
-      const tag: Mutable<OpenAPISpecTag> = {
+      let tag: Mutable<OpenAPISpecTag> = {
         name: Context.getOrElse(group.annotations, Title, () => group.identifier)
       }
       Option.map(Context.getOption(group.annotations, Description), (description) => {
@@ -196,12 +225,15 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
       Option.map(Context.getOption(group.annotations, Override), (override) => {
         Object.assign(tag, override)
       })
+      Option.map(Context.getOption(group.annotations, Transform), (fn) => {
+        tag = fn(tag) as OpenAPISpecTag
+      })
       spec.tags!.push(tag)
     },
-    onEndpoint({ endpoint, errors, group, middleware, successes }) {
+    onEndpoint({ endpoint, errors, group, middleware, payloads, successes }) {
       const path = endpoint.path.replace(/:(\w+)[^/]*/g, "{$1}")
       const method = endpoint.method.toLowerCase() as OpenAPISpecMethodName
-      const op: DeepMutable<OpenAPISpecOperation> = {
+      let op: DeepMutable<OpenAPISpecOperation> = {
         tags: [Context.getOrElse(group.annotations, Title, () => group.identifier)],
         operationId: Context.getOrElse(
           endpoint.annotations,
@@ -215,10 +247,16 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
       Option.map(Context.getOption(endpoint.annotations, Description), (description) => {
         op.description = description
       })
+      Option.map(Context.getOption(endpoint.annotations, Summary), (summary) => {
+        op.summary = summary
+      })
+      Option.map(Context.getOption(endpoint.annotations, Deprecated), (deprecated) => {
+        op.deprecated = deprecated
+      })
       Option.map(Context.getOption(endpoint.annotations, ExternalDocs), (externalDocs) => {
         op.externalDocs = externalDocs
       })
-      HashSet.forEach(middleware, (middleware) => {
+      middleware.forEach((middleware) => {
         if (!HttpApiMiddleware.isSecurity(middleware)) {
           return
         }
@@ -227,23 +265,19 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
           op.security!.push({ [name]: [] })
         }
       })
-      endpoint.payloadSchema.pipe(
-        Option.filter(() => HttpMethod.hasBody(endpoint.method)),
-        Option.map((schema) => {
-          op.requestBody = {
-            content: {
-              [HttpApiSchema.getMultipart(schema.ast) ? "multipart/form-data" : "application/json"]: {
-                schema: makeJsonSchemaOrRef(schema)
-              }
-            },
-            required: true
+      if (payloads.size > 0) {
+        const content: Mutable<OpenApiSpecContent> = {}
+        payloads.forEach(({ ast }, contentType) => {
+          content[contentType as OpenApiSpecContentType] = {
+            schema: makeJsonSchemaOrRef(Schema.make(ast))
           }
         })
-      )
-      for (const [status, ast] of successes) {
+        op.requestBody = { content, required: true }
+      }
+      for (const [status, { ast, description }] of successes) {
         if (op.responses![status]) continue
         op.responses![status] = {
-          description: Option.getOrElse(getDescriptionOrIdentifier(ast), () => "Success")
+          description: Option.getOrElse(description, () => "Success")
         }
         ast.pipe(
           Option.filter((ast) => !HttpApiSchema.getEmptyDecodeable(ast)),
@@ -308,10 +342,10 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
           })
         }
       }
-      for (const [status, ast] of errors) {
+      for (const [status, { ast, description }] of errors) {
         if (op.responses![status]) continue
         op.responses![status] = {
-          description: Option.getOrElse(getDescriptionOrIdentifier(ast), () => "Error")
+          description: Option.getOrElse(description, () => "Error")
         }
         ast.pipe(
           Option.filter((ast) => !HttpApiSchema.getEmptyDecodeable(ast)),
@@ -330,8 +364,15 @@ export const fromApi = <A extends HttpApi.HttpApi.Any>(self: A): OpenAPISpec => 
       Option.map(Context.getOption(endpoint.annotations, Override), (override) => {
         Object.assign(op, override)
       })
+      Option.map(Context.getOption(endpoint.annotations, Transform), (transformFn) => {
+        op = transformFn(op)
+      })
       spec.paths[path][method] = op
     }
+  })
+
+  Option.map(Context.getOption(api.annotations, Transform), (transformFn) => {
+    spec = transformFn(spec) as OpenAPISpec
   })
 
   apiCache.set(self, spec)
@@ -375,27 +416,12 @@ const makeSecurityScheme = (security: HttpApiSecurity): OpenAPISecurityScheme =>
   }
 }
 
-const getDescriptionOrIdentifier = (ast: Option.Option<AST.PropertySignature | AST.AST>): Option.Option<string> =>
-  ast.pipe(
-    Option.map((ast) =>
-      "to" in ast ?
-        {
-          ...ast.to.annotations,
-          ...ast.annotations
-        } :
-        ast.annotations
-    ),
-    Option.flatMapNullable((annotations) =>
-      annotations[AST.DescriptionAnnotationId] ?? annotations[AST.IdentifierAnnotationId] as any
-    )
-  )
-
 /**
  * @category models
  * @since 1.0.0
  */
 export interface OpenAPISpec {
-  readonly openapi: "3.0.3"
+  readonly openapi: "3.1.0"
   readonly info: OpenAPISpecInfo
   readonly servers?: Array<OpenAPISpecServer>
   readonly paths: OpenAPISpecPaths
@@ -414,6 +440,7 @@ export interface OpenAPISpecInfo {
   readonly version: string
   readonly description?: string
   readonly license?: OpenAPISpecLicense
+  readonly summary?: string
 }
 
 /**

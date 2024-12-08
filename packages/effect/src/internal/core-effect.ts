@@ -29,7 +29,6 @@ import type * as runtimeFlagsPatch from "../RuntimeFlagsPatch.js"
 import * as Tracer from "../Tracer.js"
 import type { NoInfer } from "../Types.js"
 import type { Unify } from "../Unify.js"
-import { yieldWrapGet } from "../Utils.js"
 import * as internalCause from "./cause.js"
 import { clockTag } from "./clock.js"
 import * as core from "./core.js"
@@ -794,29 +793,6 @@ export const forever = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<ne
   return loop
 }
 
-/**
- * Inspired by https://github.com/tusharmath/qio/pull/22 (revised)
-  @internal */
-export const gen: typeof Effect.gen = function() {
-  let f: any
-  if (arguments.length === 1) {
-    f = arguments[0]
-  } else {
-    f = arguments[1].bind(arguments[0])
-  }
-  return core.suspend(() => {
-    const iterator = f(pipe)
-    const next = (value: any): Effect.Effect<any, any, any> => {
-      const result = internalCall(() => iterator.next(value))
-      if (result.done) {
-        return core.succeed(result.value)
-      }
-      return core.flatMap(yieldWrapGet(result.value) as any, next)
-    }
-    return next(undefined)
-  })
-}
-
 /* @internal */
 export const fiberRefs: Effect.Effect<FiberRefs.FiberRefs> = core.withFiberRuntime((state) =>
   core.succeed(state.getFiberRefs())
@@ -1052,23 +1028,23 @@ const loopDiscard = <S, X, E, R>(
 /* @internal */
 export const mapAccum: {
   <S, A, B, E, R, I extends Iterable<A> = Iterable<A>>(
-    zero: S,
-    f: (s: S, a: A, i: number) => Effect.Effect<readonly [S, B], E, R>
+    initial: S,
+    f: (state: S, a: A, i: number) => Effect.Effect<readonly [S, B], E, R>
   ): (elements: I) => Effect.Effect<[S, Arr.ReadonlyArray.With<I, B>], E, R>
   <A, S, B, E, R, I extends Iterable<A> = Iterable<A>>(
     elements: I,
-    zero: S,
-    f: (s: S, a: A, i: number) => Effect.Effect<readonly [S, B], E, R>
+    initial: S,
+    f: (state: S, a: A, i: number) => Effect.Effect<readonly [S, B], E, R>
   ): Effect.Effect<[S, Arr.ReadonlyArray.With<I, B>], E, R>
 } = dual(3, <A, S, B, E, R, I extends Iterable<A> = Iterable<A>>(
   elements: I,
-  zero: S,
-  f: (s: S, a: A, i: number) => Effect.Effect<readonly [S, B], E, R>
+  initial: S,
+  f: (state: S, a: A, i: number) => Effect.Effect<readonly [S, B], E, R>
 ): Effect.Effect<[S, Array<B>], E, R> =>
   core.suspend(() => {
     const iterator = elements[Symbol.iterator]()
     const builder: Array<B> = []
-    let result: Effect.Effect<S, E, R> = core.succeed(zero)
+    let result: Effect.Effect<S, E, R> = core.succeed(initial)
     let next: IteratorResult<A, any>
     let i = 0
     while (!(next = iterator.next()).done) {

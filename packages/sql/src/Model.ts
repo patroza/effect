@@ -77,6 +77,7 @@ export {
    * @since 1.0.0
    * @category constructors
    * @example
+   * ```ts
    * import { Schema } from "effect"
    * import { Model } from "@effect/sql"
    *
@@ -109,6 +110,7 @@ export {
    *     return this.name.toUpperCase()
    *   }
    * }
+   * ```
    */
   Class,
   /**
@@ -622,6 +624,7 @@ export const makeRepository = <
   readonly tableName: string
   readonly spanPrefix: string
   readonly idColumn: Id
+  readonly versionColumn?: string | undefined
 }): Effect.Effect<
   {
     readonly insert: (
@@ -650,6 +653,7 @@ export const makeRepository = <
     const sql = yield* SqlClient
     const idSchema = Model.fields[options.idColumn] as Schema.Schema.Any
     const idColumn = options.idColumn as string
+    const versionColumn = options.versionColumn
 
     const insertSchema = SqlSchema.single({
       Request: Model.insert,
@@ -693,20 +697,35 @@ select * from ${sql(options.tableName)} where ${sql(idColumn)} = LAST_INSERT_ID(
     const updateSchema = SqlSchema.single({
       Request: Model.update,
       Result: Model,
-      execute: (request) =>
-        sql.onDialectOrElse({
-          mysql: () =>
-            sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
-              request[idColumn]
-            };
+      execute: versionColumn ?
+        (request) =>
+          sql.onDialectOrElse({
+            mysql: () =>
+              sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
+                request[idColumn]
+              } and ${sql(versionColumn)} = ${request[versionColumn]};
 select * from ${sql(options.tableName)} where ${sql(idColumn)} = ${request[idColumn]};`.unprepared.pipe(
-              Effect.map(([, results]) => results as any)
-            ),
-          orElse: () =>
-            sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
-              request[idColumn]
-            } returning *`
-        })
+                Effect.map(([, results]) => results as any)
+              ),
+            orElse: () =>
+              sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
+                request[idColumn]
+              } and ${sql(versionColumn)} = ${request[versionColumn]} returning *`
+          }) :
+        (request) =>
+          sql.onDialectOrElse({
+            mysql: () =>
+              sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
+                request[idColumn]
+              };
+select * from ${sql(options.tableName)} where ${sql(idColumn)} = ${request[idColumn]};`.unprepared.pipe(
+                Effect.map(([, results]) => results as any)
+              ),
+            orElse: () =>
+              sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
+                request[idColumn]
+              } returning *`
+          })
     })
     const update = (
       update: S["update"]["Type"]
@@ -721,10 +740,15 @@ select * from ${sql(options.tableName)} where ${sql(idColumn)} = ${request[idCol
 
     const updateVoidSchema = SqlSchema.void({
       Request: Model.update,
-      execute: (request) =>
-        sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
-          request[idColumn]
-        }`
+      execute: versionColumn ?
+        (request) =>
+          sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
+            request[idColumn]
+          } and ${sql(versionColumn)} = ${request[versionColumn]}`
+        : (request) =>
+          sql`update ${sql(options.tableName)} set ${sql.update(request, [idColumn])} where ${sql(idColumn)} = ${
+            request[idColumn]
+          }`
     })
     const updateVoid = (
       update: S["update"]["Type"]

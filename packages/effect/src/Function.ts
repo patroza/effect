@@ -17,10 +17,12 @@ export interface FunctionTypeLambda extends TypeLambda {
  * @param input - The value to test.
  *
  * @example
+ * ```ts
  * import { isFunction } from "effect/Predicate"
  *
  * assert.deepStrictEqual(isFunction(isFunction), true)
  * assert.deepStrictEqual(isFunction("function"), false)
+ * ```
  *
  * @category guards
  * @since 2.0.0
@@ -46,6 +48,7 @@ export const isFunction = (input: unknown): input is Function => typeof input ==
  * @param body - The definition of the uncurried function.
  *
  * @example
+ * ```ts
  * import { dual, pipe } from "effect/Function"
  *
  * // Exampe using arity to determine data-first or data-last style
@@ -65,6 +68,7 @@ export const isFunction = (input: unknown): input is Function => typeof input ==
  *
  * assert.deepStrictEqual(sum(2, 3), 5)
  * assert.deepStrictEqual(pipe(2, sum(3)), 5)
+ * ```
  *
  * @since 2.0.0
  */
@@ -153,10 +157,12 @@ export const dual: {
  * @param self - The function to be applied to a value.
  *
  * @example
+ * ```ts
  * import { pipe, apply } from "effect/Function"
  * import { length } from "effect/String"
  *
  * assert.deepStrictEqual(pipe(length, apply("hello")), 5)
+ * ```
  *
  * @since 2.0.0
  */
@@ -166,9 +172,11 @@ export const apply = <A>(a: A) => <B>(self: (a: A) => B): B => self(a)
  * A lazy argument.
  *
  * @example
+ * ```ts
  * import { LazyArg, constant } from "effect/Function"
  *
  * const constNull: LazyArg<null> = constant(null)
+ * ```
  *
  * @since 2.0.0
  */
@@ -178,9 +186,11 @@ export interface LazyArg<A> {
 
 /**
  * @example
+ * ```ts
  * import { FunctionN } from "effect/Function"
  *
  * const sum: FunctionN<[number, number], number> = (a, b) => a + b
+ * ```
  *
  * @since 2.0.0
  */
@@ -194,9 +204,11 @@ export interface FunctionN<A extends ReadonlyArray<unknown>, B> {
  * @param a - The input argument.
  *
  * @example
+ * ```ts
  * import { identity } from "effect/Function"
  *
  * assert.deepStrictEqual(identity(5), 5)
+ * ```
  *
  * @since 2.0.0
  */
@@ -207,6 +219,7 @@ export const identity = <A>(a: A): A => a
  * without changing the resulting type of that expression.
  *
  * @example
+ * ```ts
  * import { satisfies } from "effect/Function"
  *
  * const test1 = satisfies<number>()(5 as const)
@@ -216,6 +229,7 @@ export const identity = <A>(a: A): A => a
  *     //^? Argument of type 'number' is not assignable to parameter of type 'string'
  *
  * assert.deepStrictEqual(satisfies<number>()(5), 5)
+ * ```
  *
  * @since 2.0.0
  */
@@ -227,9 +241,11 @@ export const satisfies = <A>() => <B extends A>(b: B) => b
  * @param a - The value to be casted to the target type.
  *
  * @example
+ * ```ts
  * import { unsafeCoerce, identity } from "effect/Function"
  *
  * assert.deepStrictEqual(unsafeCoerce, identity)
+ * ```
  *
  * @since 2.0.0
  */
@@ -244,12 +260,14 @@ export const unsafeCoerce: <A, B>(a: A) => B = identity as any
  * @param value - The constant value to be returned.
  *
  * @example
+ * ```ts
  * import { constant } from "effect/Function"
  *
  * const constNull = constant(null)
  *
  * assert.deepStrictEqual(constNull(), null)
  * assert.deepStrictEqual(constNull(), null)
+ * ```
  *
  * @since 2.0.0
  */
@@ -259,9 +277,11 @@ export const constant = <A>(value: A): LazyArg<A> => () => value
  * A thunk that returns always `true`.
  *
  * @example
+ * ```ts
  * import { constTrue } from "effect/Function"
  *
  * assert.deepStrictEqual(constTrue(), true)
+ * ```
  *
  * @since 2.0.0
  */
@@ -271,9 +291,11 @@ export const constTrue: LazyArg<boolean> = constant(true)
  * A thunk that returns always `false`.
  *
  * @example
+ * ```ts
  * import { constFalse } from "effect/Function"
  *
  * assert.deepStrictEqual(constFalse(), false)
+ * ```
  *
  * @since 2.0.0
  */
@@ -283,9 +305,11 @@ export const constFalse: LazyArg<boolean> = constant(false)
  * A thunk that returns always `null`.
  *
  * @example
+ * ```ts
  * import { constNull } from "effect/Function"
  *
  * assert.deepStrictEqual(constNull(), null)
+ * ```
  *
  * @since 2.0.0
  */
@@ -295,9 +319,11 @@ export const constNull: LazyArg<null> = constant(null)
  * A thunk that returns always `undefined`.
  *
  * @example
+ * ```ts
  * import { constUndefined } from "effect/Function"
  *
  * assert.deepStrictEqual(constUndefined(), undefined)
+ * ```
  *
  * @since 2.0.0
  */
@@ -307,9 +333,11 @@ export const constUndefined: LazyArg<undefined> = constant(undefined)
  * A thunk that returns always `void`.
  *
  * @example
+ * ```ts
  * import { constVoid } from "effect/Function"
  *
  * assert.deepStrictEqual(constVoid(), undefined)
+ * ```
  *
  * @since 2.0.0
  */
@@ -321,11 +349,13 @@ export const constVoid: LazyArg<void> = constUndefined
  * @param f - A curried function that takes multiple arguments.
  *
  * @example
+ * ```ts
  * import { flip } from "effect/Function"
  *
  * const f = (a: number) => (b: string) => a - b.length
  *
  * assert.deepStrictEqual(flip(f)('aaa')(2), -1)
+ * ```
  *
  * @since 2.0.0
  */
@@ -343,12 +373,14 @@ export const flip = <A extends Array<unknown>, B extends Array<unknown>, C>(
  * @param bc - A function that maps from `B` to `C`.
  *
  * @example
+ * ```ts
  * import { compose } from "effect/Function"
  *
  * const increment = (n: number) => n + 1;
  * const square = (n: number) => n * n;
  *
  * assert.strictEqual(compose(increment, square)(2), 9);
+ * ```
  *
  * @since 2.0.0
  */
@@ -373,11 +405,13 @@ export const absurd = <A>(_: never): A => {
  * Creates a tupled version of this function: instead of `n` arguments, it accepts a single tuple argument.
  *
  * @example
+ * ```ts
  * import { tupled } from "effect/Function"
  *
  * const sumTupled = tupled((x: number, y: number): number => x + y)
  *
  * assert.deepStrictEqual(sumTupled([1, 2]), 3)
+ * ```
  *
  * @since 2.0.0
  */
@@ -387,11 +421,13 @@ export const tupled = <A extends ReadonlyArray<unknown>, B>(f: (...a: A) => B): 
  * Inverse function of `tupled`
  *
  * @example
+ * ```ts
  * import { untupled } from "effect/Function"
  *
  * const getFirst = untupled(<A, B>(tuple: [A, B]): A => tuple[0])
  *
  * assert.deepStrictEqual(getFirst(1, 2), 1)
+ * ```
  *
  * @since 2.0.0
  */
@@ -400,22 +436,68 @@ export const untupled = <A extends ReadonlyArray<unknown>, B>(f: (a: A) => B): (
 /**
  * Pipes the value of an expression into a pipeline of functions.
  *
- * This is useful in combination with data-last functions as a simulation of methods:
+ * **When to Use**
  *
+ * This is useful in combination with data-last functions as a simulation of
+ * methods:
+ *
+ * ```ts
+ * as.map(f).filter(g)
  * ```
- * as.map(f).filter(g) -> pipe(as, map(f), filter(g))
+ *
+ * becomes:
+ *
+ * ```ts
+ * import { pipe, Array } from "effect"
+ *
+ * pipe(as, Array.map(f), Array.filter(g))
  * ```
+ *
+ * **Details**
+ *
+ * The `pipe` function is a utility that allows us to compose functions in a
+ * readable and sequential manner. It takes the output of one function and
+ * passes it as the input to the next function in the pipeline. This enables us
+ * to build complex transformations by chaining multiple functions together.
+ *
+ * ```ts
+ * import { pipe } from "effect"
+ *
+ * const result = pipe(input, func1, func2, ..., funcN)
+ * ```
+ *
+ * In this syntax, `input` is the initial value, and `func1`, `func2`, ...,
+ * `funcN` are the functions to be applied in sequence. The result of each
+ * function becomes the input for the next function, and the final result is
+ * returned.
+ *
+ * Here's an illustration of how `pipe` works:
+ *
+ * ```text
+ * ┌───────┐    ┌───────┐    ┌───────┐    ┌───────┐    ┌───────┐    ┌────────┐
+ * │ input │───►│ func1 │───►│ func2 │───►│  ...  │───►│ funcN │───►│ result │
+ * └───────┘    └───────┘    └───────┘    └───────┘    └───────┘    └────────┘
+ * ```
+ *
+ * It's important to note that functions passed to `pipe` must have a **single
+ * argument** because they are only called with a single argument.
  *
  * @example
- * import { pipe } from "effect/Function"
- * // Alternatively, you can use the following import syntax, as `pipe` is also conveniently exported from the `effect` entry point:
- * // import { pipe } from "effect"
+ * ```ts
+ * // Example: Chaining Arithmetic Operations
+ * import { pipe } from "effect"
  *
- * const length = (s: string): number => s.length
- * const double = (n: number): number => n * 2
- * const decrement = (n: number): number => n - 1
+ * // Define simple arithmetic operations
+ * const increment = (x: number) => x + 1
+ * const double = (x: number) => x * 2
+ * const subtractTen = (x: number) => x - 10
  *
- * assert.deepStrictEqual(pipe(length("hello"), double, decrement), 9)
+ * // Sequentially apply these operations using `pipe`
+ * const result = pipe(5, increment, double, subtractTen)
+ *
+ * console.log(result)
+ * // Output: 2
+ * ```
  *
  * @since 2.0.0
  */
@@ -913,6 +995,7 @@ export function pipe(
  * See also [`pipe`](#pipe).
  *
  * @example
+ * ```ts
  * import { flow } from "effect/Function"
  *
  * const len = (s: string): number => s.length
@@ -921,6 +1004,7 @@ export function pipe(
  * const f = flow(len, double)
  *
  * assert.strictEqual(f('aaa'), 6)
+ * ```
  *
  * @since 2.0.0
  */
@@ -1106,9 +1190,11 @@ export const hole: <T>() => T = unsafeCoerce(absurd)
  * @param b - The second argument to be returned.
  *
  * @example
+ * ```ts
  * import { SK } from "effect/Function";
  *
  * assert.deepStrictEqual(SK(0, "hello"), "hello")
+ * ```
  *
  * @since 2.0.0
  */

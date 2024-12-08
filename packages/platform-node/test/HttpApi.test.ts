@@ -18,24 +18,48 @@ import {
 import { NodeHttpServer } from "@effect/platform-node"
 import { assert, describe, it } from "@effect/vitest"
 import { Context, DateTime, Effect, Layer, Redacted, Ref, Schema, Struct } from "effect"
-import OpenApiFixture from "./fixtures/openapi.json"
+import OpenApiFixture from "./fixtures/openapi.json" with { type: "json" }
 
 describe("HttpApi", () => {
   describe("payload", () => {
     it.effect("is decoded / encoded", () =>
       Effect.gen(function*() {
+        const expected = new User({
+          id: 123,
+          name: "Joe",
+          createdAt: DateTime.unsafeMake(0)
+        })
         const client = yield* HttpApiClient.make(Api)
-        const user = yield* client.users.create({
+        const clientUsersGroup = yield* HttpApiClient.group(Api, "users")
+        const clientUsersEndpointCreate = yield* HttpApiClient.endpoint(
+          Api,
+          "users",
+          "create"
+        )
+
+        const apiClientUser = yield* client.users.create({
           urlParams: { id: 123 },
           payload: { name: "Joe" }
         })
         assert.deepStrictEqual(
-          user,
-          new User({
-            id: 123,
-            name: "Joe",
-            createdAt: DateTime.unsafeMake(0)
-          })
+          apiClientUser,
+          expected
+        )
+        const groupClientUser = yield* clientUsersGroup.create({
+          urlParams: { id: 123 },
+          payload: { name: "Joe" }
+        })
+        assert.deepStrictEqual(
+          groupClientUser,
+          expected
+        )
+        const endpointClientUser = yield* clientUsersEndpointCreate({
+          urlParams: { id: 123 },
+          payload: { name: "Joe" }
+        })
+        assert.deepStrictEqual(
+          endpointClientUser,
+          expected
         )
       }).pipe(Effect.provide(HttpLive)))
 
@@ -179,6 +203,39 @@ describe("HttpApi", () => {
       }).pipe(Effect.provide(HttpLive)))
   })
 
+  it.effect("client withResponse", () =>
+    Effect.gen(function*() {
+      const client = yield* HttpApiClient.make(Api)
+      const [users, response] = yield* client.users.list({ headers: { page: 1 }, withResponse: true })
+      assert.strictEqual(users[0].name, "page 1")
+      assert.strictEqual(response.status, 200)
+    }).pipe(Effect.provide(HttpLive)))
+
+  it.effect("multiple payload types", () =>
+    Effect.gen(function*() {
+      const client = yield* HttpApiClient.make(Api)
+      let [group, response] = yield* client.groups.create({
+        payload: { name: "Some group" },
+        withResponse: true
+      })
+      assert.deepStrictEqual(group, new Group({ id: 1, name: "Some group" }))
+      assert.strictEqual(response.status, 200)
+
+      const data = new FormData()
+      data.set("name", "Some group")
+      ;[group, response] = yield* client.groups.create({
+        payload: data,
+        withResponse: true
+      })
+      assert.deepStrictEqual(group, new Group({ id: 1, name: "Some group" }))
+      assert.strictEqual(response.status, 200)
+
+      group = yield* client.groups.create({
+        payload: { foo: "Some group" }
+      })
+      assert.deepStrictEqual(group, new Group({ id: 1, name: "Some group" }))
+    }).pipe(Effect.provide(HttpLive)))
+
   it("OpenAPI spec", () => {
     const spec = OpenApi.fromApi(Api)
     assert.deepStrictEqual(spec, OpenApiFixture as any)
@@ -192,6 +249,7 @@ class NoStatusError extends Schema.TaggedClass<NoStatusError>()("NoStatusError",
 
 class User extends Schema.Class<User>("User")({
   id: Schema.Int,
+  uuid: Schema.optional(Schema.UUID),
   name: Schema.String,
   createdAt: Schema.DateTimeUtc
 }) {}
@@ -225,15 +283,20 @@ class Authorization extends HttpApiMiddleware.Tag<Authorization>()("Authorizatio
 
 class GroupsApi extends HttpApiGroup.make("groups")
   .add(
-    HttpApiEndpoint.get("findById", "/:id")
-      .setPath(Schema.Struct({
-        id: Schema.NumberFromString
-      }))
+    HttpApiEndpoint.get("findById")`/${HttpApiSchema.param("id", Schema.NumberFromString)}`
       .addSuccess(Group)
   )
   .add(
-    HttpApiEndpoint.post("create", "/")
-      .setPayload(Schema.Struct(Struct.pick(Group.fields, "name")))
+    HttpApiEndpoint.post("create")`/`
+      .setPayload(Schema.Union(
+        Schema.Struct(Struct.pick(Group.fields, "name")),
+        Schema.Struct({ foo: Schema.String }).pipe(
+          HttpApiSchema.withEncoding({ kind: "UrlParams" })
+        ),
+        HttpApiSchema.Multipart(
+          Schema.Struct(Struct.pick(Group.fields, "name"))
+        )
+      ))
       .addSuccess(Group)
   )
   .addError(GroupError.pipe(
@@ -244,14 +307,11 @@ class GroupsApi extends HttpApiGroup.make("groups")
 
 class UsersApi extends HttpApiGroup.make("users")
   .add(
-    HttpApiEndpoint.get("findById", "/:id")
-      .setPath(Schema.Struct({
-        id: Schema.NumberFromString
-      }))
+    HttpApiEndpoint.get("findById")`/${HttpApiSchema.param("id", Schema.NumberFromString)}`
       .addSuccess(User)
   )
   .add(
-    HttpApiEndpoint.post("create", "/")
+    HttpApiEndpoint.post("create")`/`
       .setPayload(Schema.Struct(Struct.omit(
         User.fields,
         "id",
@@ -264,7 +324,7 @@ class UsersApi extends HttpApiGroup.make("users")
       .addError(UserError)
   )
   .add(
-    HttpApiEndpoint.get("list", "/")
+    HttpApiEndpoint.get("list")`/`
       .setHeaders(Schema.Struct({
         page: Schema.NumberFromString.pipe(
           Schema.optionalWith({ default: () => 1 })
@@ -272,10 +332,12 @@ class UsersApi extends HttpApiGroup.make("users")
       }))
       .addSuccess(Schema.Array(User))
       .addError(NoStatusError)
+      .annotate(OpenApi.Deprecated, true)
+      .annotate(OpenApi.Summary, "test summary")
       .annotateContext(OpenApi.annotations({ identifier: "listUsers" }))
   )
   .add(
-    HttpApiEndpoint.post("upload", "/upload")
+    HttpApiEndpoint.post("upload")`/upload`
       .setPayload(HttpApiSchema.Multipart(Schema.Struct({
         file: Multipart.SingleFileSchema
       })))
@@ -288,11 +350,41 @@ class UsersApi extends HttpApiGroup.make("users")
   .annotateContext(OpenApi.annotations({ title: "Users API" }))
 {}
 
+class TopLevelApi extends HttpApiGroup.make("root", { topLevel: true })
+  .add(
+    HttpApiEndpoint.get("healthz")`/healthz`
+      .addSuccess(HttpApiSchema.NoContent.annotations({ description: "Empty" }))
+  )
+{}
+
+class AnotherApi extends HttpApi.empty.add(GroupsApi) {}
+
 class Api extends HttpApi.empty
-  .add(GroupsApi)
+  .addHttpApi(AnotherApi)
   .add(UsersApi.prefix("/users"))
+  .add(TopLevelApi)
   .addError(GlobalError, { status: 413 })
-  .annotateContext(OpenApi.annotations({ title: "API" }))
+  .annotateContext(OpenApi.annotations({
+    title: "API",
+    summary: "test api summary",
+    transform: (openApiSpec) => ({
+      ...openApiSpec,
+      tags: [...openApiSpec.tags ?? [], {
+        name: "Tag from OpenApi.Transform annotation"
+      }]
+    })
+  }))
+  .annotate(
+    HttpApi.AdditionalSchemas,
+    [
+      Schema.Struct({
+        contentType: Schema.String,
+        length: Schema.Int
+      }).annotations({
+        identifier: "ComponentsSchema"
+      })
+    ]
+  )
 {}
 
 // impl
@@ -375,12 +467,25 @@ const HttpGroupsLive = HttpApiBuilder.group(
         path.id === 0
           ? Effect.fail(new GroupError())
           : Effect.succeed(new Group({ id: 1, name: "foo" })))
-      .handle("create", ({ payload }) => Effect.succeed(new Group({ id: 1, name: payload.name })))
+      .handle("create", ({ payload }) =>
+        Effect.succeed(
+          new Group({
+            id: 1,
+            name: "foo" in payload ? payload.foo : payload.name
+          })
+        ))
+)
+
+const TopLevelLive = HttpApiBuilder.group(
+  Api,
+  "root",
+  (handlers) => handlers.handle("healthz", (_) => Effect.void)
 )
 
 const HttpApiLive = Layer.provide(HttpApiBuilder.api(Api), [
   HttpGroupsLive,
-  HttpUsersLive
+  HttpUsersLive,
+  TopLevelLive
 ])
 
 const HttpLive = HttpApiBuilder.serve().pipe(

@@ -1,7 +1,7 @@
 {
   "name": "@effect/cluster-node",
   "type": "module",
-  "version": "0.15.14",
+  "version": "0.19.4",
   "description": "Unified interfaces for common cluster-node-specific services",
   "publishConfig": {
     "access": "public",
@@ -35,7 +35,6 @@
     "@effect/platform-node": "workspace:^",
     "@effect/rpc": "workspace:^",
     "@effect/rpc-http": "workspace:^",
-    "@types/node": "^22.5.4",
     "effect": "workspace:^"
   }
 }

@@ -4,7 +4,6 @@
 import type { Brand } from "effect/Brand"
 import * as Context from "effect/Context"
 import type { Effect } from "effect/Effect"
-import * as HashSet from "effect/HashSet"
 import * as Option from "effect/Option"
 import { type Pipeable, pipeArguments } from "effect/Pipeable"
 import * as Predicate from "effect/Predicate"
@@ -64,7 +63,7 @@ export interface HttpApiEndpoint<
   readonly successSchema: Schema.Schema<Success, unknown, R>
   readonly errorSchema: Schema.Schema<Error, unknown, RE>
   readonly annotations: Context.Context<never>
-  readonly middlewares: HashSet.HashSet<HttpApiMiddleware.TagClassAny>
+  readonly middlewares: ReadonlySet<HttpApiMiddleware.TagClassAny>
 
   /**
    * Add a schema for the success response of the endpoint. The status code
@@ -402,14 +401,17 @@ export declare namespace HttpApiEndpoint {
    * @since 1.0.0
    * @category models
    */
-  export type ClientRequest<Path, UrlParams, Payload, Headers> = (
+  export type ClientRequest<Path, UrlParams, Payload, Headers, WithResponse extends boolean> = (
     & ([Path] extends [void] ? {} : { readonly path: Path })
     & ([UrlParams] extends [never] ? {} : { readonly urlParams: UrlParams })
     & ([Headers] extends [never] ? {} : { readonly headers: Headers })
     & ([Payload] extends [never] ? {}
-      : [Payload] extends [Brand<HttpApiSchema.MultipartTypeId>] ? { readonly payload: FormData }
+      : Payload extends infer P ?
+        P extends Brand<HttpApiSchema.MultipartTypeId> ? { readonly payload: FormData } : { readonly payload: P }
       : { readonly payload: Payload })
-  ) extends infer Req ? keyof Req extends never ? void : Req : void
+  ) extends infer Req ? keyof Req extends never ? (void | { readonly withResponse?: WithResponse }) :
+    Req & { readonly withResponse?: WithResponse } :
+    void
 
   /**
    * @since 1.0.0
@@ -517,6 +519,12 @@ export declare namespace HttpApiEndpoint {
    * @since 1.0.0
    * @category models
    */
+  export type ErrorContextWithName<Endpoints extends Any, Name extends string> = ErrorContext<WithName<Endpoints, Name>>
+
+  /**
+   * @since 1.0.0
+   * @category models
+   */
   export type ExcludeProvided<Endpoints extends Any, Name extends string, R> = Exclude<
     R,
     | HttpRouter.HttpRouter.DefaultServices
@@ -538,7 +546,7 @@ export declare namespace HttpApiEndpoint {
    * @category models
    */
   export type ValidateUrlParams<S extends Schema.Schema.Any> = S extends Schema.Schema<infer _A, infer _I, infer _R>
-    ? [_I] extends [Readonly<Record<string, string | undefined>>] ? {}
+    ? [_I] extends [Readonly<Record<string, string | ReadonlyArray<string> | undefined>>] ? {}
     : `UrlParams schema must be encodeable to strings`
     : {}
 
@@ -562,6 +570,25 @@ export declare namespace HttpApiEndpoint {
       : `'${Method}' payload must be encodeable to strings`
     : {}
     : {}
+
+  /**
+   * @since 1.0.0
+   * @category models
+   */
+  export type ValidateParams<
+    Schemas extends ReadonlyArray<HttpApiSchema.AnyString>,
+    Prev extends HttpApiSchema.AnyString = never
+  > = Schemas extends [
+    infer Head extends HttpApiSchema.AnyString,
+    ...infer Tail extends ReadonlyArray<HttpApiSchema.AnyString>
+  ] ? [
+      Head extends HttpApiSchema.Param<infer _Name, infer _S>
+        ? HttpApiSchema.Param<_Name, any> extends Prev ? `Duplicate param :${_Name}`
+        : Head :
+        Head,
+      ...ValidateParams<Tail, Prev | Head>
+    ]
+    : Schemas
 
   /**
    * @since 1.0.0
@@ -620,6 +647,47 @@ export declare namespace HttpApiEndpoint {
       _RE | HttpApiMiddleware.HttpApiMiddleware.ErrorContext<R>
     > :
     never
+
+  /**
+   * @since 1.0.0
+   * @category models
+   */
+  export type PathEntries<Schemas extends ReadonlyArray<HttpApiSchema.AnyString>> =
+    Extract<keyof Schemas, string> extends infer K ?
+      K extends keyof Schemas ? Schemas[K] extends HttpApiSchema.Param<infer _Name, infer _S> ? [_Name, _S] :
+        Schemas[K] extends HttpApiSchema.AnyString ? [K, Schemas[K]]
+        : never
+      : never
+      : never
+
+  /**
+   * @since 1.0.0
+   * @category models
+   */
+  export type ExtractPath<Schemas extends ReadonlyArray<HttpApiSchema.AnyString>> = {
+    readonly [Entry in PathEntries<Schemas> as Entry[0]]: Entry[1]["Type"]
+  }
+
+  /**
+   * @since 1.0.0
+   * @category models
+   */
+  export type Constructor<Name extends string, Method extends HttpMethod> = <
+    const Schemas extends ReadonlyArray<HttpApiSchema.AnyString>
+  >(
+    segments: TemplateStringsArray,
+    ...schemas: ValidateParams<Schemas>
+  ) => HttpApiEndpoint<
+    Name,
+    Method,
+    Schemas["length"] extends 0 ? never : Types.Simplify<ExtractPath<Schemas>>,
+    never,
+    never,
+    never,
+    void,
+    never,
+    Schemas[number]["Context"]
+  >
 }
 
 const Proto = {
@@ -698,7 +766,7 @@ const Proto = {
           }))
         )
       ),
-      middlewares: HashSet.add(this.middlewares, middleware)
+      middlewares: new Set([...this.middlewares, middleware])
     })
   },
   annotate(this: HttpApiEndpoint.AnyWithProps, tag: Context.Tag<any, any>, value: any) {
@@ -737,7 +805,7 @@ const makeProto = <
   readonly successSchema: Schema.Schema<Success, unknown, R>
   readonly errorSchema: Schema.Schema<Error, unknown, RE>
   readonly annotations: Context.Context<never>
-  readonly middlewares: HashSet.HashSet<HttpApiMiddleware.TagClassAny>
+  readonly middlewares: ReadonlySet<HttpApiMiddleware.TagClassAny>
 }): HttpApiEndpoint<Name, Method, Path, Payload, Headers, Success, Error, R, RE> =>
   Object.assign(Object.create(Proto), options)
 
@@ -745,66 +813,115 @@ const makeProto = <
  * @since 1.0.0
  * @category constructors
  */
-export const make = <Method extends HttpMethod>(method: Method) =>
-<const Name extends string>(
-  name: Name,
-  path: HttpRouter.PathInput
-): HttpApiEndpoint<Name, Method> =>
-  makeProto({
-    name,
-    path,
-    method,
-    pathSchema: Option.none(),
-    urlParamsSchema: Option.none(),
-    payloadSchema: Option.none(),
-    headersSchema: Option.none(),
-    successSchema: HttpApiSchema.NoContent as any,
-    errorSchema: Schema.Never as any,
-    annotations: Context.empty(),
-    middlewares: HashSet.empty()
-  })
+export const make = <Method extends HttpMethod>(method: Method): {
+  <const Name extends string>(name: Name): HttpApiEndpoint.Constructor<Name, Method>
+  <const Name extends string>(name: Name, path: HttpRouter.PathInput): HttpApiEndpoint<Name, Method>
+} =>
+  ((name: string, ...args: [HttpRouter.PathInput]) => {
+    if (args.length === 1) {
+      return makeProto({
+        name,
+        path: args[0],
+        method,
+        pathSchema: Option.none(),
+        urlParamsSchema: Option.none(),
+        payloadSchema: Option.none(),
+        headersSchema: Option.none(),
+        successSchema: HttpApiSchema.NoContent as any,
+        errorSchema: Schema.Never as any,
+        annotations: Context.empty(),
+        middlewares: new Set()
+      })
+    }
+    return (segments: TemplateStringsArray, ...schemas: ReadonlyArray<HttpApiSchema.AnyString>) => {
+      let path = segments[0] as HttpRouter.PathInput
+      let pathSchema = Option.none<Schema.Schema.Any>()
+      if (schemas.length > 0) {
+        const obj: Record<string, Schema.Schema.Any> = {}
+        for (let i = 0; i < schemas.length; i++) {
+          const schema = schemas[i]
+          const key = HttpApiSchema.getParam(schema.ast) ?? String(i)
+          obj[key] = schema
+          path += `:${key}${segments[i + 1]}`
+        }
+        pathSchema = Option.some(Schema.Struct(obj))
+      }
+      return makeProto({
+        name,
+        path,
+        method,
+        pathSchema,
+        urlParamsSchema: Option.none(),
+        payloadSchema: Option.none(),
+        headersSchema: Option.none(),
+        successSchema: HttpApiSchema.NoContent as any,
+        errorSchema: Schema.Never as any,
+        annotations: Context.empty(),
+        middlewares: new Set()
+      })
+    }
+  }) as any
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const get: <const Name extends string>(
-  name: Name,
-  path: HttpRouter.PathInput
-) => HttpApiEndpoint<Name, "GET"> = make("GET")
+export const get: {
+  <const Name extends string>(name: Name): HttpApiEndpoint.Constructor<Name, "GET">
+  <const Name extends string>(
+    name: Name,
+    path: HttpRouter.PathInput
+  ): HttpApiEndpoint<Name, "GET">
+} = make("GET")
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const post: <const Name extends string>(
-  name: Name,
-  path: HttpRouter.PathInput
-) => HttpApiEndpoint<Name, "POST"> = make("POST")
+export const post: {
+  <const Name extends string>(name: Name): HttpApiEndpoint.Constructor<Name, "POST">
+  <const Name extends string>(
+    name: Name,
+    path: HttpRouter.PathInput
+  ): HttpApiEndpoint<Name, "POST">
+} = make("POST")
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const put: <const Name extends string>(
-  name: Name,
-  path: HttpRouter.PathInput
-) => HttpApiEndpoint<Name, "PUT"> = make("PUT")
+export const put: {
+  <const Name extends string>(name: Name): HttpApiEndpoint.Constructor<Name, "PUT">
+  <const Name extends string>(
+    name: Name,
+    path: HttpRouter.PathInput
+  ): HttpApiEndpoint<Name, "PUT">
+} = make("PUT")
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const patch: <const Name extends string>(
-  name: Name,
-  path: HttpRouter.PathInput
-) => HttpApiEndpoint<Name, "PATCH"> = make("PATCH")
+export const patch: {
+  <const Name extends string>(name: Name): HttpApiEndpoint.Constructor<Name, "PATCH">
+  <const Name extends string>(
+    name: Name,
+    path: HttpRouter.PathInput
+  ): HttpApiEndpoint<Name, "PATCH">
+} = make(
+  "PATCH"
+)
 
 /**
  * @since 1.0.0
  * @category constructors
  */
-export const del: <const Name extends string>(
-  name: Name,
-  path: HttpRouter.PathInput
-) => HttpApiEndpoint<Name, "DELETE"> = make("DELETE")
+export const del: {
+  <const Name extends string>(name: Name): HttpApiEndpoint.Constructor<Name, "DELETE">
+  <const Name extends string>(
+    name: Name,
+    path: HttpRouter.PathInput
+  ): HttpApiEndpoint<Name, "DELETE">
+} = make(
+  "DELETE"
+)

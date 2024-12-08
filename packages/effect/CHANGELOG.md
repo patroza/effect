@@ -1,5 +1,537 @@
 # effect
 
+## 3.11.3
+
+### Patch Changes
+
+- [#4080](https://github.com/Effect-TS/effect/pull/4080) [`90906f7`](https://github.com/Effect-TS/effect/commit/90906f7f154b12c7182e8f39e3c55ef3937db857) Thanks @gcanti! - Fix the `Schema.TemplateLiteral` output type when the arguments include a branded type.
+
+  Before
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.TemplateLiteral(
+    "a ",
+    Schema.String.pipe(Schema.brand("MyBrand"))
+  )
+
+  // type Type = `a ${Schema.brand<typeof Schema.String, "MyBrand"> & string}`
+  // | `a ${Schema.brand<typeof Schema.String, "MyBrand"> & number}`
+  // | `a ${Schema.brand<typeof Schema.String, "MyBrand"> & bigint}`
+  // | `a ${Schema.brand<...> & false}`
+  // | `a ${Schema.brand<...> & true}`
+  type Type = typeof schema.Type
+  ```
+
+  After
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.TemplateLiteral(
+    "a ",
+    Schema.String.pipe(Schema.brand("MyBrand"))
+  )
+
+  // type Type = `a ${string & Brand<"MyBrand">}`
+  type Type = typeof schema.Type
+  ```
+
+- [#4076](https://github.com/Effect-TS/effect/pull/4076) [`3862cd3`](https://github.com/Effect-TS/effect/commit/3862cd3c7f6a542ed65fb81255b3bd696ce2f567) Thanks @gcanti! - Schema: fix bug in `Schema.TemplateLiteralParser` resulting in a runtime error.
+
+  Before
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.TemplateLiteralParser("a", "b")
+  // throws TypeError: Cannot read properties of undefined (reading 'replace')
+  ```
+
+  After
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.TemplateLiteralParser("a", "b")
+
+  console.log(Schema.decodeUnknownSync(schema)("ab"))
+  // Output: [ 'a', 'b' ]
+  ```
+
+- [#4076](https://github.com/Effect-TS/effect/pull/4076) [`3862cd3`](https://github.com/Effect-TS/effect/commit/3862cd3c7f6a542ed65fb81255b3bd696ce2f567) Thanks @gcanti! - SchemaAST: fix `TemplateLiteral` model.
+
+  Added `Literal` and `Union` as valid types.
+
+- [#4083](https://github.com/Effect-TS/effect/pull/4083) [`343b6aa`](https://github.com/Effect-TS/effect/commit/343b6aa6ac4a74276bfc7c63ccbf4a1d72bc1bed) Thanks @gcanti! - Preserve `MissingMessageAnnotation`s on property signature declarations when another field is a property signature transformation.
+
+  Before
+
+  ```ts
+  import { Console, Effect, ParseResult, Schema } from "effect"
+
+  const schema = Schema.Struct({
+    a: Schema.propertySignature(Schema.String).annotations({
+      missingMessage: () => "message1"
+    }),
+    b: Schema.propertySignature(Schema.String)
+      .annotations({ missingMessage: () => "message2" })
+      .pipe(Schema.fromKey("c")), // <= transformation
+    d: Schema.propertySignature(Schema.String).annotations({
+      missingMessage: () => "message3"
+    })
+  })
+
+  Effect.runPromiseExit(
+    Schema.decodeUnknown(schema, { errors: "all" })({}).pipe(
+      Effect.tapError((error) =>
+        Console.log(ParseResult.ArrayFormatter.formatErrorSync(error))
+      )
+    )
+  )
+  /*
+  Output:
+  [
+    { _tag: 'Missing', path: [ 'a' ], message: 'is missing' }, // <= wrong
+    { _tag: 'Missing', path: [ 'c' ], message: 'message2' },
+    { _tag: 'Missing', path: [ 'd' ], message: 'is missing' } // <= wrong
+  ]
+  */
+  ```
+
+  After
+
+  ```ts
+  import { Console, Effect, ParseResult, Schema } from "effect"
+
+  const schema = Schema.Struct({
+    a: Schema.propertySignature(Schema.String).annotations({
+      missingMessage: () => "message1"
+    }),
+    b: Schema.propertySignature(Schema.String)
+      .annotations({ missingMessage: () => "message2" })
+      .pipe(Schema.fromKey("c")), // <= transformation
+    d: Schema.propertySignature(Schema.String).annotations({
+      missingMessage: () => "message3"
+    })
+  })
+
+  Effect.runPromiseExit(
+    Schema.decodeUnknown(schema, { errors: "all" })({}).pipe(
+      Effect.tapError((error) =>
+        Console.log(ParseResult.ArrayFormatter.formatErrorSync(error))
+      )
+    )
+  )
+  /*
+  Output:
+  [
+    { _tag: 'Missing', path: [ 'a' ], message: 'message1' },
+    { _tag: 'Missing', path: [ 'c' ], message: 'message2' },
+    { _tag: 'Missing', path: [ 'd' ], message: 'message3' }
+  ]
+  */
+  ```
+
+- [#4081](https://github.com/Effect-TS/effect/pull/4081) [`afba339`](https://github.com/Effect-TS/effect/commit/afba339adc11dad56b5a3b7ca94487e58f34d613) Thanks @gcanti! - Fix the behavior of `Schema.TemplateLiteralParser` when the arguments include literals other than string literals.
+
+  Before
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.TemplateLiteralParser(Schema.String, 1)
+
+  console.log(Schema.decodeUnknownSync(schema)("a1"))
+  /*
+  throws
+  ParseError: (`${string}1` <-> readonly [string, 1])
+  └─ Type side transformation failure
+     └─ readonly [string, 1]
+        └─ [1]
+           └─ Expected 1, actual "1"
+  */
+  ```
+
+  After
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.TemplateLiteralParser(Schema.String, 1)
+
+  console.log(Schema.decodeUnknownSync(schema)("a1"))
+  // Output: [ 'a', 1 ]
+  ```
+
+## 3.11.2
+
+### Patch Changes
+
+- [#4063](https://github.com/Effect-TS/effect/pull/4063) [`01cee56`](https://github.com/Effect-TS/effect/commit/01cee560b58d94b24cc20e98083251b73e658b41) Thanks @tim-smart! - Micro adjustments
+
+  - rename Fiber to MicroFiber
+  - add Micro.fiberJoin api
+  - adjust output when inspecting Micro data types
+
+## 3.11.1
+
+### Patch Changes
+
+- [#4052](https://github.com/Effect-TS/effect/pull/4052) [`dd8a2d8`](https://github.com/Effect-TS/effect/commit/dd8a2d8e80d33b16719fc69361eaedf0b59d4620) Thanks @tim-smart! - ensure pool.get is interrupted on shutdown
+
+- [#4059](https://github.com/Effect-TS/effect/pull/4059) [`a71bfef`](https://github.com/Effect-TS/effect/commit/a71bfef46f5061bb2502a61a333638a987b62273) Thanks @IMax153! - Ensure that the current time zone context tag type is properly exported
+
+## 3.11.0
+
+### Minor Changes
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`147434b`](https://github.com/Effect-TS/effect/commit/147434b03d5e1fd692dd9f126e5ab0910f3b76d3) Thanks @IMax153! - Ensure scopes are preserved by stream / sink / channel operations
+
+  **NOTE**: This change does modify the public signature of several `Stream` / `Sink` / `Channel` methods. Namely, certain run methods that previously removed a `Scope` from the environment will no longer do so. This was a bug with the previous implementation of how scopes were propagated, and is why this change is being made in a minor release.
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`6e69493`](https://github.com/Effect-TS/effect/commit/6e694930048bbaf98110f35f41566aeb9752d471) Thanks @tim-smart! - add Context.Reference - a Tag with a default value
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`147434b`](https://github.com/Effect-TS/effect/commit/147434b03d5e1fd692dd9f126e5ab0910f3b76d3) Thanks @IMax153! - Add `Effect.scopedWith` to run an effect that depends on a `Scope`, and then closes the `Scope` after the effect has completed
+
+  ```ts
+  import { Effect, Scope } from "effect"
+
+  const program: Effect.Effect<void> = Effect.scopedWith((scope) =>
+    Effect.acquireRelease(Effect.log("Acquiring..."), () =>
+      Effect.log("Releasing...")
+    ).pipe(Scope.extend(scope))
+  )
+
+  Effect.runPromise(program)
+  // Output:
+  // timestamp=2024-11-26T16:44:54.158Z level=INFO fiber=#0 message=Acquiring...
+  // timestamp=2024-11-26T16:44:54.165Z level=INFO fiber=#0 message=Releasing...
+  ```
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`d9fe79b`](https://github.com/Effect-TS/effect/commit/d9fe79bb5a3fe105d8e7a3bc2922a8ad936a5d10) Thanks @tim-smart! - remove Env, EnvRef & FiberFlags from Micro
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`251d189`](https://github.com/Effect-TS/effect/commit/251d189420bbba71990574e91098c499065f9a9b) Thanks @KhraksMamtsov! - `Config.url` constructor has been added, which parses a string using `new URL()`
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`5a259f3`](https://github.com/Effect-TS/effect/commit/5a259f3711b4369f55d885b568bdb21136155261) Thanks @tim-smart! - use fiber based runtime for Micro module
+
+  - Improved performance
+  - Improved interruption model
+  - Consistency with the Effect data type
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`b4ce4ea`](https://github.com/Effect-TS/effect/commit/b4ce4ea7fd514a7e572f2dcd879c98f334981b0e) Thanks @SandroMaglione! - New methods `extractAll` and `extractSchema` to `UrlParams` (added `Schema.BooleanFromString`).
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`15fcc5a`](https://github.com/Effect-TS/effect/commit/15fcc5a0ea4bbf40ab48fa6a04fdda74f76f4c07) Thanks @fubhy! - Integrated `DateTime` with `Cron` to add timezone support for cron expressions.
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`9bc9a47`](https://github.com/Effect-TS/effect/commit/9bc9a476800dc645903c888a68bb1d3baa3383c6) Thanks @KhraksMamtsov! - `URL` and `URLFromSelf` schemas have been added
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`aadb8a4`](https://github.com/Effect-TS/effect/commit/aadb8a48d2cba197c06ec9996505510e48e4e5cb) Thanks @fubhy! - Added `BigDecimal.toExponential` for scientific notation formatting of `BigDecimal` values.
+
+  The implementation of `BigDecimal.format` now uses scientific notation for values with
+  at least 16 decimal places or trailing zeroes. Previously, extremely large or small values
+  could cause `OutOfMemory` errors when formatting.
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`1e2747c`](https://github.com/Effect-TS/effect/commit/1e2747c63a4820d1459cbbc88c71212983bd68bd) Thanks @KhraksMamtsov! - - JSONSchema module
+
+  - add `format?: string` optional field to `JsonSchema7String` interface
+  - Schema module
+    - add custom json schema annotation to `UUID` schema including `format: "uuid"`
+  - OpenApiJsonSchema module
+    - add `format?: string` optional field to `String` and ` Numeric` interfaces
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`e0b9b09`](https://github.com/Effect-TS/effect/commit/e0b9b09e70c386b2da17d1f0a15b0511861c89e8) Thanks @mikearnaldi! - Implement Effect.fn to define traced functions.
+
+  ```ts
+  import { Effect } from "effect"
+
+  const logExample = Effect.fn("example")(function* <N extends number>(n: N) {
+    yield* Effect.annotateCurrentSpan("n", n)
+    yield* Effect.logInfo(`got: ${n}`)
+    yield* Effect.fail(new Error())
+  }, Effect.delay("1 second"))
+
+  Effect.runFork(logExample(100).pipe(Effect.catchAllCause(Effect.logError)))
+  ```
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`c36f3b9`](https://github.com/Effect-TS/effect/commit/c36f3b95df5ce9d71b66f22f26ce12eda8d3e848) Thanks @KhraksMamtsov! - `Config.redacted` has been made more flexible and can now wrap any other config. This allows to transform or validate config values before it’s hidden.
+
+  ```ts
+  import { Config } from "effect"
+
+  Effect.gen(function* () {
+    // can be any string including empty
+    const pass1 = yield* Config.redacted("PASSWORD")
+    //    ^? Redacted<string>
+
+    // can't be empty string
+    const pass2 = yield* Config.redacted(Config.nonEmptyString("PASSWORD"))
+    //    ^? Redacted<string>
+
+    const pass2 = yield* Config.redacted(Config.number("SECRET_NUMBER"))
+    //    ^? Redacted<number>
+  })
+  ```
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`aadb8a4`](https://github.com/Effect-TS/effect/commit/aadb8a48d2cba197c06ec9996505510e48e4e5cb) Thanks @fubhy! - Added `BigDecimal.unsafeFromNumber` and `BigDecimal.safeFromNumber`.
+
+  Deprecated `BigDecimal.fromNumber` in favour of `BigDecimal.unsafeFromNumber`.
+
+  The current implementation of `BigDecimal.fromNumber` and `BigDecimal.unsafeFromNumber` now throws
+  a `RangeError` for numbers that are not finite such as `NaN`, `+Infinity` or `-Infinity`.
+
+### Patch Changes
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`5eff3f6`](https://github.com/Effect-TS/effect/commit/5eff3f6fa3aae7e86948a62cbfd63b8d6c3bdf92) Thanks @tim-smart! - fix multipart support for bun http server
+
+- [#3835](https://github.com/Effect-TS/effect/pull/3835) [`9264162`](https://github.com/Effect-TS/effect/commit/9264162a82783a651776fb7b87604564a63e7070) Thanks @IMax153! - inherit child fibers created by merged streams
+
+## 3.10.20
+
+### Patch Changes
+
+- [#4042](https://github.com/Effect-TS/effect/pull/4042) [`3069614`](https://github.com/Effect-TS/effect/commit/30696149271129fc618f6f2ccd1d8f2f6c0f9cd7) Thanks @tim-smart! - catch logger defects from calling .toJSON on data types
+
+- [#4041](https://github.com/Effect-TS/effect/pull/4041) [`09a5e52`](https://github.com/Effect-TS/effect/commit/09a5e522fd9b221f05d85b1d1c8a740d4973c302) Thanks @tim-smart! - fix docs for Stream.partition
+
+## 3.10.19
+
+### Patch Changes
+
+- [#4007](https://github.com/Effect-TS/effect/pull/4007) [`944025b`](https://github.com/Effect-TS/effect/commit/944025bc5ce139f4a85846aa689bf30ec06a8ec1) Thanks @gcanti! - Wrap JSDoc @example tags with a TypeScript fence, closes #4002
+
+- [#4013](https://github.com/Effect-TS/effect/pull/4013) [`54addee`](https://github.com/Effect-TS/effect/commit/54addee438a644bf010646c52042c7b89c5fc0a7) Thanks @thewilkybarkid! - Remove reference to non-existent function
+
+## 3.10.18
+
+### Patch Changes
+
+- [#4004](https://github.com/Effect-TS/effect/pull/4004) [`af409cf`](https://github.com/Effect-TS/effect/commit/af409cf1d2ff973be11cc079ea373eaeedca25de) Thanks @tim-smart! - fix behavour of Stream.partition to match the types
+
+## 3.10.17
+
+### Patch Changes
+
+- [#3998](https://github.com/Effect-TS/effect/pull/3998) [`42c4ce6`](https://github.com/Effect-TS/effect/commit/42c4ce6f8d8c7d847e97757650a8ad9419a829d7) Thanks @tim-smart! - ensure fiber observers are cleared after exit to prevent memory leaks
+
+## 3.10.16
+
+### Patch Changes
+
+- [#3918](https://github.com/Effect-TS/effect/pull/3918) [`4dca30c`](https://github.com/Effect-TS/effect/commit/4dca30cfcdafe4542e236489f71d6f171a5b4e38) Thanks @gcanti! - Use a specific annotation (`AutoTitleAnnotationId`) to add automatic titles (added by `Struct` and `Class` APIs), instead of `TitleAnnotationId`, to avoid interfering with user-defined titles.
+
+- [#3981](https://github.com/Effect-TS/effect/pull/3981) [`1d99867`](https://github.com/Effect-TS/effect/commit/1d998671be3cd11043f232822e91dd8c98fccfa9) Thanks @gcanti! - Stable filters such as `minItems`, `maxItems`, and `itemsCount` should be applied only if the from part fails with a `Composite` issue, closes #3980
+
+  Before
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.Struct({
+    a: Schema.Array(Schema.String).pipe(Schema.minItems(1))
+  })
+
+  Schema.decodeUnknownSync(schema)({}, { errors: "all" })
+  // throws: TypeError: Cannot read properties of undefined (reading 'length')
+  ```
+
+  After
+
+  ```ts
+  import { Schema } from "effect"
+
+  const schema = Schema.Struct({
+    a: Schema.Array(Schema.String).pipe(Schema.minItems(1))
+  })
+
+  Schema.decodeUnknownSync(schema)({}, { errors: "all" })
+  /*
+  throws:
+  ParseError: { readonly a: an array of at least 1 items }
+  └─ ["a"]
+     └─ is missing
+  */
+  ```
+
+- [#3972](https://github.com/Effect-TS/effect/pull/3972) [`6dae414`](https://github.com/Effect-TS/effect/commit/6dae4147991a97ec14a99289bd25fadae7541e8d) Thanks @tim-smart! - add support for 0 capacity to Mailbox
+
+- [#3959](https://github.com/Effect-TS/effect/pull/3959) [`6b0d737`](https://github.com/Effect-TS/effect/commit/6b0d737078bf63b97891e6bc47affc04b28f9cf7) Thanks @gcanti! - Remove `Omit` from the `Class` interface definition to align type signatures with runtime behavior. This fix addresses the issue of being unable to override base class methods in extended classes without encountering type errors, closes #3958
+
+  Before
+
+  ```ts
+  import { Schema } from "effect"
+
+  class Base extends Schema.Class<Base>("Base")({
+    a: Schema.String
+  }) {
+    f() {
+      console.log("base")
+    }
+  }
+
+  class Extended extends Base.extend<Extended>("Extended")({}) {
+    // Class '{ readonly a: string; } & Omit<Base, "a">' defines instance member property 'f',
+    // but extended class 'Extended' defines it as instance member function.ts(2425)
+    // @ts-expect-error
+    override f() {
+      console.log("extended")
+    }
+  }
+  ```
+
+  After
+
+  ```ts
+  import { Schema } from "effect"
+
+  class Base extends Schema.Class<Base>("Base")({
+    a: Schema.String
+  }) {
+    f() {
+      console.log("base")
+    }
+  }
+
+  class Extended extends Base.extend<Extended>("Extended")({}) {
+    // ok
+    override f() {
+      console.log("extended")
+    }
+  }
+  ```
+
+- [#3971](https://github.com/Effect-TS/effect/pull/3971) [`d8356aa`](https://github.com/Effect-TS/effect/commit/d8356aad428a0c2290db52380220f81d9ec94232) Thanks @gcanti! - Refactor JSON Schema Generation to Include Transformation Annotations, closes #3016
+
+  When generating a JSON Schema, treat `TypeLiteralTransformations` (such as when `Schema.optionalWith` is used) as a special case. Annotations from the transformation itself will now be applied, unless there are user-defined annotations on the form side. This change ensures that the user's intended annotations are properly included in the schema.
+
+  **Before**
+
+  Annotations set on the transformation are ignored. However while using `Schema.optionalWith` internally generates a transformation schema, this is considered a technical detail. The user's intention is to add annotations to the "struct" schema, not to the transformation.
+
+  ```ts
+  import { JSONSchema, Schema } from "effect"
+
+  const schema = Schema.Struct({
+    a: Schema.optionalWith(Schema.String, { default: () => "" })
+  }).annotations({
+    identifier: "MyID",
+    description: "My description",
+    title: "My title"
+  })
+
+  console.log(JSONSchema.make(schema))
+  /*
+  Output:
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    required: [],
+    properties: { a: { type: 'string' } },
+    additionalProperties: false
+  }
+  */
+  ```
+
+  **After**
+
+  Annotations set on the transformation are now considered during JSON Schema generation:
+
+  ```ts
+  import { JSONSchema, Schema } from "effect"
+
+  const schema = Schema.Struct({
+    a: Schema.optionalWith(Schema.String, { default: () => "" })
+  }).annotations({
+    identifier: "MyID",
+    description: "My description",
+    title: "My title"
+  })
+
+  console.log(JSONSchema.make(schema))
+  /*
+  Output:
+  {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    '$ref': '#/$defs/MyID',
+    '$defs': {
+      MyID: {
+        type: 'object',
+        required: [],
+        properties: [Object],
+        additionalProperties: false,
+        description: 'My description',
+        title: 'My title'
+      }
+    }
+  }
+  */
+  ```
+
+## 3.10.15
+
+### Patch Changes
+
+- [#3936](https://github.com/Effect-TS/effect/pull/3936) [`8398b32`](https://github.com/Effect-TS/effect/commit/8398b3208242a88239d4449910b7baf923cfe3b6) Thanks @tim-smart! - allow DateTime.makeZoned to default to the local time zone
+
+- [#3917](https://github.com/Effect-TS/effect/pull/3917) [`72e55b7`](https://github.com/Effect-TS/effect/commit/72e55b7c610784fcebdbadc592c876e23e76a986) Thanks @SuttonKyle! - Allow Stream.split to use refinement for better type inference
+
+## 3.10.14
+
+### Patch Changes
+
+- [#3920](https://github.com/Effect-TS/effect/pull/3920) [`f983946`](https://github.com/Effect-TS/effect/commit/f9839467b4cad6e788297764ef9f9f0b9fd203f9) Thanks @gcanti! - remove redundant check in `JSONNumber` declaration
+
+- [#3924](https://github.com/Effect-TS/effect/pull/3924) [`2d8a750`](https://github.com/Effect-TS/effect/commit/2d8a75081eb83a0a81f817fdf6f428369c5064ab) Thanks @tim-smart! - ensure a ManagedRuntime can be built synchronously
+
+## 3.10.13
+
+### Patch Changes
+
+- [#3907](https://github.com/Effect-TS/effect/pull/3907) [`995bbdf`](https://github.com/Effect-TS/effect/commit/995bbdffea2e332f203cd5b474cd6a1c77dfa6ae) Thanks @arijoon! - Schema.BigDecimal Arbitrary's scale limited to the range 0-18
+
+## 3.10.12
+
+### Patch Changes
+
+- [#3904](https://github.com/Effect-TS/effect/pull/3904) [`dd14efe`](https://github.com/Effect-TS/effect/commit/dd14efe0ace255f571273aae876adea96267d7e6) Thanks @tim-smart! - allow pool items te be used while being acquired
+
+## 3.10.11
+
+### Patch Changes
+
+- [#3903](https://github.com/Effect-TS/effect/pull/3903) [`5eef499`](https://github.com/Effect-TS/effect/commit/5eef4998b6ccb7a5404d9e4fef85e57fa35fbb8a) Thanks @tim-smart! - cache Schema.Class AST once generated
+
+## 3.10.10
+
+### Patch Changes
+
+- [#3893](https://github.com/Effect-TS/effect/pull/3893) [`cd720ae`](https://github.com/Effect-TS/effect/commit/cd720aedf7f2571edec0843d6a633e84e4832b28) Thanks @tim-smart! - support "dropping" & "sliding" strategies in Mailbox
+
+- [#3893](https://github.com/Effect-TS/effect/pull/3893) [`cd720ae`](https://github.com/Effect-TS/effect/commit/cd720aedf7f2571edec0843d6a633e84e4832b28) Thanks @tim-smart! - add Mailbox.fromStream api
+
+- [#3886](https://github.com/Effect-TS/effect/pull/3886) [`b631f40`](https://github.com/Effect-TS/effect/commit/b631f40abbe649b2a089764585b5c39f6a695ac6) Thanks @fubhy! - Optimized `Base64.decode` by not capturing the padding characters in the underlying array buffer.
+
+  Previously, the implementation first captured the padding characters in the underlying array buffer and
+  then returned a new subarray view of the buffer with the padding characters removed.
+
+  By not capturing the padding characters, we avoid the creation of another typed array instance for the
+  subarray view.
+
+## 3.10.9
+
+### Patch Changes
+
+- [#3883](https://github.com/Effect-TS/effect/pull/3883) [`a123e80`](https://github.com/Effect-TS/effect/commit/a123e80f111a625428a5b5622b7f55ee1073566b) Thanks @tim-smart! - add FromIterator primitive to improve Effect.gen performance
+
+- [#3880](https://github.com/Effect-TS/effect/pull/3880) [`bd5fcd3`](https://github.com/Effect-TS/effect/commit/bd5fcd3e6b603b1e505af90d6a00627c8eca6d41) Thanks @tim-smart! - refactor Effect.gen to improve performance
+
+- [#3881](https://github.com/Effect-TS/effect/pull/3881) [`0289d3b`](https://github.com/Effect-TS/effect/commit/0289d3b6391031d00329365bab9791b355031fe3) Thanks @tim-smart! - implement Effect.suspend using OP_COMMIT
+
+- [#3862](https://github.com/Effect-TS/effect/pull/3862) [`7386b71`](https://github.com/Effect-TS/effect/commit/7386b710e5be570e17f468928a6ed19d549a3e12) Thanks @furrycatherder! - fix the type signature of `use` in Effect.Service
+
+- [#3879](https://github.com/Effect-TS/effect/pull/3879) [`4211a23`](https://github.com/Effect-TS/effect/commit/4211a2355bb3af3f0e756e2aae9d293379f25662) Thanks @IMax153! - Return a sequential cause when both the `use` and `release` fail in `Effect.acquireUseRelease`
+
 ## 3.10.8
 
 ### Patch Changes
