@@ -4500,7 +4500,7 @@ export type ParseJsonOptions = {
 const JsonString = String$.annotations({
   [AST.IdentifierAnnotationId]: "JsonString",
   [AST.TitleAnnotationId]: "JsonString",
-  [AST.DescriptionAnnotationId]: "a JSON string"
+  [AST.DescriptionAnnotationId]: "a string that will be parsed as JSON"
 })
 
 const getParseJsonTransformation = (options?: ParseJsonOptions) =>
@@ -8239,8 +8239,8 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
   let symbolCache: symbol | undefined = undefined
   let validateSchemaCache: Schema.Any | undefined = undefined
   let encodedSideCache: Schema.Any | undefined = undefined
-  let typeSideCache: Schema.Any | undefined = undefined
   let identifierCache: string | undefined = undefined
+
   const klass = class extends Base {
     constructor(
       props: { [x: string | symbol]: unknown } = {},
@@ -8275,20 +8275,18 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
       })
     }
 
-    static get typeSide(): Schema.Any {
-      return typeSideCache ??= typeSchema(schema).annotations({
-        [AST.AutoTitleAnnotationId]: `${this.identifier} (Type side)`
-      })
-    }
-
     static get ast(): AST.AST {
       if (astCache.has(this)) {
         return astCache.get(this)!
       }
       const identifier = this.identifier
-      const typeSide = this.typeSide
-      const guard = ParseResult.is(typeSide)
-      const fallbackInstanceOf = (u: unknown) => Predicate.hasProperty(u, this.classSymbol) && guard(u)
+      const ts = typeSchema(schema)
+      const declarationSurrogate = ts.annotations({ identifier, ...annotations })
+      const typeSide = ts.annotations({ [AST.AutoTitleAnnotationId]: `${identifier} (Type side)` })
+      const transformationSurrogate = schema.annotations({ ...annotations })
+
+      const fallbackInstanceOf = (u: unknown) =>
+        Predicate.hasProperty(u, this.classSymbol) && ParseResult.is(typeSide)(u)
       const declaration: Schema.Any = declare(
         [typeSide],
         {
@@ -8306,21 +8304,23 @@ const makeClass = ({ Base, annotations, disableToString, fields, identifier, kin
         },
         {
           identifier,
-          title: identifier,
-          description: `an instance of ${identifier}`,
           pretty: (pretty) => (self: any) => `${identifier}(${pretty(self)})`,
           // @ts-expect-error
           arbitrary: (arb) => (fc) => arb(fc).map((props) => new this(props)),
           equivalence: identity,
-          [AST.SurrogateAnnotationId]: typeSide.ast,
+          [AST.SurrogateAnnotationId]: declarationSurrogate.ast,
           ...annotations
         }
       )
+
       const transformation = transform(
         this.encodedSide,
         declaration,
         { strict: true, decode: (input) => new this(input, true), encode: identity }
-      ).annotations({ [AST.SurrogateAnnotationId]: schema.ast })
+      ).annotations({
+        [AST.JSONIdentifierAnnotationId]: identifier,
+        [AST.SurrogateAnnotationId]: transformationSurrogate.ast
+      })
       astCache.set(this, transformation.ast)
       return transformation.ast
     }
