@@ -27,7 +27,7 @@ import type * as HashSet from "./HashSet.js"
 import type { TypeLambda } from "./HKT.js"
 import * as internalCause from "./internal/cause.js"
 import * as _console from "./internal/console.js"
-import { TagProto } from "./internal/context.js"
+import { makeGenericTag, TagProto } from "./internal/context.js"
 import * as effect from "./internal/core-effect.js"
 import * as core from "./internal/core.js"
 import * as defaultServices from "./internal/defaultServices.js"
@@ -9615,13 +9615,19 @@ export const Service: <Self>() => {
     if ("effect" in maker) {
       Object.defineProperty(TagClass, layerName, {
         get(this: any) {
-          return layerCache ??= layer.fromEffect(TagClass, map(maker.effect, (_) => new this(_)))
+          return layerCache ??= layer.fromEffect(
+            TagClass,
+            provideService(map(maker.effect, (_) => new this(_)), PrefixTag, id)
+          )
         }
       })
     } else if ("scoped" in maker) {
       Object.defineProperty(TagClass, layerName, {
         get(this: any) {
-          return layerCache ??= layer.scoped(TagClass, map(maker.scoped, (_) => new this(_)))
+          return layerCache ??= layer.scoped(
+            TagClass,
+            provideService(map(maker.scoped, (_) => new this(_)), PrefixTag, id)
+          )
         }
       })
     } else if ("sync" in maker) {
@@ -10169,3 +10175,34 @@ export const fn: (
     return withSpan(effect, name, opts)
   }
 }
+
+export interface PrefixId {
+  readonly _id: unique symbol
+}
+
+export const PrefixTag = makeGenericTag<PrefixId, string>("effect/span-prefix")
+
+export const prefixFn = map(
+  serviceOption(PrefixTag),
+  (prefix) =>
+    prefix._tag === "Some"
+      ? (name: string, options?: Tracer.SpanOptions) => {
+        const limit = Error.stackTraceLimit
+        Error.stackTraceLimit = 2
+        const error = new Error()
+        Error.stackTraceLimit = limit
+        let cache: false | string = false
+        const captureStackTrace = () => {
+          if (cache !== false) {
+            return cache
+          }
+          if (error.stack) {
+            const stack = error.stack.trim().split("\n")
+            cache = stack.slice(2).join("\n").trim()
+            return cache
+          }
+        }
+        return fn(`${prefix.value}.${name}`, { captureStackTrace, ...options })
+      }
+      : fn
+)

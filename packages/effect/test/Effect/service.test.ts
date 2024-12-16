@@ -5,6 +5,7 @@ import { pipe } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Scope from "effect/Scope"
 import { describe, expect, it } from "effect/test/utils/extend"
+import { spanToTrace } from "../../src/internal/cause.js"
 
 class Prefix extends Effect.Service<Prefix>()("Prefix", {
   sync: () => ({
@@ -25,11 +26,15 @@ class Logger extends Effect.Service<Logger>()("Logger", {
   effect: Effect.gen(function*() {
     const { prefix } = yield* Prefix
     const { postfix } = yield* Postfix
+    const fn = yield* Effect.prefixFn
     return {
-      info: (message: string) =>
-        Effect.sync(() => {
-          messages.push(`[${prefix}][${message}][${postfix}]`)
-        })
+      info: fn("info")((message: string) =>
+        Effect.currentSpan.pipe(Effect.flatMap((span) =>
+          Effect.sync(() => {
+            messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
+          })
+        ))
+      )
     }
   }),
   dependencies: [Prefix.Default, Postfix.Default]
@@ -42,12 +47,17 @@ class Scoped extends Effect.Service<Scoped>()("Scoped", {
   scoped: Effect.gen(function*() {
     const { prefix } = yield* Prefix
     const { postfix } = yield* Postfix
+    const fn = yield* Effect.prefixFn
     yield* Scope.Scope
     return {
-      info: (message: string) =>
-        Effect.sync(() => {
-          messages.push(`[${prefix}][${message}][${postfix}]`)
-        })
+      info: fn("info")((message: string) =>
+        Effect.currentSpan.pipe(Effect.flatMap((span) =>
+          Effect.sync(() => {
+            console.log("bla", [...span.attributes], span.context, span, spanToTrace.get(span)())
+            messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
+          })
+        ))
+      )
     }
   }),
   dependencies: [Prefix.Default, Postfix.Default]
@@ -66,7 +76,7 @@ describe("Effect.Service", () => {
   it.effect("correctly wires dependencies", () =>
     Effect.gen(function*() {
       yield* Logger.info("Ok")
-      expect(messages).toEqual(["[PRE][Ok][POST]"])
+      expect(messages).toEqual(["Logger.info: [PRE][Ok][POST]"])
       const { prefix } = yield* Prefix
       expect(prefix).toEqual("PRE")
       const { postfix } = yield* Postfix
