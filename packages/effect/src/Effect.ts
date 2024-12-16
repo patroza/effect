@@ -27,7 +27,7 @@ import type * as HashSet from "./HashSet.js"
 import type { TypeLambda } from "./HKT.js"
 import * as internalCause from "./internal/cause.js"
 import * as _console from "./internal/console.js"
-import { TagProto } from "./internal/context.js"
+import { makeGenericTag, TagProto } from "./internal/context.js"
 import * as effect from "./internal/core-effect.js"
 import * as core from "./internal/core.js"
 import * as defaultServices from "./internal/defaultServices.js"
@@ -9484,14 +9484,18 @@ export const Service: <Self>() => {
     const Key extends string,
     const Make extends
       | {
-        readonly scoped: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly scoped: (
+          fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+        ) => Effect<Service.AllowedType<Key, Make>, any, any>
         readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
         readonly accessors?: boolean
         /** @deprecated */
         readonly ಠ_ಠ: never
       }
       | {
-        readonly effect: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly effect: (
+          fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+        ) => Effect<Service.AllowedType<Key, Make>, any, any>
         readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
         readonly accessors?: boolean
         /** @deprecated */
@@ -9518,7 +9522,9 @@ export const Service: <Self>() => {
   <
     const Key extends string,
     const Make extends NoExcessProperties<{
-      readonly scoped: Effect<Service.AllowedType<Key, Make>, any, any>
+      readonly scoped: (
+        fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+      ) => Effect<Service.AllowedType<Key, Make>, any, any>
       readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
       readonly accessors?: boolean
     }, Make>
@@ -9529,7 +9535,9 @@ export const Service: <Self>() => {
   <
     const Key extends string,
     const Make extends NoExcessProperties<{
-      readonly effect: Effect<Service.AllowedType<Key, Make>, any, any>
+      readonly effect: (
+        myFn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+      ) => Effect<Service.AllowedType<Key, Make>, any, any>
       readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
       readonly accessors?: boolean
     }, Make>
@@ -9599,6 +9607,25 @@ export const Service: <Self>() => {
         return (body: any) => core.andThen(this, body)
       }
     })
+    const myFn = (name: string, options?: Tracer.SpanOptions) => {
+      const limit = Error.stackTraceLimit
+      Error.stackTraceLimit = 2
+      const error = new Error()
+      Error.stackTraceLimit = limit
+      let cache: false | string = false
+      const captureStackTrace = () => {
+        if (cache !== false) {
+          return cache
+        }
+        if (error.stack) {
+          const stack = error.stack.trim().split("\n")
+          cache = stack.slice(2).join("\n").trim()
+          return cache
+        }
+      }
+      return fn(`${id.value}.${name}`, { captureStackTrace, ...options })
+    }
+
     TagClass.key = id
 
     Object.assign(TagClass, TagProto)
@@ -9615,13 +9642,19 @@ export const Service: <Self>() => {
     if ("effect" in maker) {
       Object.defineProperty(TagClass, layerName, {
         get(this: any) {
-          return layerCache ??= layer.fromEffect(TagClass, map(maker.effect, (_) => new this(_)))
+          return layerCache ??= layer.fromEffect(
+            TagClass,
+            map(maker.effect(myFn), (_) => new this(_))
+          )
         }
       })
     } else if ("scoped" in maker) {
       Object.defineProperty(TagClass, layerName, {
         get(this: any) {
-          return layerCache ??= layer.scoped(TagClass, map(maker.scoped, (_) => new this(_)))
+          return layerCache ??= layer.scoped(
+            TagClass,
+            map(maker.scoped(myFn), (_) => new this(_))
+          )
         }
       })
     } else if ("sync" in maker) {
@@ -9711,7 +9744,7 @@ export declare namespace Service {
       readonly make: (_: MakeService<Make>) => Self
     }
     & Context.Tag<Self, Self>
-    & { key: Key }
+    & { key: Key; fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen }
     & (MakeAccessors<Make> extends true ? Tag.Proxy<Self, MakeService<Make>> : {})
     & (MakeDeps<Make> extends never ? {
         readonly Default: Layer.Layer<Self, MakeError<Make>, MakeContext<Make>>
@@ -9729,8 +9762,8 @@ export declare namespace Service {
   /**
    * @since 3.9.0
    */
-  export type MakeService<Make> = Make extends { readonly effect: Effect<infer _A, infer _E, infer _R> } ? _A
-    : Make extends { readonly scoped: Effect<infer _A, infer _E, infer _R> } ? _A
+  export type MakeService<Make> = Make extends { readonly effect: () => Effect<infer _A, infer _E, infer _R> } ? _A
+    : Make extends { readonly scoped: () => Effect<infer _A, infer _E, infer _R> } ? _A
     : Make extends { readonly sync: LazyArg<infer A> } ? A
     : Make extends { readonly succeed: infer A } ? A
     : never
@@ -9738,15 +9771,15 @@ export declare namespace Service {
   /**
    * @since 3.9.0
    */
-  export type MakeError<Make> = Make extends { readonly effect: Effect<infer _A, infer _E, infer _R> } ? _E
-    : Make extends { readonly scoped: Effect<infer _A, infer _E, infer _R> } ? _E
+  export type MakeError<Make> = Make extends { readonly effect: () => Effect<infer _A, infer _E, infer _R> } ? _E
+    : Make extends { readonly scoped: () => Effect<infer _A, infer _E, infer _R> } ? _E
     : never
 
   /**
    * @since 3.9.0
    */
-  export type MakeContext<Make> = Make extends { readonly effect: Effect<infer _A, infer _E, infer _R> } ? _R
-    : Make extends { readonly scoped: Effect<infer _A, infer _E, infer _R> } ? Exclude<_R, Scope.Scope>
+  export type MakeContext<Make> = Make extends { readonly effect: () => Effect<infer _A, infer _E, infer _R> } ? _R
+    : Make extends { readonly scoped: () => Effect<infer _A, infer _E, infer _R> } ? Exclude<_R, Scope.Scope>
     : never
 
   /**

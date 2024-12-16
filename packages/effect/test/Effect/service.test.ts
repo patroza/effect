@@ -5,6 +5,7 @@ import { pipe } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Scope from "effect/Scope"
 import { describe, expect, it } from "effect/test/utils/extend"
+import { spanToTrace } from "../../src/internal/cause.js"
 
 class Prefix extends Effect.Service<Prefix>()("Prefix", {
   sync: () => ({
@@ -22,16 +23,20 @@ const messages: Array<string> = []
 
 class Logger extends Effect.Service<Logger>()("Logger", {
   accessors: true,
-  effect: Effect.gen(function*() {
-    const { prefix } = yield* Prefix
-    const { postfix } = yield* Postfix
-    return {
-      info: (message: string) =>
-        Effect.sync(() => {
-          messages.push(`[${prefix}][${message}][${postfix}]`)
-        })
-    }
-  }),
+  effect: (fn) =>
+    Effect.gen(function*() {
+      const { prefix } = yield* Prefix
+      const { postfix } = yield* Postfix
+      return {
+        info: fn("info")((message: string) =>
+          Effect.currentSpan.pipe(Effect.flatMap((span) =>
+            Effect.sync(() => {
+              messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
+            })
+          ))
+        )
+      }
+    }),
   dependencies: [Prefix.Default, Postfix.Default]
 }) {
   static Test = Layer.succeed(this, new Logger({ info: () => Effect.void }))
@@ -39,17 +44,22 @@ class Logger extends Effect.Service<Logger>()("Logger", {
 
 class Scoped extends Effect.Service<Scoped>()("Scoped", {
   accessors: true,
-  scoped: Effect.gen(function*() {
-    const { prefix } = yield* Prefix
-    const { postfix } = yield* Postfix
-    yield* Scope.Scope
-    return {
-      info: (message: string) =>
-        Effect.sync(() => {
-          messages.push(`[${prefix}][${message}][${postfix}]`)
-        })
-    }
-  }),
+  scoped: (fn) =>
+    Effect.gen(function*() {
+      const { prefix } = yield* Prefix
+      const { postfix } = yield* Postfix
+      yield* Scope.Scope
+      return {
+        info: fn("info")((message: string) =>
+          Effect.currentSpan.pipe(Effect.flatMap((span) =>
+            Effect.sync(() => {
+              console.log("bla", [...span.attributes], span.context, span, spanToTrace.get(span)())
+              messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
+            })
+          ))
+        )
+      }
+    }),
   dependencies: [Prefix.Default, Postfix.Default]
 }) {}
 
@@ -66,7 +76,7 @@ describe("Effect.Service", () => {
   it.effect("correctly wires dependencies", () =>
     Effect.gen(function*() {
       yield* Logger.info("Ok")
-      expect(messages).toEqual(["[PRE][Ok][POST]"])
+      expect(messages).toEqual(["Logger.info: [PRE][Ok][POST]"])
       const { prefix } = yield* Prefix
       expect(prefix).toEqual("PRE")
       const { postfix } = yield* Postfix
@@ -130,7 +140,7 @@ describe("Effect.Service", () => {
     }
 
     class Time extends Effect.Service<Time>()("Time", {
-      effect: Effect.sync(() => new TimeLive()),
+      effect: () => Effect.sync(() => new TimeLive()),
       accessors: true
     }) {}
 
