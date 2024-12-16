@@ -9484,14 +9484,18 @@ export const Service: <Self>() => {
     const Key extends string,
     const Make extends
       | {
-        readonly scoped: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly scoped: (
+          fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+        ) => Effect<Service.AllowedType<Key, Make>, any, any>
         readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
         readonly accessors?: boolean
         /** @deprecated */
         readonly ಠ_ಠ: never
       }
       | {
-        readonly effect: Effect<Service.AllowedType<Key, Make>, any, any>
+        readonly effect: (
+          fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+        ) => Effect<Service.AllowedType<Key, Make>, any, any>
         readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
         readonly accessors?: boolean
         /** @deprecated */
@@ -9518,7 +9522,9 @@ export const Service: <Self>() => {
   <
     const Key extends string,
     const Make extends NoExcessProperties<{
-      readonly scoped: Effect<Service.AllowedType<Key, Make>, any, any>
+      readonly scoped: (
+        fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+      ) => Effect<Service.AllowedType<Key, Make>, any, any>
       readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
       readonly accessors?: boolean
     }, Make>
@@ -9529,7 +9535,9 @@ export const Service: <Self>() => {
   <
     const Key extends string,
     const Make extends NoExcessProperties<{
-      readonly effect: Effect<Service.AllowedType<Key, Make>, any, any>
+      readonly effect: (
+        myFn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen
+      ) => Effect<Service.AllowedType<Key, Make>, any, any>
       readonly dependencies?: ReadonlyArray<Layer.Layer.Any>
       readonly accessors?: boolean
     }, Make>
@@ -9599,6 +9607,25 @@ export const Service: <Self>() => {
         return (body: any) => core.andThen(this, body)
       }
     })
+    const myFn = (name: string, options?: Tracer.SpanOptions) => {
+      const limit = Error.stackTraceLimit
+      Error.stackTraceLimit = 2
+      const error = new Error()
+      Error.stackTraceLimit = limit
+      let cache: false | string = false
+      const captureStackTrace = () => {
+        if (cache !== false) {
+          return cache
+        }
+        if (error.stack) {
+          const stack = error.stack.trim().split("\n")
+          cache = stack.slice(2).join("\n").trim()
+          return cache
+        }
+      }
+      return fn(`${id.value}.${name}`, { captureStackTrace, ...options })
+    }
+
     TagClass.key = id
 
     Object.assign(TagClass, TagProto)
@@ -9617,7 +9644,7 @@ export const Service: <Self>() => {
         get(this: any) {
           return layerCache ??= layer.fromEffect(
             TagClass,
-            provideService(map(maker.effect, (_) => new this(_)), PrefixTag, id)
+            map(maker.effect(myFn), (_) => new this(_))
           )
         }
       })
@@ -9626,7 +9653,7 @@ export const Service: <Self>() => {
         get(this: any) {
           return layerCache ??= layer.scoped(
             TagClass,
-            provideService(map(maker.scoped, (_) => new this(_)), PrefixTag, id)
+            map(maker.scoped(myFn), (_) => new this(_))
           )
         }
       })
@@ -9717,7 +9744,7 @@ export declare namespace Service {
       readonly make: (_: MakeService<Make>) => Self
     }
     & Context.Tag<Self, Self>
-    & { key: Key }
+    & { key: Key; fn: (name: string, options?: Tracer.SpanOptions) => fn.Gen & fn.NonGen }
     & (MakeAccessors<Make> extends true ? Tag.Proxy<Self, MakeService<Make>> : {})
     & (MakeDeps<Make> extends never ? {
         readonly Default: Layer.Layer<Self, MakeError<Make>, MakeContext<Make>>
@@ -9735,8 +9762,8 @@ export declare namespace Service {
   /**
    * @since 3.9.0
    */
-  export type MakeService<Make> = Make extends { readonly effect: Effect<infer _A, infer _E, infer _R> } ? _A
-    : Make extends { readonly scoped: Effect<infer _A, infer _E, infer _R> } ? _A
+  export type MakeService<Make> = Make extends { readonly effect: () => Effect<infer _A, infer _E, infer _R> } ? _A
+    : Make extends { readonly scoped: () => Effect<infer _A, infer _E, infer _R> } ? _A
     : Make extends { readonly sync: LazyArg<infer A> } ? A
     : Make extends { readonly succeed: infer A } ? A
     : never
@@ -9744,15 +9771,15 @@ export declare namespace Service {
   /**
    * @since 3.9.0
    */
-  export type MakeError<Make> = Make extends { readonly effect: Effect<infer _A, infer _E, infer _R> } ? _E
-    : Make extends { readonly scoped: Effect<infer _A, infer _E, infer _R> } ? _E
+  export type MakeError<Make> = Make extends { readonly effect: () => Effect<infer _A, infer _E, infer _R> } ? _E
+    : Make extends { readonly scoped: () => Effect<infer _A, infer _E, infer _R> } ? _E
     : never
 
   /**
    * @since 3.9.0
    */
-  export type MakeContext<Make> = Make extends { readonly effect: Effect<infer _A, infer _E, infer _R> } ? _R
-    : Make extends { readonly scoped: Effect<infer _A, infer _E, infer _R> } ? Exclude<_R, Scope.Scope>
+  export type MakeContext<Make> = Make extends { readonly effect: () => Effect<infer _A, infer _E, infer _R> } ? _R
+    : Make extends { readonly scoped: () => Effect<infer _A, infer _E, infer _R> } ? Exclude<_R, Scope.Scope>
     : never
 
   /**
@@ -10175,34 +10202,3 @@ export const fn: (
     return withSpan(effect, name, opts)
   }
 }
-
-export interface PrefixId {
-  readonly _id: unique symbol
-}
-
-export const PrefixTag = makeGenericTag<PrefixId, string>("effect/span-prefix")
-
-export const prefixFn = map(
-  serviceOption(PrefixTag),
-  (prefix) =>
-    prefix._tag === "Some"
-      ? (name: string, options?: Tracer.SpanOptions) => {
-        const limit = Error.stackTraceLimit
-        Error.stackTraceLimit = 2
-        const error = new Error()
-        Error.stackTraceLimit = limit
-        let cache: false | string = false
-        const captureStackTrace = () => {
-          if (cache !== false) {
-            return cache
-          }
-          if (error.stack) {
-            const stack = error.stack.trim().split("\n")
-            cache = stack.slice(2).join("\n").trim()
-            return cache
-          }
-        }
-        return fn(`${prefix.value}.${name}`, { captureStackTrace, ...options })
-      }
-      : fn
-)

@@ -23,20 +23,20 @@ const messages: Array<string> = []
 
 class Logger extends Effect.Service<Logger>()("Logger", {
   accessors: true,
-  effect: Effect.gen(function*() {
-    const { prefix } = yield* Prefix
-    const { postfix } = yield* Postfix
-    const fn = yield* Effect.prefixFn
-    return {
-      info: fn("info")((message: string) =>
-        Effect.currentSpan.pipe(Effect.flatMap((span) =>
-          Effect.sync(() => {
-            messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
-          })
-        ))
-      )
-    }
-  }),
+  effect: (fn) =>
+    Effect.gen(function*() {
+      const { prefix } = yield* Prefix
+      const { postfix } = yield* Postfix
+      return {
+        info: fn("info")((message: string) =>
+          Effect.currentSpan.pipe(Effect.flatMap((span) =>
+            Effect.sync(() => {
+              messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
+            })
+          ))
+        )
+      }
+    }),
   dependencies: [Prefix.Default, Postfix.Default]
 }) {
   static Test = Layer.succeed(this, new Logger({ info: () => Effect.void }))
@@ -44,22 +44,22 @@ class Logger extends Effect.Service<Logger>()("Logger", {
 
 class Scoped extends Effect.Service<Scoped>()("Scoped", {
   accessors: true,
-  scoped: Effect.gen(function*() {
-    const { prefix } = yield* Prefix
-    const { postfix } = yield* Postfix
-    const fn = yield* Effect.prefixFn
-    yield* Scope.Scope
-    return {
-      info: fn("info")((message: string) =>
-        Effect.currentSpan.pipe(Effect.flatMap((span) =>
-          Effect.sync(() => {
-            console.log("bla", [...span.attributes], span.context, span, spanToTrace.get(span)())
-            messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
-          })
-        ))
-      )
-    }
-  }),
+  scoped: (fn) =>
+    Effect.gen(function*() {
+      const { prefix } = yield* Prefix
+      const { postfix } = yield* Postfix
+      yield* Scope.Scope
+      return {
+        info: fn("info")((message: string) =>
+          Effect.currentSpan.pipe(Effect.flatMap((span) =>
+            Effect.sync(() => {
+              console.log("bla", [...span.attributes], span.context, span, spanToTrace.get(span)())
+              messages.push(`${span.name}: [${prefix}][${message}][${postfix}]`)
+            })
+          ))
+        )
+      }
+    }),
   dependencies: [Prefix.Default, Postfix.Default]
 }) {}
 
@@ -140,7 +140,7 @@ describe("Effect.Service", () => {
     }
 
     class Time extends Effect.Service<Time>()("Time", {
-      effect: Effect.sync(() => new TimeLive()),
+      effect: () => Effect.sync(() => new TimeLive()),
       accessors: true
     }) {}
 
