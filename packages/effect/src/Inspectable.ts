@@ -102,13 +102,58 @@ export const toStringUnknown = (u: unknown, whitespace: number | string | undefi
   }
 }
 
+function stringifyWithDepth(
+  input: any,
+  depth?: number,
+  replacer?: (this: any, key: string, value: any) => any,
+  space?: string | number
+): string {
+  if (depth === undefined) {
+    return JSON.stringify(input, replacer, space)
+  }
+
+  function _build(value: any, depth: number) {
+    if (!value || typeof value !== "object") {
+      return value
+    }
+
+    let output: any
+
+    JSON.stringify(value, (k, v) => {
+      if (depth > 0) {
+        if (replacer) {
+          v = replacer(k, v)
+        }
+
+        if (!k) {
+          value = v
+          return value
+        }
+
+        if (output === undefined) {
+          output = {}
+        }
+        output[k] = _build(v, depth - 1)
+      }
+    })
+
+    if (output !== undefined) {
+      return output
+    }
+
+    return Array.isArray(value) ? "[object Array]" : "[object Object]"
+  }
+  return JSON.stringify(_build(input, depth), null, space)
+}
+
 /**
  * @since 2.0.0
  */
-export const stringifyCircular = (obj: unknown, whitespace?: number | string | undefined): string => {
+export const stringifyCircular = (obj: unknown, whitespace?: number | string | undefined, depth?: number): string => {
   let cache: Array<unknown> = []
-  const retVal = JSON.stringify(
+  const retVal = stringifyWithDepth(
     obj,
+    depth,
     (_key, value) =>
       typeof value === "object" && value !== null
         ? cache.includes(value)
@@ -116,6 +161,8 @@ export const stringifyCircular = (obj: unknown, whitespace?: number | string | u
           : cache.push(value) && (redactableState.fiberRefs !== undefined && isRedactable(value)
             ? value[symbolRedactable](redactableState.fiberRefs)
             : value)
+        : typeof value === "bigint"
+        ? value.toString()
         : value,
     whitespace
   )
