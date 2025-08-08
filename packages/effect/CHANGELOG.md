@@ -1,5 +1,39 @@
 # effect
 
+## 3.17.6
+
+### Patch Changes
+
+- [#5322](https://github.com/Effect-TS/effect/pull/5322) [`f187941`](https://github.com/Effect-TS/effect/commit/f187941946c675713b3539fc4d5480123037563a) Thanks @beezee! - Use non-greedy matching for Schema.String in Schema.TemplateLiteralParser
+
+## 3.17.5
+
+### Patch Changes
+
+- [#5315](https://github.com/Effect-TS/effect/pull/5315) [`5f98388`](https://github.com/Effect-TS/effect/commit/5f983881754fce7dc0e2d752145f3b865af27958) Thanks @patroza! - improve provide/merge apis to support readonly array inputs.
+
+## 3.17.4
+
+### Patch Changes
+
+- [#5306](https://github.com/Effect-TS/effect/pull/5306) [`7d7c55d`](https://github.com/Effect-TS/effect/commit/7d7c55dadeea2f9de16e60abff124085733e1953) Thanks @leonitousconforti! - Align RcMap.keys return type with internal signature
+
+## 3.17.3
+
+### Patch Changes
+
+- [#5275](https://github.com/Effect-TS/effect/pull/5275) [`3504555`](https://github.com/Effect-TS/effect/commit/35045558e7cac19c888fe677dda93c4741c7f8a8) Thanks @taylornz! - fix DateTime.makeZoned handling of DST transitions
+
+- [#5282](https://github.com/Effect-TS/effect/pull/5282) [`f6c7ca7`](https://github.com/Effect-TS/effect/commit/f6c7ca752fc9de5f7a2a6c439bbc6cca06566357) Thanks @beezee! - Improve inference on Metric.trackSuccessWith for use in Effect.pipe(...)
+
+- [#5275](https://github.com/Effect-TS/effect/pull/5275) [`3504555`](https://github.com/Effect-TS/effect/commit/35045558e7cac19c888fe677dda93c4741c7f8a8) Thanks @taylornz! - add DateTime.Disambiguation for handling DST edge cases
+
+  Added four disambiguation strategies to `DateTime.Zoned` constructors for handling DST edge cases:
+  - `'compatible'` - Maintains backward compatibility
+  - `'earlier'` - Choose earlier time during ambiguous periods (default)
+  - `'later'` - Choose later time during ambiguous periods
+  - `'reject'` - Throw error for ambiguous times
+
 ## 3.17.2
 
 ### Patch Changes

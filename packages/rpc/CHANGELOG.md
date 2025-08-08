@@ -1,5 +1,28 @@
 # @effect/rpc
 
+## 0.68.3
+
+### Patch Changes
+
+- [#5338](https://github.com/Effect-TS/effect/pull/5338) [`1628026`](https://github.com/Effect-TS/effect/commit/1628026081ca9a4ec77182037f7cc46e7369de98) Thanks @tim-smart! - remove info log from RpcServer stdio protocol
+
+- [#5335](https://github.com/Effect-TS/effect/pull/5335) [`767e49e`](https://github.com/Effect-TS/effect/commit/767e49e38458d982517ce6d6b6f3f9147af5411a) Thanks @patroza! - fix: RpcGroup.prefix runtime error because of trying to array destructure the rpc object
+
+## 0.68.2
+
+### Patch Changes
+
+- [#5319](https://github.com/Effect-TS/effect/pull/5319) [`792e4cf`](https://github.com/Effect-TS/effect/commit/792e4cf049262da69651ba407ad2cf63cc68948c) Thanks @tim-smart! - fix Effect.gen compatibility with RpcMiddleware wrap option
+
+- Updated dependencies [[`5f98388`](https://github.com/Effect-TS/effect/commit/5f983881754fce7dc0e2d752145f3b865af27958)]:
+  - effect@3.17.5
+
+## 0.68.1
+
+### Patch Changes
+
+- [#5309](https://github.com/Effect-TS/effect/pull/5309) [`6e4d658`](https://github.com/Effect-TS/effect/commit/6e4d658bfa57fb04505a77ba3eac74ceaaabfc95) Thanks @tim-smart! - add http headers to rpc headers for http protocols
+
 ## 0.68.0
 
 ### Minor Changes

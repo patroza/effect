@@ -1,5 +1,28 @@
 # @effect/experimental
 
+## 0.54.4
+
+### Patch Changes
+
+- [#5342](https://github.com/Effect-TS/effect/pull/5342) [`a9554ea`](https://github.com/Effect-TS/effect/commit/a9554ea53a4524b773426571338d14f1c1046d18) Thanks @tim-smart! - add Reactivity accessor apis
+
+- [#5344](https://github.com/Effect-TS/effect/pull/5344) [`1765ca8`](https://github.com/Effect-TS/effect/commit/1765ca8dddde47a7602083c46898b07a80c3cd28) Thanks @tim-smart! - add Reactivity.unsafeRegister
+
+## 0.54.3
+
+### Patch Changes
+
+- [#5307](https://github.com/Effect-TS/effect/pull/5307) [`1f028e5`](https://github.com/Effect-TS/effect/commit/1f028e5d286fdfdc12357a3da3955c9446ce7a0c) Thanks @tim-smart! - locally provide EventLog service where possible
+
+- Updated dependencies [[`7d7c55d`](https://github.com/Effect-TS/effect/commit/7d7c55dadeea2f9de16e60abff124085733e1953)]:
+  - effect@3.17.4
+
+## 0.54.2
+
+### Patch Changes
+
+- [#5299](https://github.com/Effect-TS/effect/pull/5299) [`0138aa5`](https://github.com/Effect-TS/effect/commit/0138aa5fdf1af8bc206809201cebd75a865fa020) Thanks @tim-smart! - use base64 for EventLog.Identity strings
+
 ## 0.54.1
 
 ### Patch Changes

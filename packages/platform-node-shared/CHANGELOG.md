@@ -1,5 +1,23 @@
 # @effect/platform-node-shared
 
+## 0.47.2
+
+### Patch Changes
+
+- [#5347](https://github.com/Effect-TS/effect/pull/5347) [`20f0d69`](https://github.com/Effect-TS/effect/commit/20f0d6978e0e98464f23b6582c37c6ce12319f29) Thanks @tim-smart! - update Cluster layer conditional storage types
+
+- Updated dependencies [[`d0b5fd1`](https://github.com/Effect-TS/effect/commit/d0b5fd1f7a292a47b9eeb058e5df57ace9a5ab14)]:
+  - @effect/cluster@0.46.4
+  - @effect/sql@0.44.1
+
+## 0.47.1
+
+### Patch Changes
+
+- [#5327](https://github.com/Effect-TS/effect/pull/5327) [`695bc1a`](https://github.com/Effect-TS/effect/commit/695bc1ab8612cb5b326ecb57c80bd6e36dfd63ee) Thanks @fubhy! - Improved child process cleanup
+
+- [#5339](https://github.com/Effect-TS/effect/pull/5339) [`f1ad6c5`](https://github.com/Effect-TS/effect/commit/f1ad6c5ffc349d45ce64b285f2d0cf4ea77f9897) Thanks @fubhy! - Added `stderr` and `stdout` as `NodeStream` and `stderr` and `stdin` as `NodeSink`
+
 ## 0.47.0
 
 ### Patch Changes

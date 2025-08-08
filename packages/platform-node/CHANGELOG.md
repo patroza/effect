@@ -1,5 +1,25 @@
 # @effect/platform-node
 
+## 0.94.2
+
+### Patch Changes
+
+- [#5347](https://github.com/Effect-TS/effect/pull/5347) [`20f0d69`](https://github.com/Effect-TS/effect/commit/20f0d6978e0e98464f23b6582c37c6ce12319f29) Thanks @tim-smart! - update Cluster layer conditional storage types
+
+- Updated dependencies [[`d0b5fd1`](https://github.com/Effect-TS/effect/commit/d0b5fd1f7a292a47b9eeb058e5df57ace9a5ab14), [`20f0d69`](https://github.com/Effect-TS/effect/commit/20f0d6978e0e98464f23b6582c37c6ce12319f29)]:
+  - @effect/cluster@0.46.4
+  - @effect/sql@0.44.1
+  - @effect/platform-node-shared@0.47.2
+
+## 0.94.1
+
+### Patch Changes
+
+- [#5325](https://github.com/Effect-TS/effect/pull/5325) [`aed804e`](https://github.com/Effect-TS/effect/commit/aed804e396b96c00b032c3486d5e78189d4284e0) Thanks @tim-smart! - use Dispatcher.destroy() in undici finalizers
+
+- Updated dependencies [[`f187941`](https://github.com/Effect-TS/effect/commit/f187941946c675713b3539fc4d5480123037563a)]:
+  - effect@3.17.6
+
 ## 0.94.0
 
 ### Patch Changes
