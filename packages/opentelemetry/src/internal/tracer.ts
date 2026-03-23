@@ -23,20 +23,20 @@ const kindMap = {
   "consumer": OtelApi.SpanKind.CONSUMER
 }
 
-const getOtelParent = (tracer: OtelApi.TraceAPI, otelContext: OtelApi.Context, context: Context.Context<never>) => {
-  const active = tracer.getSpan(otelContext)
-  const otelParent = active ? active.spanContext() : undefined
-  return otelParent
-    ? Option.some(
-      EffectTracer.externalSpan({
-        spanId: otelParent.spanId,
-        traceId: otelParent.traceId,
-        sampled: (otelParent.traceFlags & 1) === 1,
-        context
-      })
-    )
-    : Option.none()
-}
+// const getOtelParent = (tracer: OtelApi.TraceAPI, otelContext: OtelApi.Context, context: Context.Context<never>) => {
+//   const active = tracer.getSpan(otelContext)
+//   const otelParent = active ? active.spanContext() : undefined
+//   return otelParent
+//     ? Option.some(
+//       EffectTracer.externalSpan({
+//         spanId: otelParent.spanId,
+//         traceId: otelParent.traceId,
+//         sampled: (otelParent.traceFlags & 1) === 1,
+//         context
+//       })
+//     )
+//     : Option.none()
+// }
 
 /** @internal */
 export class OtelSpan implements EffectTracer.Span {
@@ -61,15 +61,17 @@ export class OtelSpan implements EffectTracer.Span {
     readonly links: Array<EffectTracer.SpanLink>,
     startTime: bigint,
     readonly kind: EffectTracer.SpanKind,
-    options?: EffectTracer.SpanOptions
+    _options?: EffectTracer.SpanOptions
   ) {
     this[OtelSpanTypeId] = OtelSpanTypeId
     const active = contextApi.active()
-    this.parent = effectParent._tag === "Some"
-      ? effectParent
-      : (options?.root !== true)
-      ? getOtelParent(traceApi, active, context)
-      : Option.none()
+    // PRO: disabled automatic parent extraction to resolve strange behaviour
+    this.parent = effectParent
+    // this.parent = effectParent._tag === "Some"
+    //   ? effectParent
+    //   : (options?.root !== true)
+    //   ? getOtelParent(traceApi, active, context)
+    //   : Option.none()
     this.span = tracer.startSpan(
       name,
       {
