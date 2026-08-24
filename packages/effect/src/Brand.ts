@@ -161,10 +161,20 @@ export declare namespace Brand {
   /**
    * A utility type to extract the unbranded value type from a brand.
    *
+   * **Details**
+   *
+   * Works for both type-alias intersections such as
+   * `number & Brand<"Int"> & Brand<"Positive">` and named interfaces that
+   * `extends` a simplified brand payload, which is the pattern used to make a
+   * narrower brand assignable to a wider parent (`NonEmptyString50` to
+   * `NonEmptyString255`).
+   *
    * @category utility types
    * @since 2.0.0
    */
-  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B> ? U : B
+  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B>
+    ? ([U] extends [B] ? (B extends infer Q & { readonly [TypeId]: B[typeof TypeId] } ? Q : B) : U)
+    : (B extends infer Q & { readonly [TypeId]: B[typeof TypeId] } ? Q : B)
 
   /**
    * A utility type to extract the keys of a branded type.

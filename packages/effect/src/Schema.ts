@@ -5189,7 +5189,8 @@ export function refine<S extends Constraint, T extends S["Type"]>(
     make(SchemaAST.appendChecks(schema.ast, [SchemaAST.makeFilterByGuard(refinement, annotations)]), { schema })
 }
 
-type DistributeBrands<B> = UnionToIntersection<B extends infer U extends string ? Brand.Brand<U> : never>
+type DistributeBrands<B> = [B] extends [Brand.Brand<any>] ? B
+  : UnionToIntersection<B extends infer U extends string ? Brand.Brand<U> : never>
 
 /**
  * Type-level representation returned by {@link brand}.
@@ -5248,14 +5249,36 @@ export function brand<B extends string>(identifier: B) {
  * Creates a branded schema from a {@link Brand.Constructor}, applying the
  * constructor's checks and brand tag to the underlying schema.
  *
+ * **When to use**
+ *
+ * Use when you already have a Brand constructor and want a schema whose decoded
+ * Type is that constructor's branded type, including inherited brand
+ * interfaces.
+ *
+ * **Details**
+ *
+ * The decoded Type is the constructor's branded type `A` (intersected with the
+ * underlying schema Type), not a reconstruction from brand keys. Named
+ * interface chains such as `NonEmptyString50` stay `NonEmptyString50` —
+ * assignable to parent brands such as `NonEmptyString255`, and opaque to
+ * siblings such as `Email` that share the same parent.
+ *
+ * **Gotchas**
+ *
+ * Runtime brand annotations record only the `identifier` string. Parent brands
+ * in an inheritance chain exist at the type level unless you also add them with
+ * {@link brand}.
+ *
+ * @see {@link brand} for branding a schema with a string key when you do not have a constructor
+ *
  * @category branding
  * @since 3.10.0
  */
 export function fromBrand<A extends Brand.Brand<any>>(identifier: string, ctor: Brand.Constructor<A>) {
   return <S extends Top & { readonly "Type": Brand.Brand.Unbranded<A> }>(
     self: S
-  ): brand<S["Rebuild"], Brand.Brand.Keys<A>> => {
-    return (ctor.checks ? self.check(...ctor.checks) : self).pipe(brand(identifier))
+  ): brand<S["Rebuild"], A> => {
+    return (ctor.checks ? self.check(...ctor.checks) : self).pipe(brand(identifier)) as brand<S["Rebuild"], A>
   }
 }
 

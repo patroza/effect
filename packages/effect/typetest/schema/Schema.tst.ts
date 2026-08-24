@@ -11,7 +11,8 @@ import {
   type SchemaIssue,
   SchemaTransformation,
   Struct,
-  Tuple
+  Tuple,
+  type Types
 } from "effect"
 import { immerable, produce } from "immer"
 import { describe, expect, it } from "tstyche"
@@ -1801,10 +1802,11 @@ describe("Schema", () => {
       type Int = number & Brand.Brand<"Int">
       const Int = Brand.check<Int>(Schema.isInt())
       const schema = Schema.Number.pipe(Schema.fromBrand("Int", Int))
-      expect(schema).type.toBe<Schema.brand<Schema.Number, "Int">>()
+      expect(schema).type.toBe<Schema.brand<Schema.Number, Int>>()
+      expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<Int, number>>()
     })
 
-    it("should convert a union of keys to an intersection of brands", () => {
+    it("preserves a constructor intersection instead of reconstructing keys", () => {
       type Int = number & Brand.Brand<"Int">
       const Int = Brand.check<Int>(Schema.isInt())
 
@@ -1812,12 +1814,60 @@ describe("Schema", () => {
       const Positive = Brand.check<Positive>(Schema.isGreaterThan(0))
 
       const PositiveInt = Brand.all(Int, Positive)
+      type PositiveInt = Brand.Brand.FromConstructor<typeof PositiveInt>
 
       const schema = Schema.Number.pipe(Schema.fromBrand("PositiveInt", PositiveInt))
-      expect(schema).type.toBe<Schema.brand<Schema.Number, "Int" | "Positive">>()
-      expect(Schema.revealCodec(schema)).type.toBe<
-        Schema.Codec<number & Brand.Brand<"Int"> & Brand.Brand<"Positive">, number>
-      >()
+      expect(schema).type.toBe<Schema.brand<Schema.Number, PositiveInt>>()
+      expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<PositiveInt, number>>()
+    })
+
+    it("preserves named inheriting brand interfaces", () => {
+      interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
+      type NonEmptyString = string & NonEmptyBrand
+
+      interface NonEmptyString255Brand extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyBrand> {}
+      type NonEmptyString255 = string & NonEmptyString255Brand
+
+      interface NonEmptyString50Brand
+        extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyString255Brand>
+      {}
+      type NonEmptyString50 = string & NonEmptyString50Brand
+
+      const NonEmptyString50 = Brand.nominal<NonEmptyString50>()
+      const schema = Schema.String.pipe(Schema.fromBrand("NonEmptyString50", NonEmptyString50))
+
+      expect(schema).type.toBe<Schema.brand<Schema.String, NonEmptyString50>>()
+      expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<NonEmptyString50, string>>()
+
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString255>()
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString>()
+      expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString>()
+      expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
+    })
+
+    it("Opaque with inheriting brands stays opaque to siblings", () => {
+      interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
+      interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyBrand> {}
+      interface EmailBrand extends Types.Simplify<Brand.Brand<"Email"> & NonEmptyBrand> {}
+
+      class Short extends Schema.Opaque<Short, NonEmptyString50Brand>()(
+        Schema.Struct({ name: Schema.String })
+      ) {}
+      class Address extends Schema.Opaque<Address, EmailBrand>()(
+        Schema.Struct({ name: Schema.String })
+      ) {}
+
+      const takeShort = (value: Short) => value
+      const takeAddress = (value: Address) => value
+      const takeParent = (value: { readonly name: string } & NonEmptyBrand) => value
+
+      takeShort(Short.make({ name: "a" }))
+      takeAddress(Address.make({ name: "a" }))
+      takeParent(Short.make({ name: "a" }))
+      takeParent(Address.make({ name: "a" }))
+
+      expect(takeShort).type.not.toBeCallableWith(Address.make({ name: "a" }))
+      expect(takeAddress).type.not.toBeCallableWith(Short.make({ name: "a" }))
     })
   })
 
