@@ -169,9 +169,10 @@ export declare namespace Brand {
    *
    * Works for both type-alias intersections such as
    * `number & Brand<"Int"> & Brand<"Positive">` and named interfaces that
-   * `extends` a simplified brand payload, which is the pattern used to make a
-   * narrower brand assignable to a wider parent (`NonEmptyString50` to
-   * `NonEmptyString255`).
+   * `extends` a simplified brand payload. That pattern keeps the name alias
+   * (`NonEmptyString255` instead of `string & Brand<"NonEmptyString255"> & …`)
+   * and makes a narrower brand assignable to a wider parent
+   * (`NonEmptyString50` to `NonEmptyString255`).
    *
    * @category utility types
    * @since 2.0.0

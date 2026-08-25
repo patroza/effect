@@ -5234,8 +5234,8 @@ export interface brand<S extends Constraint, B> extends
  *
  * `brand` adds brand metadata and narrows the TypeScript output type, but it
  * does not add runtime checks. For a named inheriting brand such as
- * `NonEmptyString50`, use {@link fromBrand} so the schema Type stays that
- * named type instead of `Brand<"NonEmptyString50">`.
+ * `NonEmptyString50`, use {@link fromBrand} so the schema Type keeps that
+ * name alias instead of expanding to `Brand<"NonEmptyString50">`.
  *
  * @see {@link fromBrand} for attaching a Brand constructor or a named inheriting brand type
  *
@@ -5260,10 +5260,12 @@ export function brand<B extends string>(identifier: B) {
  * **Details**
  *
  * The decoded Type is the constructor's branded type `A` (intersected with the
- * underlying schema Type), not a reconstruction from brand keys. Named
- * interface chains such as `NonEmptyString50` stay `NonEmptyString50` —
- * assignable to parent brands such as `NonEmptyString255`, and opaque to
- * siblings such as `Email` that share the same parent.
+ * underlying schema Type), not a reconstruction from brand keys. That preserves
+ * the name alias (`NonEmptyString255` instead of
+ * `string & Brand<"NonEmptyString255"> & Brand<"NonEmptyString">`) and brand
+ * inheritance (`NonEmptyString50` is assignable to `NonEmptyString255`).
+ * Siblings that share a parent, such as `Email` and `NonEmptyString50`, are
+ * not assignable to each other.
  *
  * **Gotchas**
  *
@@ -5274,9 +5276,8 @@ export function brand<B extends string>(identifier: B) {
  * **Example** (Inheriting max-length string brands)
  *
  * A `NonEmptyString50` value is assignable to `NonEmptyString255` and to
- * `NonEmptyString`, and the schema Type stays the named alias instead of a
- * reconstructed `Brand<"NonEmptyString50"> & Brand<"NonEmptyString255"> & …`
- * intersection.
+ * `NonEmptyString`. The schema Type is the name alias `NonEmptyString50`,
+ * not `string & Brand<"NonEmptyString50"> & Brand<"NonEmptyString255"> & …`.
  *
  * ```ts import.meta.vitest
  * import { Brand, Schema, Types } from "effect"

@@ -4,9 +4,10 @@ import { describe, expect, it } from "tstyche"
 /**
  * Named inheriting brands — the effect-app length/email pattern.
  *
- * A child interface extends the parent brand payload, so a value that passed
- * the tighter check is usable anywhere the wider parent is required, while
- * siblings that share a parent stay opaque to each other.
+ * A child interface extends the parent brand payload: the schema Type stays
+ * the name alias (`NonEmptyString50`, not `string & Brand<"NonEmptyString50">
+ * & …`), and a tighter brand is assignable to every wider parent. Siblings
+ * that share a parent are not assignable to each other.
  */
 interface NonEmptyStringBrand extends Brand.Brand<"NonEmptyString"> {}
 type NonEmptyString = string & NonEmptyStringBrand
@@ -63,7 +64,7 @@ describe("inheriting Brand interfaces", () => {
     expect(take50).type.not.toBeCallableWith("raw")
   })
 
-  it("keeps sibling brands that share a parent opaque to each other", () => {
+  it("does not assign sibling brands that share a parent", () => {
     const takeTitle = (value: NonEmptyString50) => value
     const takeEmail = (value: Email) => value
     const takeNonEmpty = (value: NonEmptyString) => value
@@ -85,7 +86,7 @@ describe("inheriting Brand interfaces", () => {
     expect<Brand.Brand.Unbranded<number & Brand.Brand<"Int"> & Brand.Brand<"Positive">>>().type.toBe<number>()
   })
 
-  it("fromBrand keeps the named Type without a nominal constructor", () => {
+  it("fromBrand keeps the name alias without a nominal constructor", () => {
     expect(Schema.String.pipe).type.toBeCallableWith(Schema.fromBrand<NonEmptyString50>("NonEmptyString50"))
     expect(Schema.String.pipe).type.toBeCallableWith(Schema.fromBrand("NonEmptyString50", NonEmptyString50))
     expect(Schema.Number.pipe).type.not.toBeCallableWith(Schema.fromBrand<NonEmptyString50>("NonEmptyString50"))
@@ -115,7 +116,7 @@ describe("inheriting Brand interfaces", () => {
     takeName(post.body)
   })
 
-  it("Opaque structs branded with inheriting interfaces stay opaque to siblings", () => {
+  it("Schema.Opaque structs with inheriting brands are not assignable to siblings", () => {
     class ShortName extends Schema.Opaque<ShortName, NonEmptyString50Brand>()(
       Schema.Struct({ name: Schema.String })
     ) {}

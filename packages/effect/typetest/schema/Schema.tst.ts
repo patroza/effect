@@ -1845,7 +1845,7 @@ describe("Schema", () => {
       expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
     })
 
-    it("Opaque with inheriting brands stays opaque to siblings", () => {
+    it("Schema.Opaque with inheriting brands is not assignable to siblings", () => {
       interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
       interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyBrand> {}
       interface EmailBrand extends Types.Simplify<Brand.Brand<"Email"> & NonEmptyBrand> {}

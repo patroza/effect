@@ -52,7 +52,7 @@ describe("Brand", () => {
     expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
   })
 
-  it("named inheriting brand interfaces stay opaque", () => {
+  it("sibling inheriting brands are not assignable to each other", () => {
     interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
     type NonEmptyString = string & NonEmptyBrand
 
