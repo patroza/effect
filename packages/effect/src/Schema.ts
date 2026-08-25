@@ -5269,6 +5269,37 @@ export function brand<B extends string>(identifier: B) {
  * in an inheritance chain exist at the type level unless you also add them with
  * {@link brand}.
  *
+ * **Example** (Inheriting max-length string brands)
+ *
+ * A `NonEmptyString50` value is assignable to `NonEmptyString255` and to
+ * `NonEmptyString`, and the schema Type stays the named alias instead of a
+ * reconstructed `Brand<"NonEmptyString50"> & Brand<"NonEmptyString255"> & …`
+ * intersection.
+ *
+ * ```ts import.meta.vitest
+ * import { Brand, Schema, Types } from "effect"
+ *
+ * interface NonEmptyStringBrand extends Brand.Brand<"NonEmptyString"> {}
+ * type NonEmptyString = string & NonEmptyStringBrand
+ *
+ * interface NonEmptyString255Brand
+ *   extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyStringBrand> {}
+ * type NonEmptyString255 = string & NonEmptyString255Brand
+ *
+ * interface NonEmptyString50Brand
+ *   extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyString255Brand> {}
+ * type NonEmptyString50 = string & NonEmptyString50Brand
+ *
+ * const NonEmptyString50 = Schema.NonEmptyString.pipe(
+ *   Schema.check(Schema.isMaxLength(50)),
+ *   Schema.fromBrand("NonEmptyString50", Brand.nominal<NonEmptyString50>())
+ * )
+ *
+ * const title = NonEmptyString50.make("hello")
+ * const as255: NonEmptyString255 = title
+ * const asNonEmpty: NonEmptyString = title
+ * ```
+ *
  * @see {@link brand} for branding a schema with a string key when you do not have a constructor
  *
  * @category branding
