@@ -25,6 +25,7 @@ describe("Brand", () => {
 
     expect<Brand.Brand.Unbranded<NonEmptyString>>().type.toBe<string>()
     expect<Brand.Brand.Unbranded<NonEmptyString255>>().type.toBe<string>()
+    expect<Brand.Brand.Unbranded<Brand.Brand<"X">>>().type.toBe<Brand.Brand<"X">>()
   })
 
   it("named inheriting brand interfaces are assignable child to parent", () => {

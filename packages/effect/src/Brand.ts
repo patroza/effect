@@ -143,6 +143,10 @@ export class BrandError {
   }
 }
 
+type StripTypeId<B extends Brand<any>> = B extends infer Q & { readonly [TypeId]: B[typeof TypeId] }
+  ? ([unknown] extends [Q] ? B : Q)
+  : B
+
 /**
  * Namespace containing type-level helpers for working with branded types and
  * brand constructors.
@@ -172,9 +176,9 @@ export declare namespace Brand {
    * @category utility types
    * @since 2.0.0
    */
-  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B>
-    ? ([U] extends [B] ? (B extends infer Q & { readonly [TypeId]: B[typeof TypeId] } ? Q : B) : U)
-    : (B extends infer Q & { readonly [TypeId]: B[typeof TypeId] } ? Q : B)
+  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B> ?
+    ([unknown] extends [U] ? StripTypeId<B> : ([U] extends [B] ? StripTypeId<B> : U))
+    : StripTypeId<B>
 
   /**
    * A utility type to extract the keys of a branded type.

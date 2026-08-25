@@ -5192,8 +5192,6 @@ export function refine<S extends Constraint, T extends S["Type"]>(
 type DistributeBrands<B> = [B] extends [Brand.Brand<any>] ? B
   : UnionToIntersection<B extends infer U extends string ? Brand.Brand<U> : never>
 
-type PlainBrandKey<B extends string> = B extends Brand.Brand<any> ? never : B
-
 /**
  * Type-level representation returned by {@link brand}.
  *
@@ -5230,49 +5228,23 @@ export interface brand<S extends Constraint, B> extends
  * **When to use**
  *
  * Use to make values decoded by an existing schema nominally distinct when the
- * schema already carries the runtime validation you need. Pass a named inheriting
- * brand as the type argument (`Schema.brand<NonEmptyString50>("NonEmptyString50")`)
- * when the Type should stay that named type instead of `Brand<"NonEmptyString50">`.
+ * schema already carries the runtime validation you need.
  *
  * **Gotchas**
  *
  * `brand` adds brand metadata and narrows the TypeScript output type, but it
- * does not add runtime checks.
+ * does not add runtime checks. For a named inheriting brand such as
+ * `NonEmptyString50`, use {@link fromBrand} so the schema Type stays that
+ * named type instead of `Brand<"NonEmptyString50">`.
  *
- * **Example** (Named inheriting brand)
- *
- * ```ts import.meta.vitest
- * import { Brand, Schema, Types } from "effect"
- *
- * interface NonEmptyStringBrand extends Brand.Brand<"NonEmptyString"> {}
- * type NonEmptyString = string & NonEmptyStringBrand
- *
- * interface NonEmptyString50Brand
- *   extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyStringBrand> {}
- * type NonEmptyString50 = string & NonEmptyString50Brand
- *
- * const NonEmptyString50 = Schema.NonEmptyString.pipe(
- *   Schema.check(Schema.isMaxLength(50)),
- *   Schema.brand<NonEmptyString50>("NonEmptyString50")
- * )
- *
- * const title = NonEmptyString50.make("hello")
- * const asNonEmpty: NonEmptyString = title
- * ```
- *
- * @see {@link fromBrand} for applying a Brand constructor's checks along with the brand tag
+ * @see {@link fromBrand} for attaching a Brand constructor or a named inheriting brand type
  *
  * @category branding
  * @since 3.10.0
  */
-export function brand<B extends string>(
-  identifier: PlainBrandKey<B>
-): <S extends ConstraintRebuildable>(schema: S) => brand<S["Rebuild"], B>
-export function brand<A extends Brand.Brand<any>>(
-  identifier: string
-): <S extends ConstraintRebuildable>(schema: S) => brand<S["Rebuild"], A>
-export function brand(identifier: string) {
-  return (schema: ConstraintRebuildable) => make(SchemaAST.brand(schema.ast, identifier), { schema, identifier })
+export function brand<B extends string>(identifier: B) {
+  return <S extends ConstraintRebuildable>(schema: S): brand<S["Rebuild"], B> =>
+    make(SchemaAST.brand(schema.ast, identifier), { schema, identifier })
 }
 
 /**
@@ -5281,9 +5253,9 @@ export function brand(identifier: string) {
  *
  * **When to use**
  *
- * Use when you already have a Brand constructor with runtime checks to reuse.
- * For type-only inheriting brands, prefer {@link brand} with a named type
- * argument (`Schema.brand<NonEmptyString50>("NonEmptyString50")`).
+ * Use when you already have a Brand constructor, or a named inheriting brand
+ * type with no constructor checks. Type-only brands can omit the constructor:
+ * `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
  *
  * **Details**
  *
@@ -5330,16 +5302,19 @@ export function brand(identifier: string) {
  * const asNonEmpty: NonEmptyString = title
  * ```
  *
- * @see {@link brand} for type-only brands, including `Schema.brand<Named>("id")` without a constructor
+ * @see {@link brand} for a string-key brand when you do not have a named inheriting type
  *
  * @category branding
  * @since 3.10.0
  */
-export function fromBrand<A extends Brand.Brand<any>>(identifier: string, ctor?: Brand.Constructor<A>) {
+export function fromBrand<A extends Brand.Brand<any>>(
+  identifier: [Brand.Brand<any>] extends [A] ? never : string,
+  ctor?: Brand.Constructor<A>
+) {
   return <S extends Top & { readonly "Type": Brand.Brand.Unbranded<A> }>(
     self: S
   ): brand<S["Rebuild"], A> => {
-    return (ctor?.checks ? self.check(...ctor.checks) : self).pipe(brand<A>(identifier))
+    return (ctor?.checks ? self.check(...ctor.checks) : self).pipe(brand(identifier)) as brand<S["Rebuild"], A>
   }
 }
 
