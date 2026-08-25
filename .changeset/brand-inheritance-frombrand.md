@@ -2,4 +2,4 @@
 "effect": patch
 ---
 
-Preserve Brand name aliases and inheritance through `Brand.Unbranded` and `Schema.fromBrand`. `fromBrand<NonEmptyString255>("NonEmptyString255")` keeps schema Type as `NonEmptyString255` instead of `string & Brand<"NonEmptyString255"> & Brand<"NonEmptyString">`. A narrower brand such as `NonEmptyString50` stays assignable to that parent. Type-only brands can use `Schema.fromBrand<Named>("id")` without `Brand.nominal`. This changes `fromBrand`'s return from `brand<S, Keys<A>>` to `brand<S, A>`.
+Fix `Brand.Unbranded` / `Schema.fromBrand` for named inheriting brands (Effect-TS/effect#2268). `fromBrand<NonEmptyString50>` keeps Type as `NonEmptyString50` (name alias + assignable to `NonEmptyString255`), not a reconstructed `Brand<K>` intersection.

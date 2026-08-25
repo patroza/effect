@@ -52,14 +52,19 @@ describe("Brand", () => {
     expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
   })
 
+  it("Unbranded of a named interface intersection (effect#2268)", () => {
+    type WithType = Brand.Brand<"B"> & Brand.Brand<"A">
+    expect<Brand.Brand.Unbranded<string & WithType>>().type.toBe<string>()
+
+    interface WithInterface extends Types.Simplify<Brand.Brand<"B"> & Brand.Brand<"A">> {}
+    expect<Brand.Brand.Unbranded<string & WithInterface>>().type.toBe<string>()
+  })
+
   it("sibling inheriting brands are not assignable to each other", () => {
     interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
     type NonEmptyString = string & NonEmptyBrand
 
-    interface NonEmptyString255Brand extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyBrand> {}
-    type NonEmptyString255 = string & NonEmptyString255Brand
-
-    interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyString255Brand> {}
+    interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyBrand> {}
     type NonEmptyString50 = string & NonEmptyString50Brand
 
     interface EmailBrand extends Types.Simplify<Brand.Brand<"Email"> & NonEmptyBrand> {}

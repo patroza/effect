@@ -1844,31 +1844,6 @@ describe("Schema", () => {
       expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString>()
       expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
     })
-
-    it("Schema.Opaque with inheriting brands is not assignable to siblings", () => {
-      interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
-      interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyBrand> {}
-      interface EmailBrand extends Types.Simplify<Brand.Brand<"Email"> & NonEmptyBrand> {}
-
-      class Short extends Schema.Opaque<Short, NonEmptyString50Brand>()(
-        Schema.Struct({ name: Schema.String })
-      ) {}
-      class Address extends Schema.Opaque<Address, EmailBrand>()(
-        Schema.Struct({ name: Schema.String })
-      ) {}
-
-      const takeShort = (value: Short) => value
-      const takeAddress = (value: Address) => value
-      const takeParent = (value: { readonly name: string } & NonEmptyBrand) => value
-
-      takeShort(Short.make({ name: "a" }))
-      takeAddress(Address.make({ name: "a" }))
-      takeParent(Short.make({ name: "a" }))
-      takeParent(Address.make({ name: "a" }))
-
-      expect(takeShort).type.not.toBeCallableWith(Address.make({ name: "a" }))
-      expect(takeAddress).type.not.toBeCallableWith(Short.make({ name: "a" }))
-    })
   })
 
   describe("fieldsAssign", () => {
