@@ -29,13 +29,13 @@ const Email = Brand.nominal<Email>()
 
 const NonEmptyString50Schema = Schema.NonEmptyString.pipe(
   Schema.check(Schema.isMaxLength(50)),
-  Schema.fromBrand("NonEmptyString50", NonEmptyString50)
+  Schema.brand<NonEmptyString50>("NonEmptyString50")
 )
 const NonEmptyString255Schema = Schema.NonEmptyString.pipe(
   Schema.check(Schema.isMaxLength(255)),
-  Schema.fromBrand("NonEmptyString255", NonEmptyString255)
+  Schema.brand<NonEmptyString255>("NonEmptyString255")
 )
-const EmailSchema = Schema.String.pipe(Schema.fromBrand("Email", Email))
+const EmailSchema = Schema.String.pipe(Schema.brand<Email>("Email"))
 
 describe("inheriting Brand interfaces", () => {
   it("lets a tighter length brand be used as every wider parent", () => {
@@ -85,7 +85,9 @@ describe("inheriting Brand interfaces", () => {
     expect<Brand.Brand.Unbranded<number & Brand.Brand<"Int"> & Brand.Brand<"Positive">>>().type.toBe<number>()
   })
 
-  it("fromBrand is callable on the unbranded base and keeps the named Type", () => {
+  it("brand/fromBrand keep the named Type without a nominal constructor", () => {
+    expect(Schema.String.pipe).type.toBeCallableWith(Schema.brand<NonEmptyString50>("NonEmptyString50"))
+    expect(Schema.String.pipe).type.toBeCallableWith(Schema.fromBrand<NonEmptyString50>("NonEmptyString50"))
     expect(Schema.String.pipe).type.toBeCallableWith(Schema.fromBrand("NonEmptyString50", NonEmptyString50))
     expect(Schema.String.pipe).type.not.toBeCallableWith(
       Schema.fromBrand("NonEmptyString50", Brand.check<number & Brand.Brand<"Int">>(Schema.isInt()))
@@ -93,6 +95,7 @@ describe("inheriting Brand interfaces", () => {
 
     expect(Schema.revealCodec(NonEmptyString50Schema)).type.toBe<Schema.Codec<NonEmptyString50, string>>()
     expect(Schema.revealCodec(EmailSchema)).type.toBe<Schema.Codec<Email, string>>()
+    expect(Schema.String.pipe(Schema.brand("a"))).type.toBe<Schema.brand<Schema.String, "a">>()
   })
 
   it("Struct fields keep named brands so a short title fills a wider name slot", () => {
