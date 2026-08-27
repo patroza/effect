@@ -1821,6 +1821,26 @@ describe("Schema", () => {
       expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<PositiveInt, number>>()
     })
 
+    it("keeps a type-alias brand as Type", () => {
+      type NonEmptyString = string & Brand.Brand<"NonEmptyString">
+      type NonEmptyString255 =
+        & string
+        & Brand.Brand<"NonEmptyString255">
+        & Brand.Brand<"NonEmptyString">
+      type NonEmptyString50 =
+        & string
+        & Brand.Brand<"NonEmptyString50">
+        & Brand.Brand<"NonEmptyString255">
+        & Brand.Brand<"NonEmptyString">
+
+      const schema = Schema.String.pipe(Schema.fromBrand<NonEmptyString50>("NonEmptyString50"))
+      expect(schema).type.toBe<Schema.brand<Schema.String, NonEmptyString50>>()
+      expect<typeof schema.Type>().type.toBe<NonEmptyString50>()
+      expect(schema.make("hello")).type.toBe<NonEmptyString50>()
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString255>()
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString>()
+    })
+
     it("keeps a folded type name for the named-interface pattern", () => {
       interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
       type NonEmptyString = string & NonEmptyBrand
