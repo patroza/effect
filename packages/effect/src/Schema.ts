@@ -5189,7 +5189,11 @@ export function refine<S extends Constraint, T extends S["Type"]>(
     make(SchemaAST.appendChecks(schema.ast, [SchemaAST.makeFilterByGuard(refinement, annotations)]), { schema })
 }
 
-type DistributeBrands<B> = UnionToIntersection<B extends infer U extends string ? Brand.Brand<U> : never>
+type DistributeBrands<B> = [B] extends [Brand.Brand<any>] ? B
+  : UnionToIntersection<B extends infer U extends string ? Brand.Brand<U> : never>
+
+type BrandType<S extends Constraint, B> = [B] extends [Brand.Brand<any>] ? B
+  : S["Type"] & DistributeBrands<B>
 
 /**
  * Type-level representation returned by {@link brand}.
@@ -5209,13 +5213,13 @@ export interface brand<S extends Constraint, B> extends
     S["~encoded.optionality"]
   >
 {
-  readonly "Type": S["Type"] & DistributeBrands<B>
+  readonly "Type": BrandType<S, B>
   readonly "Encoded": S["Encoded"]
   readonly "DecodingServices": S["DecodingServices"]
   readonly "EncodingServices": S["EncodingServices"]
   readonly "~type.make.in": S["~type.make.in"]
-  readonly "~type.make": S["Type"] & DistributeBrands<B>
-  readonly "Iso": S["Type"] & DistributeBrands<B>
+  readonly "~type.make": BrandType<S, B>
+  readonly "Iso": BrandType<S, B>
   readonly schema: S
   readonly identifier: string
 }
@@ -5232,30 +5236,87 @@ export interface brand<S extends Constraint, B> extends
  * **Gotchas**
  *
  * `brand` adds brand metadata and narrows the TypeScript output type, but it
- * does not add runtime checks.
+ * does not add runtime checks. To keep a type alias such as `NonEmptyString50`
+ * as the schema Type, use {@link fromBrand}.
  *
- * @see {@link fromBrand} for applying a Brand constructor's checks along with the brand tag
+ * @see {@link fromBrand} for a Brand constructor or named brand type
  *
  * @category branding
  * @since 3.10.0
  */
-export function brand<B extends string>(identifier: B) {
-  return <S extends ConstraintRebuildable>(schema: S): brand<S["Rebuild"], B> =>
-    make(SchemaAST.brand(schema.ast, identifier), { schema, identifier })
+export function brand<B extends string>(identifier: B): <S extends ConstraintRebuildable>(
+  schema: S
+) => brand<S["Rebuild"], B>
+export function brand<A extends Brand.Brand<any>>(
+  identifier: [Brand.Brand<any>] extends [A] ? never : string
+): <S extends ConstraintRebuildable>(schema: S) => brand<S["Rebuild"], A>
+export function brand(identifier: string) {
+  return (schema: ConstraintRebuildable) => make(SchemaAST.brand(schema.ast, identifier), { schema, identifier })
 }
 
 /**
  * Creates a branded schema from a {@link Brand.Constructor}, applying the
  * constructor's checks and brand tag to the underlying schema.
  *
+ * **When to use**
+ *
+ * Use when you already have a Brand constructor, or a named brand type that
+ * should be the schema Type. Type-alias intersections already form a hierarchy.
+ * `fromBrand<A>` uses `A` as Type, not `string & A`, so `.d.ts` keeps
+ * `NonEmptyString50` on make / Struct / Class fields. The named-interface
+ * pattern (`interface X extends Simplify<Brand<"X"> & Parent>`) is only needed
+ * so a child brand can `extends` the parent; `Unbranded` peels that style to
+ * the base so `fromBrand` can take `Schema.String`. Type-only brands can omit
+ * the constructor: `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
+ *
+ * **Details**
+ *
+ * The decoded Type is `A`, not `S["Type"] & A` and not a reconstruction from
+ * brand keys. Declaration emit then prints the alias (`Alias50`, `Iface50`)
+ * instead of `string & Brand<"NonEmptyString50"> & Brand<"NonEmptyString255">
+ * & …`. String-key `brand("Email")` is unchanged (`string & Brand<"Email">`).
+ *
+ * **Gotchas**
+ *
+ * Runtime brand annotations record only the `identifier` string.
+ *
+ * **Example** (Type-alias brand)
+ *
+ * ```ts import.meta.vitest
+ * import { Brand, Schema } from "effect"
+ *
+ * type NonEmptyString = string & Brand.Brand<"NonEmptyString">
+ * type NonEmptyString255 =
+ *   string & Brand.Brand<"NonEmptyString255"> & Brand.Brand<"NonEmptyString">
+ * type NonEmptyString50 =
+ *   & string
+ *   & Brand.Brand<"NonEmptyString50">
+ *   & Brand.Brand<"NonEmptyString255">
+ *   & Brand.Brand<"NonEmptyString">
+ *
+ * const NonEmptyString50 = Schema.NonEmptyString.pipe(
+ *   Schema.check(Schema.isMaxLength(50)),
+ *   Schema.fromBrand<NonEmptyString50>("NonEmptyString50")
+ * )
+ *
+ * const title = NonEmptyString50.make("hello")
+ * const as255: NonEmptyString255 = title
+ * const asNonEmpty: NonEmptyString = title
+ * ```
+ *
+ * @see {@link brand} for a string-key brand when a named Type is not needed
+ *
  * @category branding
  * @since 3.10.0
  */
-export function fromBrand<A extends Brand.Brand<any>>(identifier: string, ctor: Brand.Constructor<A>) {
+export function fromBrand<A extends Brand.Brand<any>>(
+  identifier: [Brand.Brand<any>] extends [A] ? never : string,
+  ctor?: Brand.Constructor<A>
+) {
   return <S extends Top & { readonly "Type": Brand.Brand.Unbranded<A> }>(
     self: S
-  ): brand<S["Rebuild"], Brand.Brand.Keys<A>> => {
-    return (ctor.checks ? self.check(...ctor.checks) : self).pipe(brand(identifier))
+  ): brand<S["Rebuild"], A> => {
+    return (ctor?.checks ? self.check(...ctor.checks) : self).pipe(brand<A>(identifier))
   }
 }
 

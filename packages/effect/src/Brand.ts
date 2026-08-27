@@ -143,6 +143,10 @@ export class BrandError {
   }
 }
 
+type StripTypeId<B extends Brand<any>> = B extends infer Q & { readonly [TypeId]: B[typeof TypeId] }
+  ? ([unknown] extends [Q] ? B : Q)
+  : B
+
 /**
  * Namespace containing type-level helpers for working with branded types and
  * brand constructors.
@@ -161,10 +165,19 @@ export declare namespace Brand {
   /**
    * A utility type to extract the unbranded value type from a brand.
    *
+   * **Details**
+   *
+   * Type-alias intersections such as `number & Brand<"Int"> & Brand<"Positive">`
+   * already unbrand. The named-interface pattern (`interface X extends
+   * Simplify<Brand<"X"> & Parent>`) is what a child brand `extends`; this also
+   * unbrands those so `Schema.fromBrand` can take `Schema.String`.
+   *
    * @category utility types
    * @since 2.0.0
    */
-  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B> ? U : B
+  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B> ?
+    ([unknown] extends [U] ? StripTypeId<B> : ([U] extends [B] ? StripTypeId<B> : U))
+    : StripTypeId<B>
 
   /**
    * A utility type to extract the keys of a branded type.
