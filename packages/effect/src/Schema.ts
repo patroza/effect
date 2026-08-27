@@ -5233,10 +5233,10 @@ export interface brand<S extends Constraint, B> extends
  * **Gotchas**
  *
  * `brand` adds brand metadata and narrows the TypeScript output type, but it
- * does not add runtime checks. To keep a folded name such as `NonEmptyString50`
- * on the schema Type, use {@link fromBrand}.
+ * does not add runtime checks. To keep a folded type name such as
+ * `NonEmptyString50` on the schema Type, use {@link fromBrand}.
  *
- * @see {@link fromBrand} for a Brand constructor or a named-interface brand type
+ * @see {@link fromBrand} for a Brand constructor or the named-interface pattern
  *
  * @category branding
  * @since 3.10.0
@@ -5252,11 +5252,12 @@ export function brand<B extends string>(identifier: B) {
  *
  * **When to use**
  *
- * Use when you already have a Brand constructor, or a named-interface brand
- * whose folded name should be the schema Type. Type-alias intersections already
- * form a hierarchy; named interfaces (`interface X extends Simplify<Brand<"X">
- * & Parent>`) exist to keep that name in the IDE. Type-only brands can omit
- * the constructor: `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
+ * Use when you already have a Brand constructor, or the named-interface pattern
+ * whose folded type name should be the schema Type. Type-alias intersections
+ * already form a hierarchy; the named-interface pattern (`interface X extends
+ * Simplify<Brand<"X"> & Parent>`) is only needed to keep that name in the IDE /
+ * error messages. Type-only brands can omit the constructor:
+ * `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
  *
  * **Details**
  *
@@ -5268,7 +5269,7 @@ export function brand<B extends string>(identifier: B) {
  *
  * Runtime brand annotations record only the `identifier` string.
  *
- * **Example** (Named-interface brand)
+ * **Example** (Named-interface pattern)
  *
  * ```ts import.meta.vitest
  * import { Brand, Schema, Types } from "effect"
@@ -5294,7 +5295,7 @@ export function brand<B extends string>(identifier: B) {
  * const asNonEmpty: NonEmptyString = title
  * ```
  *
- * @see {@link brand} for a string-key brand when a folded name is not needed
+ * @see {@link brand} for a string-key brand when a folded type name is not needed
  *
  * @category branding
  * @since 3.10.0

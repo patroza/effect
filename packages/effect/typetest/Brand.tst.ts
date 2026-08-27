@@ -30,7 +30,7 @@ describe("Brand", () => {
     expect<Brand.Brand.Unbranded<NonEmptyString50>>().type.toBe<string>()
   })
 
-  it("named interfaces Unbrand and keep a folded name", () => {
+  it("named-interface pattern Unbrands and keeps a folded type name", () => {
     type WithType = Brand.Brand<"B"> & Brand.Brand<"A">
     expect<Brand.Brand.Unbranded<string & WithType>>().type.toBe<string>()
 

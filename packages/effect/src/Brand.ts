@@ -168,8 +168,9 @@ export declare namespace Brand {
    * **Details**
    *
    * Type-alias intersections such as `number & Brand<"Int"> & Brand<"Positive">`
-   * already unbrand. Named interfaces (`interface X extends Simplify<Brand<"X">
-   * & Parent>`) keep a folded name in the IDE; this also unbrands those.
+   * already unbrand. The named-interface pattern (`interface X extends
+   * Simplify<Brand<"X"> & Parent>`) keeps a folded type name in the IDE / error
+   * messages; this also unbrands those.
    *
    * @category utility types
    * @since 2.0.0
