@@ -2,4 +2,4 @@
 "effect": patch
 ---
 
-Fix `Brand.Unbranded` / `Schema.fromBrand` for named inheriting brands (Effect-TS/effect#2268). `fromBrand<NonEmptyString50>` keeps Type as `NonEmptyString50` (name alias + assignable to `NonEmptyString255`), not a reconstructed `Brand<K>` intersection.
+Make `Brand.Unbranded` and `Schema.fromBrand` work with named-interface brands so the folded name (`NonEmptyString50`) is kept. Type-alias intersections already form a hierarchy; the interface style is what failed to Unbrand (Effect-TS/effect#2268, #7490).

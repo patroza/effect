@@ -1821,7 +1821,7 @@ describe("Schema", () => {
       expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<PositiveInt, number>>()
     })
 
-    it("preserves named inheriting brand interfaces", () => {
+    it("keeps a folded name for named-interface brands", () => {
       interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
       type NonEmptyString = string & NonEmptyBrand
 

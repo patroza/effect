@@ -167,12 +167,9 @@ export declare namespace Brand {
    *
    * **Details**
    *
-   * Works for both type-alias intersections such as
-   * `number & Brand<"Int"> & Brand<"Positive">` and named interfaces that
-   * `extends` a simplified brand payload. That pattern keeps the name alias
-   * (`NonEmptyString255` instead of `string & Brand<"NonEmptyString255"> & …`)
-   * and makes a narrower brand assignable to a wider parent
-   * (`NonEmptyString50` to `NonEmptyString255`).
+   * Type-alias intersections such as `number & Brand<"Int"> & Brand<"Positive">`
+   * already unbrand. Named interfaces (`interface X extends Simplify<Brand<"X">
+   * & Parent>`) keep a folded name in the IDE; this also unbrands those.
    *
    * @category utility types
    * @since 2.0.0

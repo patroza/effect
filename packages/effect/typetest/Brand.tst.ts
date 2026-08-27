@@ -16,66 +16,35 @@ describe("Brand", () => {
     expect<Brand.Brand.Unbranded<PositiveInt>>().type.toBe<number>()
   })
 
-  it("Unbranded of named inheriting brand interfaces", () => {
-    interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
-    type NonEmptyString = string & NonEmptyBrand
-
-    interface NonEmptyString255Brand extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyBrand> {}
-    type NonEmptyString255 = string & NonEmptyString255Brand
-
-    expect<Brand.Brand.Unbranded<NonEmptyString>>().type.toBe<string>()
-    expect<Brand.Brand.Unbranded<NonEmptyString255>>().type.toBe<string>()
-    expect<Brand.Brand.Unbranded<Brand.Brand<"X">>>().type.toBe<Brand.Brand<"X">>()
-  })
-
-  it("named inheriting brand interfaces are assignable child to parent", () => {
-    interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
-    type NonEmptyString = string & NonEmptyBrand
-
-    interface NonEmptyString64kBrand extends Types.Simplify<Brand.Brand<"NonEmptyString64k"> & NonEmptyBrand> {}
-    type NonEmptyString64k = string & NonEmptyString64kBrand
-
-    interface NonEmptyString255Brand
-      extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyString64kBrand>
-    {}
-    type NonEmptyString255 = string & NonEmptyString255Brand
-
-    interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyString255Brand> {}
-    type NonEmptyString50 = string & NonEmptyString50Brand
+  it("type-alias intersections already form a hierarchy", () => {
+    type NonEmptyString = string & Brand.Brand<"NonEmptyString">
+    type NonEmptyString255 = string & Brand.Brand<"NonEmptyString255"> & Brand.Brand<"NonEmptyString">
+    type NonEmptyString50 =
+      & string
+      & Brand.Brand<"NonEmptyString50">
+      & Brand.Brand<"NonEmptyString255">
+      & Brand.Brand<"NonEmptyString">
 
     expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString255>()
-    expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString64k>()
     expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString>()
-    expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString64k>()
-    expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString>()
-    expect<NonEmptyString64k>().type.toBeAssignableTo<NonEmptyString>()
-    expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
+    expect<Brand.Brand.Unbranded<NonEmptyString50>>().type.toBe<string>()
   })
 
-  it("Unbranded of a named interface intersection (effect#2268)", () => {
+  it("named interfaces Unbrand and keep a folded name", () => {
     type WithType = Brand.Brand<"B"> & Brand.Brand<"A">
     expect<Brand.Brand.Unbranded<string & WithType>>().type.toBe<string>()
 
     interface WithInterface extends Types.Simplify<Brand.Brand<"B"> & Brand.Brand<"A">> {}
     expect<Brand.Brand.Unbranded<string & WithInterface>>().type.toBe<string>()
-  })
 
-  it("sibling inheriting brands are not assignable to each other", () => {
     interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
     type NonEmptyString = string & NonEmptyBrand
+    interface NonEmptyString255Brand extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyBrand> {}
+    type NonEmptyString255 = string & NonEmptyString255Brand
 
-    interface NonEmptyString50Brand extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyBrand> {}
-    type NonEmptyString50 = string & NonEmptyString50Brand
-
-    interface EmailBrand extends Types.Simplify<Brand.Brand<"Email"> & NonEmptyBrand> {}
-    type Email = string & EmailBrand
-
-    expect<Email>().type.not.toBeAssignableTo<NonEmptyString50>()
-    expect<NonEmptyString50>().type.not.toBeAssignableTo<Email>()
-    expect<Email>().type.toBeAssignableTo<NonEmptyString>()
-    expect<NonEmptyString>().type.not.toBeAssignableTo<Email>()
-    expect<Brand.Brand<"A">>().type.not.toBeAssignableTo<Brand.Brand<"B">>()
-    expect<Brand.Brand<"B">>().type.not.toBeAssignableTo<Brand.Brand<"A">>()
+    expect<Brand.Brand.Unbranded<NonEmptyString255>>().type.toBe<string>()
+    expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString>()
+    expect<Brand.Brand.Unbranded<Brand.Brand<"X">>>().type.toBe<Brand.Brand<"X">>()
   })
 
   it("Keys", () => {

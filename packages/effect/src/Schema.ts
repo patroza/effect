@@ -5233,11 +5233,10 @@ export interface brand<S extends Constraint, B> extends
  * **Gotchas**
  *
  * `brand` adds brand metadata and narrows the TypeScript output type, but it
- * does not add runtime checks. For a named inheriting brand such as
- * `NonEmptyString50`, use {@link fromBrand} so the schema Type keeps that
- * name alias instead of expanding to `Brand<"NonEmptyString50">`.
+ * does not add runtime checks. To keep a folded name such as `NonEmptyString50`
+ * on the schema Type, use {@link fromBrand}.
  *
- * @see {@link fromBrand} for attaching a Brand constructor or a named inheriting brand type
+ * @see {@link fromBrand} for a Brand constructor or a named-interface brand type
  *
  * @category branding
  * @since 3.10.0
@@ -5253,22 +5252,23 @@ export function brand<B extends string>(identifier: B) {
  *
  * **When to use**
  *
- * Use when you already have a Brand constructor, or a named inheriting brand
- * type with no constructor checks. Type-only brands can omit the constructor:
- * `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
+ * Use when you already have a Brand constructor, or a named-interface brand
+ * whose folded name should be the schema Type. Type-alias intersections already
+ * form a hierarchy; named interfaces (`interface X extends Simplify<Brand<"X">
+ * & Parent>`) exist to keep that name in the IDE. Type-only brands can omit
+ * the constructor: `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
  *
  * **Details**
  *
- * The decoded Type is `A`, not a reconstruction from brand keys, so the name
- * alias and inheritance chain are kept (`NonEmptyString50` assignable to
- * `NonEmptyString255`, Type is `NonEmptyString50` rather than
- * `string & Brand<"NonEmptyString50"> & Brand<"NonEmptyString255"> & …`).
+ * The decoded Type is `A`, not a reconstruction from brand keys, so a named
+ * interface stays `NonEmptyString50` instead of
+ * `string & Brand<"NonEmptyString50"> & Brand<"NonEmptyString255"> & …`.
  *
  * **Gotchas**
  *
  * Runtime brand annotations record only the `identifier` string.
  *
- * **Example** (Inheriting max-length string brands)
+ * **Example** (Named-interface brand)
  *
  * ```ts import.meta.vitest
  * import { Brand, Schema, Types } from "effect"
@@ -5294,7 +5294,7 @@ export function brand<B extends string>(identifier: B) {
  * const asNonEmpty: NonEmptyString = title
  * ```
  *
- * @see {@link brand} for a string-key brand when you do not have a named inheriting type
+ * @see {@link brand} for a string-key brand when a folded name is not needed
  *
  * @category branding
  * @since 3.10.0
