@@ -5261,18 +5261,20 @@ export function brand(identifier: string) {
  * **When to use**
  *
  * Use when you already have a Brand constructor, or a named brand type that
- * should be the schema Type. Type-alias intersections already form a hierarchy
- * and are enough to keep `NonEmptyString50` as Type — `fromBrand` uses `A` as
- * Type, not `string & A`. The named-interface pattern (`interface X extends
- * Simplify<Brand<"X"> & Parent>`) is only needed so a child brand can
- * `extends` the parent brand. Type-only brands can omit the constructor:
- * `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
+ * should be the schema Type. Type-alias intersections already form a hierarchy.
+ * `fromBrand<A>` uses `A` as Type, not `string & A`, so `.d.ts` keeps
+ * `NonEmptyString50` on make / Struct / Class fields. The named-interface
+ * pattern (`interface X extends Simplify<Brand<"X"> & Parent>`) is only needed
+ * so a child brand can `extends` the parent; `Unbranded` peels that style to
+ * the base so `fromBrand` can take `Schema.String`. Type-only brands can omit
+ * the constructor: `Schema.fromBrand<NonEmptyString50>("NonEmptyString50")`.
  *
  * **Details**
  *
  * The decoded Type is `A`, not `S["Type"] & A` and not a reconstruction from
- * brand keys, so a type alias stays `NonEmptyString50` instead of
- * `string & Brand<"NonEmptyString50"> & Brand<"NonEmptyString255"> & …`.
+ * brand keys. Declaration emit then prints the alias (`Alias50`, `Iface50`)
+ * instead of `string & Brand<"NonEmptyString50"> & Brand<"NonEmptyString255">
+ * & …`. String-key `brand("Email")` is unchanged (`string & Brand<"Email">`).
  *
  * **Gotchas**
  *
