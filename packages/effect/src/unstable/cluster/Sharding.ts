@@ -559,7 +559,15 @@ const make = Effect.gen(function*() {
     const probeShardLocks = runnerStorage.refresh(selfAddress, []).pipe(
       Effect.timeout(shardLockInterval),
       Effect.andThen(markShardLocksHealthy),
-      Effect.catchCause(() => Effect.void)
+      Effect.catchCause((cause) =>
+        Effect.logWarning("Shard lock storage still unhealthy, retrying", cause).pipe(
+          Effect.annotateLogs({
+            module: "effect/cluster/Sharding",
+            fiber: "Shard lock probe",
+            runner: selfAddress
+          })
+        )
+      )
     )
 
     // Refresh shard locks at the lease-safe interval, or probe storage while

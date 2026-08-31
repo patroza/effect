@@ -88,8 +88,10 @@ export const make = Effect.fnUntraced(function*(options: {
   const acquireLockConn = sql.onDialectOrElse({
     pg: () =>
       Effect.fnUntraced(function*(scope: Scope.Scope) {
-        const conn = yield* Effect.orDie(sql.reserve).pipe(
-          Scope.provide(scope)
+        const conn = yield* sql.reserve.pipe(
+          Scope.provide(scope),
+          Effect.timeout(lockOperationInterval),
+          Effect.orDie
         )
         const pid = disableAdvisoryLocks
           ? 0
@@ -106,8 +108,10 @@ export const make = Effect.fnUntraced(function*(options: {
       }, Effect.orDie),
     mysql: () =>
       Effect.fnUntraced(function*(scope: Scope.Scope) {
-        const conn = yield* Effect.orDie(sql.reserve).pipe(
-          Scope.provide(scope)
+        const conn = yield* sql.reserve.pipe(
+          Scope.provide(scope),
+          Effect.timeout(lockOperationInterval),
+          Effect.orDie
         )
         if (disableAdvisoryLocks) return [conn, 0] as const
         // we need to get the connection id using IS_USED_LOCK to properly
@@ -737,18 +741,27 @@ export const make = Effect.fnUntraced(function*(options: {
         withTracerDisabled
       ),
 
-    refresh: (address, shardIds) =>
-      withLockOperationDeadline(
-        sql`UPDATE ${runnersTableSql} SET last_heartbeat = ${sqlNow} WHERE address = ${address}`.pipe(
+    refresh: (address, shardIds) => {
+      const heartbeat = sql`UPDATE ${runnersTableSql} SET last_heartbeat = ${sqlNow} WHERE address = ${address}`
+      // Liveness probes pass no shard ids. Run those on the shared pool so a
+      // wedged reserved lock connection cannot block recovery.
+      if (shardIds.length === 0) {
+        return withDeadline(heartbeat).pipe(
+          Effect.as([] as Array<ShardId.ShardId>),
+          PersistenceError.refail,
+          withTracerDisabled
+        )
+      }
+      return withLockOperationDeadline(
+        heartbeat.pipe(
           execWithLockConn,
-          shardIds.length > 0 ?
-            Effect.andThen(refreshShards(address, shardIds)) :
-            Effect.as([])
+          Effect.andThen(refreshShards(address, shardIds))
         )
       ).pipe(
         PersistenceError.refail,
         withTracerDisabled
-      ),
+      )
+    },
 
     release: (address, shardId) =>
       withLockOperationDeadline(releaseShard(address, shardId)).pipe(
