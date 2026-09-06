@@ -1,4 +1,4 @@
-import { Brand, Schema } from "effect"
+import { Brand, Schema, type Types } from "effect"
 import { describe, expect, it } from "tstyche"
 
 describe("Brand", () => {
@@ -14,6 +14,37 @@ describe("Brand", () => {
 
     type PositiveInt = number & Brand.Brand<"Int"> & Brand.Brand<"Positive">
     expect<Brand.Brand.Unbranded<PositiveInt>>().type.toBe<number>()
+  })
+
+  it("type-alias intersections already form a hierarchy", () => {
+    type NonEmptyString = string & Brand.Brand<"NonEmptyString">
+    type NonEmptyString255 = string & Brand.Brand<"NonEmptyString255"> & Brand.Brand<"NonEmptyString">
+    type NonEmptyString50 =
+      & string
+      & Brand.Brand<"NonEmptyString50">
+      & Brand.Brand<"NonEmptyString255">
+      & Brand.Brand<"NonEmptyString">
+
+    expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString255>()
+    expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString>()
+    expect<Brand.Brand.Unbranded<NonEmptyString50>>().type.toBe<string>()
+  })
+
+  it("named-interface pattern Unbrands and keeps a folded type name", () => {
+    type WithType = Brand.Brand<"B"> & Brand.Brand<"A">
+    expect<Brand.Brand.Unbranded<string & WithType>>().type.toBe<string>()
+
+    interface WithInterface extends Types.Simplify<Brand.Brand<"B"> & Brand.Brand<"A">> {}
+    expect<Brand.Brand.Unbranded<string & WithInterface>>().type.toBe<string>()
+
+    interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
+    type NonEmptyString = string & NonEmptyBrand
+    interface NonEmptyString255Brand extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyBrand> {}
+    type NonEmptyString255 = string & NonEmptyString255Brand
+
+    expect<Brand.Brand.Unbranded<NonEmptyString255>>().type.toBe<string>()
+    expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString>()
+    expect<Brand.Brand.Unbranded<Brand.Brand<"X">>>().type.toBe<Brand.Brand<"X">>()
   })
 
   it("Keys", () => {

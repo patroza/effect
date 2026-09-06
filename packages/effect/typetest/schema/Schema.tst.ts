@@ -11,7 +11,8 @@ import {
   type SchemaIssue,
   SchemaTransformation,
   Struct,
-  Tuple
+  Tuple,
+  type Types
 } from "effect"
 import { immerable, produce } from "immer"
 import { describe, expect, it } from "tstyche"
@@ -1801,10 +1802,11 @@ describe("Schema", () => {
       type Int = number & Brand.Brand<"Int">
       const Int = Brand.check<Int>(Schema.isInt())
       const schema = Schema.Number.pipe(Schema.fromBrand("Int", Int))
-      expect(schema).type.toBe<Schema.brand<Schema.Number, "Int">>()
+      expect(schema).type.toBe<Schema.brand<Schema.Number, Int>>()
+      expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<Int, number>>()
     })
 
-    it("should convert a union of keys to an intersection of brands", () => {
+    it("preserves a constructor intersection instead of reconstructing keys", () => {
       type Int = number & Brand.Brand<"Int">
       const Int = Brand.check<Int>(Schema.isInt())
 
@@ -1812,12 +1814,55 @@ describe("Schema", () => {
       const Positive = Brand.check<Positive>(Schema.isGreaterThan(0))
 
       const PositiveInt = Brand.all(Int, Positive)
+      type PositiveInt = Brand.Brand.FromConstructor<typeof PositiveInt>
 
       const schema = Schema.Number.pipe(Schema.fromBrand("PositiveInt", PositiveInt))
-      expect(schema).type.toBe<Schema.brand<Schema.Number, "Int" | "Positive">>()
-      expect(Schema.revealCodec(schema)).type.toBe<
-        Schema.Codec<number & Brand.Brand<"Int"> & Brand.Brand<"Positive">, number>
-      >()
+      expect(schema).type.toBe<Schema.brand<Schema.Number, PositiveInt>>()
+      expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<PositiveInt, number>>()
+    })
+
+    it("keeps a type-alias brand as Type", () => {
+      type NonEmptyString = string & Brand.Brand<"NonEmptyString">
+      type NonEmptyString255 =
+        & string
+        & Brand.Brand<"NonEmptyString255">
+        & Brand.Brand<"NonEmptyString">
+      type NonEmptyString50 =
+        & string
+        & Brand.Brand<"NonEmptyString50">
+        & Brand.Brand<"NonEmptyString255">
+        & Brand.Brand<"NonEmptyString">
+
+      const schema = Schema.String.pipe(Schema.fromBrand<NonEmptyString50>("NonEmptyString50"))
+      expect(schema).type.toBe<Schema.brand<Schema.String, NonEmptyString50>>()
+      expect<typeof schema.Type>().type.toBe<NonEmptyString50>()
+      expect(schema.make("hello")).type.toBe<NonEmptyString50>()
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString255>()
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString>()
+    })
+
+    it("keeps a folded type name for the named-interface pattern", () => {
+      interface NonEmptyBrand extends Brand.Brand<"NonEmptyString"> {}
+      type NonEmptyString = string & NonEmptyBrand
+
+      interface NonEmptyString255Brand extends Types.Simplify<Brand.Brand<"NonEmptyString255"> & NonEmptyBrand> {}
+      type NonEmptyString255 = string & NonEmptyString255Brand
+
+      interface NonEmptyString50Brand
+        extends Types.Simplify<Brand.Brand<"NonEmptyString50"> & NonEmptyString255Brand>
+      {}
+      type NonEmptyString50 = string & NonEmptyString50Brand
+
+      const NonEmptyString50 = Brand.nominal<NonEmptyString50>()
+      const schema = Schema.String.pipe(Schema.fromBrand("NonEmptyString50", NonEmptyString50))
+
+      expect(schema).type.toBe<Schema.brand<Schema.String, NonEmptyString50>>()
+      expect(Schema.revealCodec(schema)).type.toBe<Schema.Codec<NonEmptyString50, string>>()
+
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString255>()
+      expect<NonEmptyString50>().type.toBeAssignableTo<NonEmptyString>()
+      expect<NonEmptyString255>().type.toBeAssignableTo<NonEmptyString>()
+      expect<NonEmptyString>().type.not.toBeAssignableTo<NonEmptyString50>()
     })
   })
 
